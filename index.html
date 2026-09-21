@@ -1,0 +1,1039 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Collage maker</title>
+<meta name="description" content="Put photos side by side or in a grid, zoom them to the same spot, and save the lot as one picture.">
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#101C2B">
+<link rel="icon" href="./icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Collage">
+<style>
+:root {
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --navy: #101C2B;
+  --gold: #E0B45A;
+  --text: #1B222C;
+  --muted: #6B7686;
+  --line: #E4E8ED;
+  --line-strong: #CFD5DE;
+  --surface: #FFFFFF;
+  --app: #F7F8FA;
+  --primary: #14497A;
+  --primary-dark: #0F3A62;
+  --focus: #1F5E99;
+  --danger: #A31B1B;
+  --danger-tint: #FBE9E9;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 400 17px/26px var(--font);
+  color: var(--text);
+  background: var(--app);
+  -webkit-text-size-adjust: 100%;
+}
+header {
+  background: var(--navy);
+  color: #fff;
+  padding-top: env(safe-area-inset-top);
+}
+header .inner {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+header .name { font: 600 20px/24px Cinzel, Georgia, serif; letter-spacing: .04em; }
+header .name span { color: var(--gold); }
+header .grow { margin-left: auto; }
+main { max-width: 1040px; margin: 0 auto; padding: 20px 16px 48px; }
+h1 { font: 600 30px/36px var(--font); margin: 0 0 6px; }
+h2 { font: 600 20px/28px var(--font); margin: 28px 0 10px; }
+.lede { color: var(--muted); margin: 0 0 20px; }
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.bar .grow { margin-left: auto; }
+label.inline { font: 500 14px/20px var(--font); color: var(--muted); display: flex; align-items: center; gap: 6px; }
+
+/* The settings, as a grid that adds columns when there is room for them. */
+.options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.options .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.options .field > label { font: 500 13px/18px var(--font); color: var(--muted); }
+.options select, .options input[type=color] { width: 100%; }
+.options .switch {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font: 500 14px/20px var(--font);
+  color: var(--text);
+}
+.options .switch input { width: 20px; height: 20px; accent-color: var(--primary); }
+.options .wide { grid-column: 1 / -1; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+.actions .count { flex: 1 1 100%; }
+
+.save-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+}
+.save-bar .grow { margin-left: auto; }
+select, input[type=text], input[type=number] {
+  min-height: 40px;
+  padding: 0 8px;
+  font: 500 14px/20px var(--font);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+input[type=text] { width: 140px; padding: 0 12px; }
+input[type=color] {
+  width: 46px; height: 40px; padding: 2px;
+  border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface);
+}
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.btn {
+  font: 500 14px/20px var(--font);
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) { background: #F1F3F6; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
+.btn-lg { min-height: 48px; font-size: 16px; }
+.btn-install {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--navy);
+  font-weight: 600;
+}
+.btn-install:hover:not(:disabled) { background: #d2a44a; }
+
+.drop {
+  border: 2px dashed var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 56px 20px;
+  text-align: center;
+}
+.drop.over { border-color: var(--focus); background: #F2F7FB; }
+.drop p { color: var(--muted); margin: 0 0 16px; }
+
+.stage-wrap { display: flex; justify-content: center; position: relative; margin-bottom: 14px; }
+#stage {
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #F1F3F6;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+#stage:active { cursor: grabbing; }
+.hint {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  font: 600 12px/16px var(--font); color: #fff;
+  background: rgba(16,28,43,.72); border-radius: 999px; padding: 4px 10px;
+  pointer-events: none;
+}
+
+.tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.tab {
+  font: 500 14px/20px var(--font); min-height: 40px; padding: 0 16px;
+  border: 1px solid var(--line-strong); border-radius: 999px;
+  background: var(--surface); color: var(--muted); cursor: pointer;
+}
+.tab.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+.note { font: 400 15px/22px var(--font); color: var(--muted); max-width: 62ch; }
+.count { font: 500 14px/20px var(--font); color: var(--muted); }
+.msg {
+  font: 400 15px/22px var(--font); padding: 12px 16px; border-radius: 6px;
+  background: var(--danger-tint); color: var(--danger); margin-bottom: 14px;
+}
+.steps { font: 400 15px/22px var(--font); color: var(--muted); padding-left: 20px; }
+.steps li { margin-bottom: 6px; }
+.hidden { display: none !important; }
+footer { border-top: 1px solid var(--line); background: var(--surface); }
+footer .inner {
+  max-width: 1040px; margin: 0 auto; padding: 18px 16px;
+  font: 500 14px/20px var(--font); color: var(--muted);
+  padding-bottom: calc(18px + env(safe-area-inset-bottom));
+}
+/* Anything driven by a finger gets a bigger target, and 16px text so mobile
+   Safari stops zooming the page when a control is tapped. */
+@media (pointer: coarse) {
+  .btn, select, input[type=text], input[type=number], .tab { min-height: 44px; font-size: 16px; }
+  input[type=color] { height: 44px; width: 56px; }
+  .options .field > label { font-size: 14px; }
+}
+
+@media (max-width: 900px) {
+  /* Picture first, then the buttons that act on it, then the settings. */
+  #workspace { display: flex; flex-direction: column; }
+  #workspace .stage-wrap { order: 1; }
+  #workspace .actions { order: 2; }
+  #workspace .options { order: 3; }
+  #workspace .save-bar { order: 4; }
+  .save-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    background: var(--app);
+    border-top: 1px solid var(--line);
+    margin: 0 -16px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  }
+  .save-bar .btn-primary { flex: 1 1 auto; }
+}
+
+@media (max-width: 560px) {
+  h1 { font-size: 26px; line-height: 32px; }
+  main { padding-bottom: 24px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="inner">
+    <span class="name">Collage <span>maker</span></span>
+    <span class="grow"></span>
+    <button class="btn btn-install hidden" type="button" id="install">Install</button>
+  </div>
+</header>
+
+<main>
+  <h1>Collage maker</h1>
+  <p class="lede">Put photos side by side or in a grid, zoom them to the same spot, and save the lot as one picture.</p>
+
+  <div id="messages"></div>
+  <p class="note hidden" id="ios-note">On an iPhone, open the Share menu and pick Add to Home Screen to install this.</p>
+
+  <div class="tabs" role="tablist">
+    <button class="tab on" type="button" id="tab-grid" role="tab">Grid</button>
+    <button class="tab" type="button" id="tab-swipe" role="tab">Swipe</button>
+  </div>
+
+  <section id="empty" class="drop">
+    <p>Drop photos here</p>
+    <button class="btn btn-primary btn-lg" type="button" id="choose">Choose photos</button>
+    <input type="file" id="picker" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple hidden>
+  </section>
+
+  <section id="workspace" class="hidden">
+    <div class="options">
+      <div class="field">
+        <label for="layout">Layout</label>
+        <select id="layout"></select>
+      </div>
+      <div class="field">
+        <label for="shape">Cell shape</label>
+        <select id="shape"></select>
+      </div>
+      <div class="field">
+        <label for="gap">Gap</label>
+        <select id="gap">
+          <option value="0">None</option>
+          <option value="10" selected>Thin</option>
+          <option value="25">Wide</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="background">Background</label>
+        <input type="color" id="background" value="#ffffff">
+      </div>
+      <label class="field switch"><input type="checkbox" id="labels" checked> Labels</label>
+      <div class="field">
+        <label for="zoom-scope">Zoom</label>
+        <select id="zoom-scope">
+          <option value="all" selected>All photos</option>
+          <option value="one">One photo</option>
+        </select>
+      </div>
+      <div class="field wide">
+        <div class="actions" style="margin:0">
+          <button class="btn" type="button" id="add">Add photos</button>
+          <button class="btn" type="button" id="clear">Start over</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage-wrap">
+      <canvas id="stage"></canvas>
+      <div class="hint hidden" id="swipe-hint">Drag left and right</div>
+    </div>
+
+    <div class="actions">
+      <span class="count" id="picked"></span>
+      <label class="inline" for="label-text">Label</label>
+      <input type="text" id="label-text" maxlength="40" placeholder="Before">
+      <button class="btn" type="button" id="zoom-out" title="Zoom out">Zoom out</button>
+      <button class="btn" type="button" id="zoom-in" title="Zoom in">Zoom in</button>
+      <button class="btn" type="button" id="reset">Reset view</button>
+      <button class="btn" type="button" id="swap">Swap</button>
+      <button class="btn" type="button" id="drop-photo">Remove</button>
+    </div>
+
+    <div class="save-bar">
+      <label class="inline" for="size">Saved size</label>
+      <select id="size">
+        <option value="1200">1200px</option>
+        <option value="2000" selected>2000px</option>
+        <option value="3000">3000px</option>
+      </select>
+      <label class="inline" for="format">Format</label>
+      <select id="format">
+        <option value="image/jpeg" selected>JPG</option>
+        <option value="image/png">PNG</option>
+        <option value="pdf">PDF</option>
+      </select>
+      <span class="grow"></span>
+      <span class="count" id="out-size"></span>
+      <button class="btn btn-primary" type="button" id="save">Save</button>
+    </div>
+  </section>
+
+  <h2>Steps</h2>
+  <ol class="steps">
+    <li>Add the photos. They fill the cells in the order you picked them.</li>
+    <li>Drag inside a cell to move the photo, and scroll or pinch to zoom.</li>
+    <li>Zoom set to All photos moves them together, which lines up the same spot on a before and an after.</li>
+    <li>Set Zoom to One photo when a shot was taken closer or further away, and size that one on its own until the subjects match. The percentage next to each photo tells you where you are.</li>
+    <li>Tap a cell to select it, then type its label.</li>
+    <li>Press Save.</li>
+  </ol>
+
+  <h2>Swipe</h2>
+  <p class="note">The Swipe tab lays the second photo over the first and gives you a divider to drag across.
+  Saving there writes the divider where you left it, so the file shows the same split you were looking at.</p>
+</main>
+
+<footer><div class="inner">Cygnus Tools</div></footer>
+
+<script src="./vendor/pdf-lib.min.js" defer></script>
+<script>
+/* Collage maker. Everything runs here, so the app works with no connection
+   once it is installed. */
+
+var el = function (id) { return document.getElementById(id); };
+
+/* Install */
+
+var installEvent = null;
+window.addEventListener('beforeinstallprompt', function (event) {
+  event.preventDefault();
+  installEvent = event;
+  el('install').classList.remove('hidden');
+});
+el('install').addEventListener('click', function () {
+  if (!installEvent) return;
+  installEvent.prompt();
+  installEvent.userChoice.then(function () {
+    installEvent = null;
+    el('install').classList.add('hidden');
+  });
+});
+window.addEventListener('appinstalled', function () {
+  installEvent = null;
+  el('install').classList.add('hidden');
+});
+(function () {
+  var standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  var iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  if (iOS && !standalone) el('ios-note').classList.remove('hidden');
+})();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('./sw.js').catch(function () {
+      /* Opened straight from the file system, where workers cannot run. */
+    });
+  });
+}
+
+/* Layout maths */
+
+var LAYOUTS = {
+  '1x2': { cols: 2, rows: 1, name: 'Side by side' },
+  '2x1': { cols: 1, rows: 2, name: 'Top and bottom' },
+  '1x3': { cols: 3, rows: 1, name: 'Three across' },
+  '2x2': { cols: 2, rows: 2, name: 'Four in a square' },
+  '3x3': { cols: 3, rows: 3, name: 'Nine' },
+  '4x4': { cols: 4, rows: 4, name: 'Sixteen' }
+};
+var SHAPES = {
+  square: { ratio: 1, name: 'Square' },
+  portrait: { ratio: 3 / 4, name: 'Portrait' },
+  landscape: { ratio: 4 / 3, name: 'Landscape' },
+  photo: { ratio: null, name: 'Match photo 1' }
+};
+
+function newCell() {
+  return { image: null, zoom: 1, fx: 0.5, fy: 0.5, label: '' };
+}
+
+function layoutOf(settings, width) {
+  var box = LAYOUTS[settings.layout];
+  var gap = Math.round(width * settings.gap / 1000);
+  var pad = Math.round(width * settings.pad / 1000);
+  var cellWidth = (width - pad * 2 - gap * (box.cols - 1)) / box.cols;
+  var cellHeight = cellWidth / (settings.ratio || 1);
+  var height = Math.round(cellHeight * box.rows + gap * (box.rows - 1) + pad * 2);
+  var rects = [];
+  for (var r = 0; r < box.rows; r++) {
+    for (var c = 0; c < box.cols; c++) {
+      rects.push({
+        x: pad + c * (cellWidth + gap),
+        y: pad + r * (cellHeight + gap),
+        width: cellWidth,
+        height: cellHeight
+      });
+    }
+  }
+  return { rects: rects, width: width, height: Math.max(1, height), cols: box.cols, rows: box.rows };
+}
+
+function clampFocus(value, cellSize, drawSize) {
+  var half = (cellSize / 2) / drawSize;
+  if (half >= 0.5) return 0.5;
+  return Math.min(1 - half, Math.max(half, value));
+}
+
+function placement(cell, rect) {
+  var image = cell.image;
+  var cover = Math.max(rect.width / image.width, rect.height / image.height);
+  var scale = cover * cell.zoom;
+  var drawWidth = image.width * scale;
+  var drawHeight = image.height * scale;
+  var fx = clampFocus(cell.fx, rect.width, drawWidth);
+  var fy = clampFocus(cell.fy, rect.height, drawHeight);
+  return {
+    x: rect.x + rect.width / 2 - fx * drawWidth,
+    y: rect.y + rect.height / 2 - fy * drawHeight,
+    width: drawWidth,
+    height: drawHeight
+  };
+}
+
+function drawLabel(ctx, rect, text, width, align) {
+  var size = Math.max(11, Math.round(width / 40));
+  var padX = Math.round(size * 0.7);
+  var padY = Math.round(size * 0.45);
+  ctx.font = '600 ' + size + 'px ' + '"IBM Plex Sans", system-ui, sans-serif';
+  var textWidth = ctx.measureText(text).width;
+  var boxWidth = textWidth + padX * 2;
+  var boxHeight = size + padY * 2;
+  var x = align === 'right' ? rect.x + rect.width - boxWidth - padX : rect.x + padX;
+  var y = rect.y + rect.height - boxHeight - padX;
+  ctx.fillStyle = 'rgba(16, 28, 43, .72)';
+  ctx.fillRect(x, y, boxWidth, boxHeight);
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'top';
+  ctx.fillText(text, x + padX, y + padY);
+}
+
+function emptyShade(background) {
+  return background.toLowerCase() === '#ffffff' ? '#eef0f4' : 'rgba(255,255,255,.08)';
+}
+
+function drawGrid(ctx, settings, cells, width) {
+  var grid = layoutOf(settings, width);
+  ctx.fillStyle = settings.background;
+  ctx.fillRect(0, 0, grid.width, grid.height);
+  grid.rects.forEach(function (rect, index) {
+    var cell = cells[index];
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(rect.x, rect.y, rect.width, rect.height);
+    ctx.clip();
+    if (cell && cell.image) {
+      var at = placement(cell, rect);
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(cell.image.bitmap, at.x, at.y, at.width, at.height);
+      if (settings.labels && cell.label) drawLabel(ctx, rect, cell.label, width, 'left');
+    } else {
+      ctx.fillStyle = emptyShade(settings.background);
+      ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+    }
+    ctx.restore();
+  });
+  return grid;
+}
+
+function drawSwipe(ctx, settings, cells, width, position) {
+  var height = Math.round(width / (settings.ratio || 1));
+  ctx.fillStyle = settings.background;
+  ctx.fillRect(0, 0, width, height);
+  var rect = { x: 0, y: 0, width: width, height: height };
+  var cut = Math.round(width * position);
+  [0, 1].forEach(function (index) {
+    var cell = cells[index];
+    if (!cell || !cell.image) return;
+    ctx.save();
+    ctx.beginPath();
+    if (index === 0) ctx.rect(0, 0, cut, height);
+    else ctx.rect(cut, 0, width - cut, height);
+    ctx.clip();
+    var at = placement(cell, rect);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(cell.image.bitmap, at.x, at.y, at.width, at.height);
+    if (settings.labels && cell.label) drawLabel(ctx, rect, cell.label, width, index === 0 ? 'left' : 'right');
+    ctx.restore();
+  });
+  ctx.fillStyle = '#ffffff';
+  var bar = Math.max(2, Math.round(width / 400));
+  ctx.fillRect(cut - bar / 2, 0, bar, height);
+  return { width: width, height: height, cut: cut };
+}
+
+function cellAt(grid, x, y) {
+  for (var i = 0; i < grid.rects.length; i++) {
+    var rect = grid.rects[i];
+    if (x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height) {
+      return { index: i, rect: rect };
+    }
+  }
+  return null;
+}
+
+function zoomAt(cell, rect, pointerX, pointerY, factor) {
+  var before = placement(cell, rect);
+  var ix = (pointerX - before.x) / before.width;
+  var iy = (pointerY - before.y) / before.height;
+  cell.zoom = Math.min(8, Math.max(1, cell.zoom * factor));
+  var after = placement(cell, rect);
+  cell.fx = clampFocus(ix - (pointerX - rect.x - rect.width / 2) / after.width, rect.width, after.width);
+  cell.fy = clampFocus(iy - (pointerY - rect.y - rect.height / 2) / after.height, rect.height, after.height);
+}
+
+/* The app */
+
+var photos = [];
+var cells = [];
+var mode = 'grid';
+var picked = -1;
+var swipePosition = 0.5;
+var grid = null;
+var stage = el('stage');
+var ctx = stage.getContext('2d');
+var nextId = 1;
+
+function message(text) {
+  var box = document.createElement('div');
+  box.className = 'msg';
+  box.textContent = text;
+  el('messages').appendChild(box);
+  setTimeout(function () { box.remove(); }, 8000);
+}
+
+function readable(bytes) {
+  if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + 'MB';
+  return Math.max(1, Math.round(bytes / 1024)) + 'KB';
+}
+
+Object.keys(LAYOUTS).forEach(function (key) {
+  var option = document.createElement('option');
+  option.value = key;
+  option.textContent = LAYOUTS[key].name;
+  if (key === '1x2') option.selected = true;
+  el('layout').appendChild(option);
+});
+Object.keys(SHAPES).forEach(function (key) {
+  var option = document.createElement('option');
+  option.value = key;
+  option.textContent = SHAPES[key].name;
+  if (key === 'photo') option.selected = true;
+  el('shape').appendChild(option);
+});
+
+function shapeRatio() {
+  var shape = SHAPES[el('shape').value];
+  if (shape.ratio) return shape.ratio;
+  for (var i = 0; i < cells.length; i++) {
+    if (cells[i].image) return cells[i].image.width / cells[i].image.height;
+  }
+  return 1;
+}
+
+function settings() {
+  var gap = Number(el('gap').value);
+  return {
+    layout: el('layout').value,
+    ratio: shapeRatio(),
+    gap: gap,
+    pad: gap,
+    background: el('background').value,
+    labels: el('labels').checked
+  };
+}
+
+function cellCount() {
+  if (mode === 'swipe') return 2;
+  var box = LAYOUTS[el('layout').value];
+  return box.cols * box.rows;
+}
+
+function fitCells() {
+  var wanted = cellCount();
+  while (cells.length < wanted) cells.push(newCell());
+  if (cells.length > wanted) cells.length = wanted;
+  if (picked >= wanted) picked = -1;
+}
+
+function place() {
+  fitCells();
+  cells.forEach(function (cell) {
+    if (cell.image && photos.indexOf(cell.image) === -1) {
+      cell.image = null;
+      cell.label = '';
+      cell.zoom = 1;
+      cell.fx = 0.5;
+      cell.fy = 0.5;
+    }
+  });
+  var taken = {};
+  cells.forEach(function (cell) { if (cell.image) taken[cell.image.id] = true; });
+  photos.forEach(function (photo) {
+    if (taken[photo.id]) return;
+    var slot = -1;
+    for (var i = 0; i < cells.length; i++) { if (!cells[i].image) { slot = i; break; } }
+    if (slot === -1) return;
+    cells[slot].image = photo;
+    if (!cells[slot].label && cellCount() === 2) cells[slot].label = slot === 0 ? 'Before' : 'After';
+    taken[photo.id] = true;
+  });
+}
+
+function stageWidth() {
+  var wrap = stage.parentElement;
+  return Math.max(280, Math.min(wrap.clientWidth || 900, 900));
+}
+
+function paint() {
+  fitCells();
+  var width = stageWidth();
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var config = settings();
+  if (mode === 'swipe') {
+    var height = Math.round(width / (config.ratio || 1));
+    stage.width = width * dpr;
+    stage.height = height * dpr;
+    stage.style.width = width + 'px';
+    stage.style.height = height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawSwipe(ctx, config, cells, width, swipePosition);
+    grid = { rects: [{ x: 0, y: 0, width: width, height: height }], width: width, height: height };
+  } else {
+    var box = layoutOf(config, width);
+    stage.width = width * dpr;
+    stage.height = box.height * dpr;
+    stage.style.width = width + 'px';
+    stage.style.height = box.height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    grid = drawGrid(ctx, config, cells, width);
+    markZoom(ctx, grid);
+    if (picked >= 0 && grid.rects[picked]) {
+      var rect = grid.rects[picked];
+      ctx.strokeStyle = '#1F5E99';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
+    }
+  }
+  report();
+}
+
+/* The zoom of each photo, on the preview only, so two shots taken from
+   different distances can be matched by number instead of by eye. This is not
+   part of the saved file. */
+function markZoom(ctx, box) {
+  ctx.save();
+  ctx.font = '600 12px ' + 'system-ui, sans-serif';
+  ctx.textBaseline = 'top';
+  box.rects.forEach(function (rect, index) {
+    var cell = cells[index];
+    if (!cell || !cell.image || Math.abs(cell.zoom - 1) < 0.005) return;
+    var text = Math.round(cell.zoom * 100) + '%';
+    var wide = ctx.measureText(text).width + 12;
+    ctx.fillStyle = 'rgba(16,28,43,.72)';
+    ctx.fillRect(rect.x + 6, rect.y + 6, wide, 20);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(text, rect.x + 12, rect.y + 10);
+  });
+  ctx.restore();
+}
+
+function report() {
+  var config = settings();
+  var width = Number(el('size').value);
+  if (mode === 'swipe') {
+    el('out-size').textContent = width + ' by ' + Math.round(width / (config.ratio || 1));
+  } else {
+    var box = layoutOf(config, width);
+    el('out-size').textContent = box.width + ' by ' + box.height;
+  }
+  var filled = cells.filter(function (cell) { return cell.image; }).length;
+  el('picked').textContent = picked >= 0 && cells[picked]
+    ? 'Cell ' + (picked + 1) + ' of ' + cellCount() + ', ' + Math.round(cells[picked].zoom * 100) + '%'
+    : filled + (filled === 1 ? ' photo placed' : ' photos placed');
+  el('label-text').value = picked >= 0 && cells[picked] ? cells[picked].label : '';
+  ['label-text', 'zoom-in', 'zoom-out', 'reset', 'swap', 'drop-photo'].forEach(function (id) {
+    el(id).disabled = picked < 0 || !cells[picked] || !cells[picked].image;
+  });
+  el('save').disabled = filled === 0;
+}
+
+function refresh() {
+  place();
+  var any = photos.length > 0;
+  el('empty').classList.toggle('hidden', any);
+  el('workspace').classList.toggle('hidden', !any);
+  paint();
+}
+
+function looksLikeImage(file) {
+  return /^image\/(jpeg|png|webp)$/.test(file.type) || /\.(jpe?g|png|webp)$/i.test(file.name);
+}
+
+function addFiles(files) {
+  var list = Array.prototype.slice.call(files).filter(looksLikeImage);
+  if (!list.length) return;
+  /* Keep a slot per file so the photos land in the order they were picked,
+     whatever order the decoding finishes in. */
+  var slots = list.map(function () { return null; });
+  var pending = list.length;
+  var finish = function () {
+    if (--pending > 0) return;
+    slots.forEach(function (photo) { if (photo) photos.push(photo); });
+    refresh();
+  };
+  list.forEach(function (file, index) {
+    createImageBitmap(file, { imageOrientation: 'from-image' }).then(function (bitmap) {
+      slots[index] = {
+        id: 'p' + (nextId++),
+        name: file.name,
+        stem: file.name.replace(/\.[^.]+$/, ''),
+        bitmap: bitmap,
+        width: bitmap.width,
+        height: bitmap.height
+      };
+      finish();
+    }).catch(function () {
+      message(file.name + ' could not be opened.');
+      finish();
+    });
+  });
+}
+
+el('picker').addEventListener('change', function () {
+  if (el('picker').files.length) addFiles(el('picker').files);
+  el('picker').value = '';
+});
+['choose', 'add'].forEach(function (id) {
+  el(id).addEventListener('click', function () { el('picker').click(); });
+});
+[el('empty'), el('workspace')].forEach(function (zone) {
+  ['dragenter', 'dragover'].forEach(function (type) {
+    zone.addEventListener(type, function (event) { event.preventDefault(); zone.classList.add('over'); });
+  });
+  ['dragleave', 'drop'].forEach(function (type) {
+    zone.addEventListener(type, function (event) { event.preventDefault(); zone.classList.remove('over'); });
+  });
+  zone.addEventListener('drop', function (event) { addFiles(event.dataTransfer.files); });
+});
+
+el('clear').addEventListener('click', function () {
+  photos.forEach(function (photo) { photo.bitmap.close && photo.bitmap.close(); });
+  photos = [];
+  cells = [];
+  picked = -1;
+  refresh();
+});
+
+['layout', 'shape', 'gap', 'background', 'labels'].forEach(function (id) {
+  el(id).addEventListener('change', function () {
+    picked = -1;
+    place();
+    paint();
+  });
+});
+el('size').addEventListener('change', report);
+el('format').addEventListener('change', report);
+
+function showMode(next) {
+  mode = next;
+  place();
+  el('tab-grid').classList.toggle('on', next === 'grid');
+  el('tab-swipe').classList.toggle('on', next === 'swipe');
+  el('swipe-hint').classList.toggle('hidden', next !== 'swipe');
+  el('layout').disabled = next === 'swipe';
+  picked = -1;
+  paint();
+}
+el('tab-grid').addEventListener('click', function () { showMode('grid'); });
+el('tab-swipe').addEventListener('click', function () { showMode('swipe'); });
+
+/* Pointer work */
+
+function stagePoint(event) {
+  var bounds = stage.getBoundingClientRect();
+  var scale = stageWidth() / bounds.width;
+  return { x: (event.clientX - bounds.left) * scale, y: (event.clientY - bounds.top) * scale };
+}
+
+var drag = null;
+var pinch = null;
+
+stage.addEventListener('pointerdown', function (event) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  stage.setPointerCapture(event.pointerId);
+  var point = stagePoint(event);
+  if (mode === 'swipe') {
+    swipePosition = Math.min(1, Math.max(0, point.x / stageWidth()));
+    drag = { kind: 'swipe', id: event.pointerId };
+    paint();
+    return;
+  }
+  var hit = cellAt(grid, point.x, point.y);
+  if (!hit) return;
+  picked = hit.index;
+  drag = cells[hit.index].image
+    ? { kind: 'pan', id: event.pointerId, x: point.x, y: point.y, rect: hit.rect }
+    : null;
+  paint();
+});
+
+stage.addEventListener('pointermove', function (event) {
+  if (!drag || event.pointerId !== drag.id) return;
+  event.preventDefault();
+  var point = stagePoint(event);
+  if (drag.kind === 'swipe') {
+    swipePosition = Math.min(1, Math.max(0, point.x / stageWidth()));
+    paint();
+    return;
+  }
+  var dx = point.x - drag.x;
+  var dy = point.y - drag.y;
+  drag.x = point.x;
+  drag.y = point.y;
+  targets().forEach(function (cell) {
+    var at = placement(cell, drag.rect);
+    cell.fx = clampFocus(cell.fx - dx / at.width, drag.rect.width, at.width);
+    cell.fy = clampFocus(cell.fy - dy / at.height, drag.rect.height, at.height);
+  });
+  paint();
+});
+
+function endDrag(event) {
+  if (drag && event.pointerId === drag.id) drag = null;
+}
+stage.addEventListener('pointerup', endDrag);
+stage.addEventListener('pointercancel', endDrag);
+
+/* Which photos a zoom or a drag moves. All photos together is how a before and
+   an after stay lined up; one photo at a time is how a shot taken from a
+   different distance gets sized to match the rest. */
+function linkedZoom() {
+  return el('zoom-scope').value === 'all';
+}
+
+function targets(index) {
+  var one = typeof index === 'number' ? index : picked;
+  if (linkedZoom()) return cells.filter(function (cell) { return cell.image; });
+  return one >= 0 && cells[one] && cells[one].image ? [cells[one]] : [];
+}
+
+stage.addEventListener('wheel', function (event) {
+  var point = stagePoint(event);
+  var hit = mode === 'swipe' ? { index: 0, rect: grid.rects[0] } : cellAt(grid, point.x, point.y);
+  if (!hit) return;
+  event.preventDefault();
+  if (mode !== 'swipe') picked = hit.index;
+  var factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+  targets(hit.index).forEach(function (cell) { zoomAt(cell, hit.rect, point.x, point.y, factor); });
+  paint();
+}, { passive: false });
+
+/* Pinch to zoom on a touch screen */
+var points = {};
+stage.addEventListener('pointerdown', function (event) { points[event.pointerId] = stagePoint(event); });
+stage.addEventListener('pointermove', function (event) {
+  if (!(event.pointerId in points)) return;
+  points[event.pointerId] = stagePoint(event);
+  var ids = Object.keys(points);
+  if (ids.length !== 2) return;
+  event.preventDefault();
+  drag = null;
+  var a = points[ids[0]];
+  var b = points[ids[1]];
+  var span = Math.hypot(a.x - b.x, a.y - b.y);
+  var mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  if (pinch) {
+    var factor = span / pinch.span;
+    var hit = mode === 'swipe' ? { index: 0, rect: grid.rects[0] } : cellAt(grid, mid.x, mid.y);
+    if (hit) {
+      targets(hit.index).forEach(function (cell) { zoomAt(cell, hit.rect, mid.x, mid.y, factor); });
+      paint();
+    }
+  }
+  pinch = { span: span };
+}, { passive: false });
+['pointerup', 'pointercancel'].forEach(function (type) {
+  stage.addEventListener(type, function (event) {
+    delete points[event.pointerId];
+    if (Object.keys(points).length < 2) pinch = null;
+  });
+});
+
+function stepZoom(factor) {
+  if (picked < 0 && mode !== 'swipe') return;
+  var rect = (grid.rects[picked] || grid.rects[0]);
+  targets().forEach(function (cell) {
+    zoomAt(cell, rect, rect.x + rect.width / 2, rect.y + rect.height / 2, factor);
+  });
+  paint();
+}
+el('zoom-in').addEventListener('click', function () { stepZoom(1.25); });
+el('zoom-out').addEventListener('click', function () { stepZoom(1 / 1.25); });
+el('reset').addEventListener('click', function () {
+  targets().forEach(function (cell) { cell.zoom = 1; cell.fx = 0.5; cell.fy = 0.5; });
+  paint();
+});
+el('label-text').addEventListener('input', function () {
+  if (picked < 0 || !cells[picked]) return;
+  cells[picked].label = el('label-text').value;
+  paint();
+});
+el('swap').addEventListener('click', function () {
+  if (picked < 0) return;
+  var next = (picked + 1) % cellCount();
+  var keep = cells[picked];
+  cells[picked] = cells[next];
+  cells[next] = keep;
+  picked = next;
+  paint();
+});
+el('drop-photo').addEventListener('click', function () {
+  if (picked < 0 || !cells[picked].image) return;
+  var gone = cells[picked].image;
+  photos = photos.filter(function (photo) { return photo !== gone; });
+  refresh();
+});
+
+/* Saving */
+
+function render(width) {
+  var config = settings();
+  var canvas = document.createElement('canvas');
+  var out = canvas.getContext('2d');
+  if (mode === 'swipe') {
+    canvas.width = width;
+    canvas.height = Math.round(width / (config.ratio || 1));
+    drawSwipe(out, config, cells, width, swipePosition);
+  } else {
+    var box = layoutOf(config, width);
+    canvas.width = box.width;
+    canvas.height = box.height;
+    drawGrid(out, config, cells, width);
+  }
+  return canvas;
+}
+
+function save(blob, name) {
+  var url = URL.createObjectURL(blob);
+  var link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+}
+
+el('save').addEventListener('click', function () {
+  var button = el('save');
+  button.disabled = true;
+  button.textContent = 'Saving';
+  var width = Number(el('size').value);
+  var format = el('format').value;
+  var canvas = render(width);
+  var first = cells.filter(function (cell) { return cell.image; })[0];
+  var stem = (first ? first.image.stem : 'collage').slice(0, 40);
+
+  var done = function () {
+    button.textContent = 'Save';
+    button.disabled = photos.length === 0;
+  };
+
+  if (format === 'pdf') {
+    if (!window.PDFLib) {
+      message('The PDF part has not finished loading. Try again in a moment.');
+      done();
+      return;
+    }
+    canvas.toBlob(function (blob) {
+      blob.arrayBuffer().then(function (buffer) {
+        return window.PDFLib.PDFDocument.create().then(function (doc) {
+          return doc.embedJpg(new Uint8Array(buffer)).then(function (image) {
+            var page = doc.addPage([image.width, image.height]);
+            page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
+            return doc.save();
+          });
+        });
+      }).then(function (bytes) {
+        save(new Blob([bytes], { type: 'application/pdf' }), stem + '-collage.pdf');
+        el('out-size').textContent = canvas.width + ' by ' + canvas.height + ', ' + readable(bytes.length);
+        done();
+      }).catch(function (error) {
+        message(error.message);
+        done();
+      });
+    }, 'image/jpeg', 0.92);
+    return;
+  }
+
+  canvas.toBlob(function (blob) {
+    var ext = format === 'image/png' ? 'png' : 'jpg';
+    save(blob, stem + '-collage.' + ext);
+    el('out-size').textContent = canvas.width + ' by ' + canvas.height + ', ' + readable(blob.size);
+    done();
+  }, format, 0.92);
+});
+
+window.addEventListener('resize', function () { if (photos.length) paint(); });
+
+fitCells();
+report();
+</script>
+</body>
+</html>

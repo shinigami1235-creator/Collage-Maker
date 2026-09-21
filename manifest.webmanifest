@@ -1,0 +1,17 @@
+{
+  "name": "Collage maker",
+  "short_name": "Collage",
+  "description": "Put photos side by side or in a grid, zoom them to the same spot, and save the lot as one picture.",
+  "id": "cygnus-collage-maker",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F7F8FA",
+  "theme_color": "#101C2B",
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
