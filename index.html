@@ -21,7 +21,7 @@
   --line: #E4E8ED;
   --line-strong: #CFD5DE;
   --surface: #FFFFFF;
-  --app: #F7F8FA;
+  --app: #F4F6F8;
   --primary: #14497A;
   --primary-dark: #0F3A62;
   --focus: #1F5E99;
@@ -29,265 +29,220 @@
   --danger-tint: #FBE9E9;
 }
 * { box-sizing: border-box; }
+html, body { height: 100%; }
 body {
-  margin: 0;
-  font: 400 17px/26px var(--font);
-  color: var(--text);
-  background: var(--app);
+  margin: 0; overflow: hidden;
+  font: 400 15px/22px var(--font);
+  color: var(--text); background: var(--app);
   -webkit-text-size-adjust: 100%;
 }
-header {
-  background: var(--navy);
-  color: #fff;
-  padding-top: env(safe-area-inset-top);
-}
-header .inner {
-  max-width: 1040px;
-  margin: 0 auto;
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-header .name { font: 600 20px/24px Cinzel, Georgia, serif; letter-spacing: .04em; }
-header .name span { color: var(--gold); }
-header .grow { margin-left: auto; }
-main { max-width: 1040px; margin: 0 auto; padding: 20px 16px 48px; }
-h1 { font: 600 30px/36px var(--font); margin: 0 0 6px; }
-h2 { font: 600 20px/28px var(--font); margin: 28px 0 10px; }
-.lede { color: var(--muted); margin: 0 0 20px; }
 
-.bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-.bar .grow { margin-left: auto; }
-label.inline { font: 500 14px/20px var(--font); color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.frame { height: 100%; display: flex; flex-direction: column; }
 
-/* The settings, as a grid that adds columns when there is room for them. */
-.options {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
-  gap: 10px;
-  margin-bottom: 14px;
+.top {
+  display: flex; align-items: center; gap: 10px;
+  padding: calc(8px + env(safe-area-inset-top)) 14px 8px;
+  background: var(--navy); color: #fff;
 }
-.options .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.options .field > label { font: 500 13px/18px var(--font); color: var(--muted); }
-.options select, .options input[type=color] { width: 100%; }
-.options .switch {
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  font: 500 14px/20px var(--font);
-  color: var(--text);
+.top .name { font: 600 17px/22px Cinzel, Georgia, serif; letter-spacing: .04em; }
+.top .name span { color: var(--gold); }
+.top .grow { margin-left: auto; }
+.top .count { color: rgba(255,255,255,.72); font: 500 13px/18px var(--font); }
+.tabs-top { display: flex; gap: 6px; }
+.tab-mode {
+  font: 500 13px/18px var(--font); min-height: 32px; padding: 0 12px;
+  border: 1px solid rgba(255,255,255,.35); border-radius: 999px;
+  background: transparent; color: rgba(255,255,255,.8); cursor: pointer;
 }
-.options .switch input { width: 20px; height: 20px; accent-color: var(--primary); }
-.options .wide { grid-column: 1 / -1; }
+.tab-mode.on { background: var(--gold); border-color: var(--gold); color: var(--navy); font-weight: 600; }
 
-.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
-.actions .count { flex: 1 1 100%; }
-
-.save-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 0;
-}
-.save-bar .grow { margin-left: auto; }
-select, input[type=text], input[type=number] {
-  min-height: 40px;
-  padding: 0 8px;
-  font: 500 14px/20px var(--font);
-  border: 1px solid var(--line-strong);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
-}
-input[type=text] { width: 140px; padding: 0 12px; }
-input[type=range] { width: 100%; accent-color: var(--primary); height: 34px; }
-input[type=color] {
-  width: 46px; height: 40px; padding: 2px;
-  border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface);
-}
-:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-
-.btn {
-  font: 500 14px/20px var(--font);
-  min-height: 40px;
-  padding: 0 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
-  cursor: pointer;
-}
-.btn:hover:not(:disabled) { background: #F1F3F6; }
-.btn:disabled { opacity: .45; cursor: default; }
-.btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
-.btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
-.btn-lg { min-height: 48px; font-size: 16px; }
-.btn-install {
-  background: var(--gold);
-  border-color: var(--gold);
-  color: var(--navy);
-  font-weight: 600;
-}
-.btn-install:hover:not(:disabled) { background: #d2a44a; }
-
-.drop {
-  border: 2px dashed var(--line-strong);
-  border-radius: 10px;
-  background: var(--surface);
-  padding: 56px 20px;
-  text-align: center;
-}
-.drop.over { border-color: var(--focus); background: #F2F7FB; }
-.drop p { color: var(--muted); margin: 0 0 16px; }
-
-.stage-wrap { display: flex; justify-content: center; position: relative; margin-bottom: 14px; }
+/* Picture in the middle, controls either side of it. */
+.work { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 250px minmax(0, 1fr) 290px; gap: 12px; padding: 12px 14px 0; }
+.rail { min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 12px; }
+.stage-wrap { position: relative; min-height: 0; display: flex; align-items: center; justify-content: center; }
 #stage {
-  max-width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: #F1F3F6;
-  touch-action: none;
-  cursor: grab;
-  user-select: none;
+  max-width: 100%; max-height: 100%;
+  border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface);
+  touch-action: none; cursor: grab; user-select: none; box-shadow: 0 2px 10px rgba(16,28,43,.08);
 }
 #stage:active { cursor: grabbing; }
 .hint {
-  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
   font: 600 12px/16px var(--font); color: #fff;
-  background: rgba(16,28,43,.72); border-radius: 999px; padding: 4px 10px;
-  pointer-events: none;
+  background: rgba(16,28,43,.72); border-radius: 999px; padding: 5px 12px; pointer-events: none;
 }
 
-.tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.panel h3 { font: 600 13px/18px var(--font); margin: 0 0 10px; color: var(--muted); letter-spacing: .02em; }
+/* A panel whose tool is not the one dragging uses. Touching it picks it up. */
+.panel.dim { opacity: .5; }
+
+.tabs { display: none; gap: 6px; padding: 8px 14px 0; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
 .tab {
-  font: 500 14px/20px var(--font); min-height: 40px; padding: 0 16px;
-  border: 1px solid var(--line-strong); border-radius: 999px;
-  background: var(--surface); color: var(--muted); cursor: pointer;
+  flex: 0 0 auto; font: 500 14px/18px var(--font); min-height: 38px; padding: 0 14px;
+  border: 1px solid var(--line-strong); border-bottom: none; border-radius: 8px 8px 0 0;
+  background: #E9EDF1; color: var(--muted); cursor: pointer;
 }
-.tab.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.tab.on { background: var(--surface); color: var(--primary); font-weight: 600; }
 
-.note { font: 400 15px/22px var(--font); color: var(--muted); max-width: 62ch; }
-.count { font: 500 14px/20px var(--font); color: var(--muted); }
-.msg {
-  font: 400 15px/22px var(--font); padding: 12px 16px; border-radius: 6px;
-  background: var(--danger-tint); color: var(--danger); margin-bottom: 14px;
+.save-bar {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px calc(8px + env(safe-area-inset-bottom));
+  background: var(--surface); border-top: 1px solid var(--line);
 }
-.steps { font: 400 15px/22px var(--font); color: var(--muted); padding-left: 20px; }
-.steps li { margin-bottom: 6px; }
+.save-bar .grow { margin-left: auto; }
+
+.btn {
+  font: 500 14px/18px var(--font); min-height: 40px; padding: 0 13px;
+  border: 1px solid var(--line-strong); border-radius: 6px;
+  background: var(--surface); color: var(--text); cursor: pointer;
+}
+.btn:hover:not(:disabled) { background: #EEF1F5; }
+.btn:disabled { opacity: .4; cursor: default; }
+.btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
+.btn-install { background: var(--gold); border-color: var(--gold); color: var(--navy); font-weight: 600; min-height: 32px; font-size: 13px; }
+
+select, input[type=text], input[type=number] {
+  min-height: 40px; padding: 0 8px; width: 100%;
+  font: 500 14px/20px var(--font);
+  border: 1px solid var(--line-strong); border-radius: 6px;
+  background: var(--surface); color: var(--text);
+}
+input[type=color] { width: 100%; height: 40px; padding: 2px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); }
+input[type=range] { width: 100%; accent-color: var(--primary); height: 34px; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; margin-bottom: 10px; }
+.field > label { font: 500 13px/17px var(--font); color: var(--muted); }
+.row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.actions:last-child { margin-bottom: 0; }
+.switch { display: flex; align-items: center; gap: 8px; min-height: 40px; font: 500 14px/20px var(--font); }
+.switch input { width: 22px; height: 22px; accent-color: var(--primary); }
+.count { font: 500 13px/18px var(--font); color: var(--muted); }
+.note { font: 400 13px/19px var(--font); color: var(--muted); margin: 0 0 8px; }
+.note:last-child { margin-bottom: 0; }
+.steps { font: 400 13px/19px var(--font); color: var(--muted); padding-left: 16px; margin: 0; }
+.steps li { margin-bottom: 4px; }
+.msg { font: 400 14px/20px var(--font); padding: 8px 12px; border-radius: 6px; background: var(--danger-tint); color: var(--danger); margin: 6px 14px 0; }
+
+.drop { border: 2px dashed var(--line-strong); border-radius: 10px; background: var(--surface); padding: 40px 20px; text-align: center; }
+.drop.over { border-color: var(--focus); background: #F2F7FB; }
+.drop p { color: var(--muted); margin: 0 0 14px; }
 .hidden { display: none !important; }
-footer { border-top: 1px solid var(--line); background: var(--surface); }
-footer .inner {
-  max-width: 1040px; margin: 0 auto; padding: 18px 16px;
-  font: 500 14px/20px var(--font); color: var(--muted);
-  padding-bottom: calc(18px + env(safe-area-inset-bottom));
-}
-/* Anything driven by a finger gets a bigger target, and 16px text so mobile
-   Safari stops zooming the page when a control is tapped. */
+.nudge { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.nudge .btn { padding: 0 6px; }
+
 @media (pointer: coarse) {
   .btn, select, input[type=text], input[type=number], .tab { min-height: 44px; font-size: 16px; }
-  input[type=color] { height: 44px; width: 56px; }
+  .btn-install { min-height: 36px; font-size: 14px; }
+  .tab-mode { min-height: 44px; font-size: 15px; padding: 0 16px; }
+  input[type=color] { height: 44px; }
   input[type=range] { height: 44px; }
   input[type=checkbox] { width: 24px; height: 24px; }
-  .options .field > label { font-size: 14px; }
+  .switch { min-height: 44px; }
+  .field > label { font-size: 14px; }
 }
 
-@media (max-width: 900px) {
-  /* Picture first, then the buttons that act on it, then the settings. */
-  #workspace { display: flex; flex-direction: column; }
-  #workspace .stage-wrap { order: 1; }
-  #workspace .actions { order: 2; }
-  #workspace .options { order: 3; }
-  #workspace .save-bar { order: 4; }
-  .save-bar {
-    position: sticky;
-    bottom: 0;
-    z-index: 5;
-    background: var(--app);
-    border-top: 1px solid var(--line);
-    margin: 0 -16px;
-    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+/* Narrow or portrait: the picture keeps the top of the frame and the controls
+   sit in one panel under it, a tab at a time. */
+@media (max-width: 999px), (orientation: portrait) and (max-width: 1200px) {
+  .work { display: flex; flex-direction: column; gap: 0; padding: 8px 0 0; }
+  .rail { display: contents; }
+  .stage-wrap { flex: 1 1 auto; order: -1; padding: 0 14px 6px; }
+  .tabs { display: flex; }
+  .panel {
+    display: none; order: 2; flex: 0 0 auto; border-radius: 0; border-left: none; border-right: none;
+    max-height: 38vh; overflow-y: auto; margin: 0; border-bottom: none;
   }
-  .save-bar .btn-primary { flex: 1 1 auto; }
+  .panel.on { display: block; }
+  .panel h3 { display: none; }
 }
 
-@media (max-width: 560px) {
-  h1 { font-size: 26px; line-height: 32px; }
-  main { padding-bottom: 24px; }
+@media (max-height: 700px) and (max-width: 999px) {
+  .panel { max-height: 32vh; }
+  .top { padding-top: calc(5px + env(safe-area-inset-top)); padding-bottom: 5px; }
 }
 </style>
 </head>
 <body>
 
-<header>
-  <div class="inner">
+<div class="frame">
+  <div class="top">
     <span class="name">Collage <span>maker</span></span>
+    <div class="tabs-top">
+      <button class="tab-mode on" type="button" id="tab-grid">Grid</button>
+      <button class="tab-mode" type="button" id="tab-swipe">Swipe</button>
+    </div>
+    <span class="count" id="out-size"></span>
     <span class="grow"></span>
     <button class="btn btn-install hidden" type="button" id="install">Install</button>
   </div>
-</header>
 
-<main>
-  <h1>Collage maker</h1>
-  <p class="lede">Put photos side by side or in a grid, zoom them to the same spot, and save the lot as one picture.</p>
+  <div class="msg hidden" id="messages"></div>
+  <p class="note hidden" id="ios-note" style="margin:6px 14px">On an iPhone or iPad, open Share and pick Add to Home Screen.</p>
 
-  <div id="messages"></div>
-  <p class="note hidden" id="ios-note">On an iPhone or iPad, open the Share menu and pick Add to Home Screen to install this.</p>
+  <div class="tabs" id="tabs"></div>
 
-  <div class="tabs" role="tablist">
-    <button class="tab on" type="button" id="tab-grid" role="tab">Grid</button>
-    <button class="tab" type="button" id="tab-swipe" role="tab">Swipe</button>
-  </div>
-
-  <section id="empty" class="drop">
-    <p>Drop photos here</p>
-    <button class="btn btn-primary btn-lg" type="button" id="choose">Choose photos</button>
-    <input type="file" id="picker" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple hidden>
-  </section>
-
-  <section id="workspace" class="hidden">
-    <div class="options">
-      <div class="field">
-        <label for="layout">Layout</label>
-        <select id="layout"></select>
-      </div>
-      <div class="field">
-        <label for="shape">Cell shape</label>
-        <select id="shape"></select>
-      </div>
-      <div class="field">
-        <label for="gap">Gap</label>
-        <select id="gap">
-          <option value="0">None</option>
-          <option value="10" selected>Thin</option>
-          <option value="25">Wide</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="background">Background</label>
-        <input type="color" id="background" value="#ffffff">
-      </div>
-      <label class="field switch"><input type="checkbox" id="labels" checked> Labels</label>
-      <div class="field">
-        <label for="zoom-scope">Zoom</label>
-        <select id="zoom-scope">
-          <option value="all" selected>All photos</option>
-          <option value="one">One photo</option>
-        </select>
-      </div>
-      <div class="field wide">
-        <div class="actions" style="margin:0">
+  <div class="work" id="workspace">
+    <div class="rail">
+      <div class="panel" id="panel-photos">
+        <h3>Photos</h3>
+        <div class="actions">
           <button class="btn" type="button" id="add">Add photos</button>
           <button class="btn" type="button" id="clear">Start over</button>
         </div>
+        <div class="field">
+          <label for="layout">Layout</label>
+          <select id="layout"></select>
+        </div>
+        <div class="field">
+          <label for="shape">Cell shape</label>
+          <select id="shape"></select>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="gap">Gap</label>
+            <select id="gap">
+              <option value="0">None</option>
+              <option value="10" selected>Thin</option>
+              <option value="25">Wide</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="background">Background</label>
+            <input type="color" id="background" value="#ffffff">
+          </div>
+        </div>
+        <label class="switch"><input type="checkbox" id="labels" checked> Labels</label>
+        <div class="field">
+          <label for="zoom-scope">Zoom</label>
+          <select id="zoom-scope">
+            <option value="all" selected>All photos</option>
+            <option value="one">One photo</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="panel" id="panel-cell">
+        <h3>This photo</h3>
+        <span class="count" id="picked"></span>
+        <div class="field" style="margin-top:8px">
+          <label for="label-text">Label</label>
+          <input type="text" id="label-text" maxlength="40" placeholder="Before">
+        </div>
+        <div class="actions">
+          <button class="btn" type="button" id="zoom-out">Zoom out</button>
+          <button class="btn" type="button" id="zoom-in">Zoom in</button>
+          <button class="btn" type="button" id="reset">Reset view</button>
+        </div>
+        <div class="actions">
+          <button class="btn" type="button" id="swap">Swap</button>
+          <button class="btn" type="button" id="drop-photo">Remove</button>
+        </div>
+        <label class="switch"><input type="checkbox" id="flip-cell"> Mirror this photo</label>
       </div>
     </div>
 
@@ -296,155 +251,136 @@ footer .inner {
       <div class="hint hidden" id="swipe-hint">Drag left and right</div>
     </div>
 
-    <div class="options hidden" id="swipe-tools">
-      <div class="field">
-        <label for="swipe-drag">Dragging moves</label>
-        <select id="swipe-drag">
-          <option value="divider">The divider</option>
-          <option value="first">The first photo</option>
-          <option value="second">The second photo</option>
-          <option value="both">Both photos</option>
-        </select>
-      </div>
-      <div class="field wide">
-        <div class="actions" style="margin:0">
+    <div class="rail">
+      <div class="panel" id="panel-drag">
+        <h3>Dragging</h3>
+        <div class="field">
+          <label for="drag-does">Dragging the picture</label>
+          <select id="drag-does"></select>
+        </div>
+        <p class="note" id="nudge-note"></p>
+        <div class="actions hidden" id="split-tools">
+          <button class="btn" type="button" id="split-centre">Put the divider back in the middle</button>
+        </div>
+        <div class="nudge" id="swipe-tools">
           <button class="btn" type="button" id="nudge-left">Left</button>
-          <button class="btn" type="button" id="nudge-right">Right</button>
           <button class="btn" type="button" id="nudge-up">Up</button>
-          <button class="btn" type="button" id="nudge-down">Down</button>
           <button class="btn" type="button" id="nudge-in">Bigger</button>
+          <button class="btn" type="button" id="nudge-right">Right</button>
+          <button class="btn" type="button" id="nudge-down">Down</button>
           <button class="btn" type="button" id="nudge-out">Smaller</button>
-          <span class="count" id="nudge-note"></span>
         </div>
       </div>
-    </div>
 
-    <div class="options" id="censor">
-      <label class="field switch"><input type="checkbox" id="flip-cell"> Mirror this photo</label>
-      <div class="field">
-        <label for="drag-does">Dragging does</label>
-        <select id="drag-does">
-          <option value="move">Move the photos</option>
-          <option value="cover">Cover something up</option>
-          <option value="mark">Draw a mark</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="cover-kind">Cover with</label>
-        <select id="cover-kind">
-          <option value="bar">Eye bar</option>
-          <option value="blur">Blur</option>
-          <option value="oval">Oval blur</option>
-          <option value="block">Solid block</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="cover-colour">Bar colour</label>
-        <input type="color" id="cover-colour" value="#101C2B">
-      </div>
-      <div class="field">
-        <label for="cover-strength">Blur <span class="count" id="cover-strength-value">14 blocks</span></label>
-        <input type="range" id="cover-strength" min="4" max="30" value="14">
-      </div>
-      <div class="field">
-        <label for="cover-angle">Angle <span class="count" id="cover-angle-value">0 degrees</span></label>
-        <input type="range" id="cover-angle" min="-90" max="90" value="0">
-      </div>
-      <div class="field wide">
-        <div class="actions" style="margin:0">
-          <button class="btn" type="button" id="cover-undo">Undo the last one</button>
-          <button class="btn" type="button" id="cover-clear">Clear them</button>
+      <div class="panel" id="panel-cover">
+        <h3>Cover up</h3>
+        <div class="row">
+          <div class="field">
+            <label for="cover-kind">Cover with</label>
+            <select id="cover-kind">
+              <option value="bar">Eye bar</option>
+              <option value="blur">Blur</option>
+              <option value="oval">Oval blur</option>
+              <option value="block">Solid block</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="cover-colour">Bar colour</label>
+            <input type="color" id="cover-colour" value="#101C2B">
+          </div>
+        </div>
+        <div class="field">
+          <label for="cover-strength">Blur <span class="count" id="cover-strength-value">14 blocks</span></label>
+          <input type="range" id="cover-strength" min="4" max="30" value="14">
+        </div>
+        <div class="field">
+          <label for="cover-angle">Angle <span class="count" id="cover-angle-value">0 degrees</span></label>
+          <input type="range" id="cover-angle" min="-90" max="90" value="0">
+        </div>
+        <div class="actions">
+          <button class="btn" type="button" id="cover-undo">Undo</button>
+          <button class="btn" type="button" id="cover-clear">Clear</button>
           <span class="count" id="cover-count">None.</span>
         </div>
+        <p class="note">Open this panel and drag over the eyes, a name or an address.</p>
       </div>
-    </div>
 
-    <div class="options hidden" id="marks-box">
-      <div class="field">
-        <label for="mark-kind">Mark</label>
-        <select id="mark-kind">
-          <option value="arrow">Arrow</option>
-          <option value="circle">Circle</option>
-          <option value="line">Line</option>
-          <option value="box">Box</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="mark-colour">Mark colour</label>
-        <input type="color" id="mark-colour" value="#E0B45A">
-      </div>
-      <div class="field">
-        <label for="mark-width">Thickness <span class="count" id="mark-width-value">8px</span></label>
-        <input type="range" id="mark-width" min="2" max="24" value="8">
-      </div>
-      <div class="field">
-        <label for="mark-show">Shows on</label>
-        <select id="mark-show">
-          <option value="both">Both photos</option>
-          <option value="first">The first photo</option>
-          <option value="second">The second photo</option>
-        </select>
-      </div>
-      <div class="field wide">
-        <div class="actions" style="margin:0">
-          <button class="btn" type="button" id="mark-undo">Undo the last one</button>
-          <button class="btn" type="button" id="mark-clear">Clear them</button>
+      <div class="panel" id="panel-marks">
+        <h3>Marks</h3>
+        <div class="row">
+          <div class="field">
+            <label for="mark-kind">Mark</label>
+            <select id="mark-kind">
+              <option value="arrow">Arrow</option>
+              <option value="circle">Circle</option>
+              <option value="line">Line</option>
+              <option value="box">Box</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="mark-colour">Mark colour</label>
+            <input type="color" id="mark-colour" value="#E0B45A">
+          </div>
+        </div>
+        <div class="field">
+          <label for="mark-width">Thickness <span class="count" id="mark-width-value">8px</span></label>
+          <input type="range" id="mark-width" min="2" max="24" value="8">
+        </div>
+        <div class="field">
+          <label for="mark-show">Shows on</label>
+          <select id="mark-show">
+            <option value="both">Both photos</option>
+            <option value="first">The first photo</option>
+            <option value="second">The second photo</option>
+          </select>
+        </div>
+        <div class="actions">
+          <button class="btn" type="button" id="mark-undo">Undo</button>
+          <button class="btn" type="button" id="mark-clear">Clear</button>
           <span class="count" id="mark-count">None.</span>
         </div>
+        <p class="note">Open this panel and drag on the photo.</p>
+      </div>
+
+      <div class="panel" id="panel-steps">
+        <h3>Steps</h3>
+        <ol class="steps">
+          <li>Add the photos. They fill the cells in the order you picked them.</li>
+          <li>Drag inside a cell to move the photo, and scroll or pinch to zoom.</li>
+          <li>Zoom set to All photos moves them together, which lines up the same spot on a before and after.</li>
+          <li>In Swipe, set Dragging the picture to a photo to line the two up, and use the nudge buttons.</li>
+          <li>Dragging the picture set to the divider slides the divider. The button under it puts the divider back in the middle.</li>
+          <li>Press Save.</li>
+        </ol>
       </div>
     </div>
+  </div>
 
-    <div class="actions">
-      <span class="count" id="picked"></span>
-      <label class="inline" for="label-text">Label</label>
-      <input type="text" id="label-text" maxlength="40" placeholder="Before">
-      <button class="btn" type="button" id="zoom-out" title="Zoom out">Zoom out</button>
-      <button class="btn" type="button" id="zoom-in" title="Zoom in">Zoom in</button>
-      <button class="btn" type="button" id="reset">Reset view</button>
-      <button class="btn" type="button" id="swap">Swap</button>
-      <button class="btn" type="button" id="drop-photo">Remove</button>
-    </div>
+  <div class="save-bar">
+    <label class="count" for="size">Size</label>
+    <select id="size" style="width:auto">
+      <option value="1200">1200px</option>
+      <option value="2000" selected>2000px</option>
+      <option value="3000">3000px</option>
+    </select>
+    <select id="format" style="width:auto">
+      <option value="image/jpeg" selected>JPG</option>
+      <option value="image/png">PNG</option>
+      <option value="pdf">PDF</option>
+    </select>
+    <span class="grow"></span>
+    <button class="btn btn-primary" type="button" id="save">Save</button>
+  </div>
+</div>
 
-    <div class="save-bar">
-      <label class="inline" for="size">Saved size</label>
-      <select id="size">
-        <option value="1200">1200px</option>
-        <option value="2000" selected>2000px</option>
-        <option value="3000">3000px</option>
-      </select>
-      <label class="inline" for="format">Format</label>
-      <select id="format">
-        <option value="image/jpeg" selected>JPG</option>
-        <option value="image/png">PNG</option>
-        <option value="pdf">PDF</option>
-      </select>
-      <span class="grow"></span>
-      <span class="count" id="out-size"></span>
-      <button class="btn btn-primary" type="button" id="save">Save</button>
-    </div>
-  </section>
+<div class="drop hidden" id="empty" style="position:fixed; inset:auto 14px 80px; z-index:5">
+  <p>No photo yet.</p>
+  <button class="btn btn-primary" type="button" id="choose">Add photos</button>
+</div>
 
-  <h2>Steps</h2>
-  <ol class="steps">
-    <li>Add the photos. They fill the cells in the order you picked them.</li>
-    <li>Drag inside a cell to move the photo, and scroll or pinch to zoom.</li>
-    <li>Zoom set to All photos moves them together, which lines up the same spot on a before and an after.</li>
-    <li>Set Zoom to One photo when a shot was taken closer or further away, and size that one on its own until the subjects match. The percentage next to each photo tells you where you are.</li>
-    <li>Tap a cell to select it, then type its label.</li>
-    <li>In Swipe, set Dragging moves to a photo to line the two up, and use the nudge buttons for the last few pixels.</li>
-    <li>Cover something up draws an eye bar, a blur or a block over anything that should not be posted.</li>
-    <li>Draw a mark puts an arrow, a circle, a line or a box on the photo. It holds its place on that photo while you drag the divider or line the photos up again.</li>
-    <li>Press Save.</li>
-  </ol>
+<input type="file" id="picker" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple hidden>
 
-  <h2>Swipe</h2>
-  <p class="note">The Swipe tab lays the second photo over the first with a divider to drag across.
-  Saving writes the divider where you left it.</p>
-</main>
-
-<footer><div class="inner">Cygnus Tools</div></footer>
-
-<script src="./vendor/pdf-lib.min.js" defer></script>
+<script src="./vendor/pdf-lib.min.js"></script>
 <script>
 /* Collage maker. Everything runs here, so the app works with no connection
    once it is installed. */
@@ -916,7 +852,7 @@ function showMode(next) {
   place();
   el('tab-grid').classList.toggle('on', next === 'grid');
   el('tab-swipe').classList.toggle('on', next === 'swipe');
-  el('swipe-tools').classList.toggle('hidden', next !== 'swipe');
+  buildDrag();
   el('swipe-hint').classList.toggle('hidden', next !== 'swipe');
   el('layout').disabled = next === 'swipe';
   picked = -1;
@@ -962,7 +898,7 @@ stage.addEventListener('pointerdown', function (event) {
     return;
   }
   if (mode === 'swipe') {
-    if (el('swipe-drag').value === 'divider') {
+    if (el('drag-does').value === 'move') {
       swipePosition = Math.min(1, Math.max(0, point.x / stageWidth()));
       drag = { kind: 'swipe', id: event.pointerId };
       paint();
@@ -979,6 +915,15 @@ stage.addEventListener('pointerdown', function (event) {
     : null;
   paint();
 });
+
+/* Whether the photos being dragged have any room to move. */
+function roomToMove(list, rect) {
+  for (var i = 0; i < list.length; i++) {
+    var at = placement(list[i], rect);
+    if (at.width > rect.width + 1 || at.height > rect.height + 1) return true;
+  }
+  return false;
+}
 
 stage.addEventListener('pointermove', function (event) {
   if (marking && event.pointerId === marking.id) {
@@ -1010,6 +955,11 @@ stage.addEventListener('pointermove', function (event) {
   event.preventDefault();
   var point = stagePoint(event);
   if (drag.kind === 'align') {
+    if (!roomToMove(swipeTargets(), drag.rect)) {
+      el('nudge-note').textContent = 'The photo fills the frame, so there is nothing to move. Press Bigger first.';
+      return;
+    }
+    el('nudge-note').textContent = '';
     var adx = point.x - drag.x;
     var ady = point.y - drag.y;
     drag.x = point.x;
@@ -1311,11 +1261,50 @@ el('cover-strength').addEventListener('input', function () {
 /* ---------- lining the two photos up in Swipe ---------- */
 
 function swipeTargets() {
-  var choice = el('swipe-drag').value;
+  var choice = el('drag-does').value;
   if (choice === 'both') return cells.filter(function (cell) { return cell.image; });
   if (choice === 'first') return cells[0] && cells[0].image ? [cells[0]] : [];
   if (choice === 'second') return cells[1] && cells[1].image ? [cells[1]] : [];
   return [];
+}
+
+/* The list of things a drag can do, which depends on the tab. */
+var DRAG_GRID = [
+  ['move', 'Moves the photos'],
+  ['cover', 'Covers something up'],
+  ['mark', 'Draws a mark']
+];
+var DRAG_SWIPE = [
+  ['move', 'Moves the divider'],
+  ['first', 'Moves the first photo'],
+  ['second', 'Moves the second photo'],
+  ['both', 'Moves both photos'],
+  ['cover', 'Covers something up'],
+  ['mark', 'Draws a mark']
+];
+
+function buildDrag() {
+  var select = el('drag-does');
+  var keep = select.value;
+  var list = mode === 'swipe' ? DRAG_SWIPE : DRAG_GRID;
+  select.textContent = '';
+  list.forEach(function (pair) {
+    var option = document.createElement('option');
+    option.value = pair[0];
+    option.textContent = pair[1];
+    select.appendChild(option);
+  });
+  select.value = list.some(function (pair) { return pair[0] === keep; }) ? keep : 'move';
+  showTools();
+}
+
+function showTools() {
+  var doing = el('drag-does').value;
+  el('swipe-tools').classList.toggle('hidden', mode !== 'swipe' || doing === 'cover' || doing === 'mark' || doing === 'move');
+  el('split-tools').classList.toggle('hidden', mode !== 'swipe');
+  el('panel-cover').classList.toggle('dim', doing !== 'cover');
+  el('panel-marks').classList.toggle('dim', doing !== 'mark');
+  el('swipe-hint').textContent = doing === 'move' ? 'Drag left and right' : 'Drag to line the photo up';
 }
 
 function nudge(dx, dy) {
@@ -1339,6 +1328,10 @@ el('nudge-left').addEventListener('click', function () { nudge(STEP, 0); });
 el('nudge-right').addEventListener('click', function () { nudge(-STEP, 0); });
 el('nudge-up').addEventListener('click', function () { nudge(0, STEP); });
 el('nudge-down').addEventListener('click', function () { nudge(0, -STEP); });
+el('split-centre').addEventListener('click', function () {
+  swipePosition = 0.5;
+  paint();
+});
 el('nudge-in').addEventListener('click', function () { swipeZoom(1.04); });
 el('nudge-out').addEventListener('click', function () { swipeZoom(1 / 1.04); });
 
@@ -1350,12 +1343,25 @@ function swipeZoom(factor) {
   paint();
 }
 
-el('swipe-drag').addEventListener('change', function () {
-  el('swipe-hint').textContent = el('swipe-drag').value === 'divider'
-    ? 'Drag left and right'
-    : 'Drag to line the photo up';
+el('drag-does').addEventListener('change', function () {
+  showTools();
   report();
+  paint();
 });
+
+/* Touching the Cover up or Marks panel sets dragging to that tool, so nobody has
+   to find the Dragging box first. */
+function armTool(kind) {
+  var list = mode === 'swipe' ? DRAG_SWIPE : DRAG_GRID;
+  if (el('drag-does').value === kind) return;
+  if (!list.some(function (pair) { return pair[0] === kind; })) return;
+  el('drag-does').value = kind;
+  showTools();
+  report();
+  paint();
+}
+el('panel-cover').addEventListener('pointerdown', function () { armTool('cover'); });
+el('panel-marks').addEventListener('pointerdown', function () { armTool('mark'); });
 
 
 /* ---------- marks that hold their place on a photo ---------- */
@@ -1556,11 +1562,44 @@ el('flip-cell').addEventListener('change', function () {
   paint();
 });
 
-el('drag-does').addEventListener('change', function () {
-  var doing = el('drag-does').value;
-  el('marks-box').classList.toggle('hidden', doing !== 'mark');
+
+
+
+/* ---------- the panels, one at a time on a narrow screen ---------- */
+
+var PANELS = [
+  ['photos', 'Photos'], ['cell', 'This photo'], ['drag', 'Dragging'],
+  ['cover', 'Cover up'], ['marks', 'Marks'], ['steps', 'Steps']
+];
+var panel = 'photos';
+
+function buildPanels() {
+  var bar = el('tabs');
+  bar.textContent = '';
+  PANELS.forEach(function (pair) {
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'tab' + (pair[0] === panel ? ' on' : '');
+    button.id = 'tab-' + pair[0];
+    button.textContent = pair[1];
+    button.addEventListener('click', function () { showPanel(pair[0]); });
+    bar.appendChild(button);
+  });
+  showPanel(panel);
+}
+
+function showPanel(key) {
+  panel = key;
+  PANELS.forEach(function (pair) {
+    el('tab-' + pair[0]).classList.toggle('on', pair[0] === key);
+    el('panel-' + pair[0]).classList.toggle('on', pair[0] === key);
+  });
+  var button = el('tab-' + key);
+  if (button.scrollIntoView) button.scrollIntoView({ inline: 'center', block: 'nearest' });
+  if (key === 'cover') armTool('cover');
+  if (key === 'marks') armTool('mark');
   paint();
-});
+}
 
 /* Saving */
 
@@ -1649,6 +1688,8 @@ el('save').addEventListener('click', function () {
 window.addEventListener('resize', function () { if (photos.length) paint(); });
 
 fitCells();
+buildDrag();
+buildPanels();
 report();
 </script>
 </body>
