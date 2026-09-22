@@ -339,11 +339,14 @@ input[type=range] { width: 100%; accent-color: var(--primary); height: 34px; }
           </select>
         </div>
         <div class="actions">
+          <button class="btn" type="button" id="mark-copy">Copy to the other photo</button>
+        </div>
+        <div class="actions">
           <button class="btn" type="button" id="mark-undo">Undo</button>
           <button class="btn" type="button" id="mark-clear">Clear</button>
           <span class="count" id="mark-count">None.</span>
         </div>
-        <p class="note">Open this panel and drag on the photo.</p>
+        <p class="note">Open this panel and drag on the photo. Drag a mark you have already made to move it, or drag either end to reshape it.</p>
       </div>
 
       <div class="panel" id="panel-steps">
@@ -356,6 +359,7 @@ input[type=range] { width: 100%; accent-color: var(--primary); height: 34px; }
           <li>Dragging the picture set to the divider slides the divider. The button under it puts the divider back in the middle.</li>
           <li>In Swipe, Dragging the picture also decides which photo the Size slider, the scroll wheel and a pinch act on.</li>
           <li>Swap trades the two photos over. Before and After stay on their own side.</li>
+          <li>Drag a mark to move it, or drag either end to reshape it. Copy to the other photo puts the same mark on the same spot of the other one.</li>
           <li>Press Save.</li>
         </ol>
       </div>
@@ -923,6 +927,13 @@ stage.addEventListener('pointerdown', function (event) {
     var pickedMark = markAt(point);
     if (pickedMark >= 0) {
       markPick = pickedMark;
+      var grab = markGrab(marks[pickedMark], point);
+      if (grab) {
+        moving = { id: event.pointerId, index: pickedMark, end: grab.end, at: grab.at };
+        markControls();
+        paint();
+        return;
+      }
       markControls();
       paint();
     }
@@ -988,6 +999,11 @@ function ensureRoom(list) {
 }
 
 stage.addEventListener('pointermove', function (event) {
+  if (moving && event.pointerId === moving.id) {
+    event.preventDefault();
+    dragMark(stagePoint(event));
+    return;
+  }
   if (marking && event.pointerId === marking.id) {
     event.preventDefault();
     var spot = stagePoint(event);
@@ -1047,6 +1063,11 @@ stage.addEventListener('pointermove', function (event) {
 });
 
 function endDrag(event) {
+  if (moving && event.pointerId === moving.id) {
+    moving = null;
+    markControls();
+    paint();
+  }
   if (marking && event.pointerId === marking.id) {
     var last = marks[marks.length - 1];
     /* a tap with no drag leaves nothing behind */
@@ -1106,6 +1127,7 @@ stage.addEventListener('pointermove', function (event) {
   if (ids.length !== 2) return;
   event.preventDefault();
   drag = null;
+  moving = null;
   var a = points[ids[0]];
   var b = points[ids[1]];
   var span = Math.hypot(a.x - b.x, a.y - b.y);
@@ -1521,12 +1543,6 @@ function drawMarks(c, width, height, forSaving) {
       c.lineTo(b.x, b.y);
       c.stroke();
     }
-    if (!forSaving && i === markPick) {
-      c.setLineDash([10, 7]);
-      c.strokeStyle = '#1F5E99';
-      c.lineWidth = 2;
-      c.strokeRect(Math.min(a.x, b.x) - 8, Math.min(a.y, b.y) - 8, Math.abs(b.x - a.x) + 16, Math.abs(b.y - a.y) + 16);
-    }
     c.restore();
   }
 }
@@ -1579,6 +1595,54 @@ function newMark(from, to) {
   };
 }
 
+var moving = null;
+
+/* The rect and cell a mark lives on, whichever mode is showing. */
+function markHome(mark) {
+  var cell = cells[mark.cell];
+  var rect = mode === 'swipe' ? grid.rects[0] : grid.rects[mark.cell];
+  return cell && cell.image && rect ? { cell: cell, rect: rect } : null;
+}
+
+/* Which part of a mark the pointer has hold of: one of its ends, or the whole
+   thing. Nothing when the pointer is outside it. */
+function markGrab(mark, point) {
+  var home = markHome(mark);
+  if (!home) return null;
+  var a = toCanvas(home.cell, home.rect, mark.au, mark.av);
+  var b = toCanvas(home.cell, home.rect, mark.bu, mark.bv);
+  var reach = Math.max(18, mark.width * stageWidth() / 400);
+  var at = toImage(home.cell, home.rect, point);
+  if (Math.hypot(point.x - a.x, point.y - a.y) <= reach) return { end: 'a', at: at };
+  if (Math.hypot(point.x - b.x, point.y - b.y) <= reach) return { end: 'b', at: at };
+  return { end: 'all', at: at };
+}
+
+function dragMark(point) {
+  var mark = marks[moving.index];
+  if (!mark) return;
+  var home = markHome(mark);
+  if (!home) return;
+  var now = toImage(home.cell, home.rect, point);
+  var du = now.u - moving.at.u;
+  var dv = now.v - moving.at.v;
+  if (moving.end === 'a' || moving.end === 'all') { mark.au += du; mark.av += dv; }
+  if (moving.end === 'b' || moving.end === 'all') { mark.bu += du; mark.bv += dv; }
+  moving.at = now;
+  paint();
+}
+
+/* The photo a copy of this mark belongs on: the other one of a pair, or the
+   next cell along that has a photo in it. */
+function otherCell(index) {
+  var count = mode === 'swipe' ? 2 : cellCount();
+  for (var step = 1; step < count; step++) {
+    var next = (index + step) % count;
+    if (cells[next] && cells[next].image) return next;
+  }
+  return -1;
+}
+
 function markAt(point) {
   var width = stageWidth();
   for (var i = marks.length - 1; i >= 0; i--) {
@@ -1603,11 +1667,29 @@ function markControls() {
     el('mark-show').value = mark.show;
   }
   el('mark-width-value').textContent = el('mark-width').value + 'px';
+  el('mark-copy').disabled = !mark || otherCell(mark.cell) < 0;
+  var named = { arrow: 'Arrow', circle: 'Circle', line: 'Line', box: 'Box' };
   el('mark-count').textContent = marks.length
-    ? marks.length + (marks.length === 1 ? ' mark.' : ' marks.')
+    ? marks.length + (marks.length === 1 ? ' mark. ' : ' marks. ')
+      + (mark ? (named[mark.kind] || 'Mark') + ' ' + (markPick + 1) + ' picked.' : '')
     : 'None.';
 }
 
+el('mark-copy').addEventListener('click', function () {
+  var mark = marks[markPick];
+  if (!mark) return;
+  var next = otherCell(mark.cell);
+  if (next < 0) return;
+  var copy = {};
+  Object.keys(mark).forEach(function (key) { copy[key] = mark[key]; });
+  copy.cell = next;
+  /* A mark tied to one side of the divider takes the side its new photo is on. */
+  if (copy.show === 'first' || copy.show === 'second') copy.show = next === 0 ? 'first' : 'second';
+  marks.push(copy);
+  markPick = marks.length - 1;
+  markControls();
+  paint();
+});
 el('mark-undo').addEventListener('click', function () {
   marks.pop();
   markPick = marks.length - 1;
