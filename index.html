@@ -320,6 +320,7 @@ footer .inner {
     </div>
 
     <div class="options" id="censor">
+      <label class="field switch"><input type="checkbox" id="flip-cell"> Mirror this photo</label>
       <div class="field">
         <label for="drag-does">Dragging does</label>
         <select id="drag-does">
@@ -505,7 +506,7 @@ var SHAPES = {
 };
 
 function newCell() {
-  return { image: null, zoom: 1, fx: 0.5, fy: 0.5, label: '' };
+  return { image: null, zoom: 1, fx: 0.5, fy: 0.5, label: '', flip: false };
 }
 
 function layoutOf(settings, width) {
@@ -585,7 +586,10 @@ function drawGrid(ctx, settings, cells, width) {
     if (cell && cell.image) {
       var at = placement(cell, rect);
       ctx.imageSmoothingQuality = 'high';
+      /* a mirror selfie turned back the right way round */
+      if (cell.flip) { ctx.translate(rect.x * 2 + rect.width, 0); ctx.scale(-1, 1); }
       ctx.drawImage(cell.image.bitmap, at.x, at.y, at.width, at.height);
+      if (cell.flip) { ctx.scale(-1, 1); ctx.translate(-(rect.x * 2 + rect.width), 0); }
       if (settings.labels && cell.label) drawLabel(ctx, rect, cell.label, width, 'left');
     } else {
       ctx.fillStyle = emptyShade(settings.background);
@@ -612,7 +616,9 @@ function drawSwipe(ctx, settings, cells, width, position) {
     ctx.clip();
     var at = placement(cell, rect);
     ctx.imageSmoothingQuality = 'high';
+    if (cell.flip) { ctx.translate(rect.width, 0); ctx.scale(-1, 1); }
     ctx.drawImage(cell.image.bitmap, at.x, at.y, at.width, at.height);
+    if (cell.flip) { ctx.scale(-1, 1); ctx.translate(-rect.width, 0); }
     if (settings.labels && cell.label) drawLabel(ctx, rect, cell.label, width, index === 0 ? 'left' : 'right');
     ctx.restore();
   });
@@ -824,6 +830,8 @@ function report() {
     el(id).disabled = picked < 0 || !cells[picked] || !cells[picked].image;
   });
   el('save').disabled = filled === 0;
+  var shown = flipTarget()[0];
+  el('flip-cell').checked = Boolean(shown && shown.flip);
 }
 
 function refresh() {
@@ -1360,12 +1368,14 @@ var marking = null;
    travels with the photo when it is moved or zoomed. */
 function toImage(cell, rect, point) {
   var at = placement(cell, rect);
-  return { u: (point.x - at.x) / at.width, v: (point.y - at.y) / at.height };
+  var x = cell.flip ? (rect.x * 2 + rect.width) - point.x : point.x;
+  return { u: (x - at.x) / at.width, v: (point.y - at.y) / at.height };
 }
 
 function toCanvas(cell, rect, u, v) {
   var at = placement(cell, rect);
-  return { x: at.x + u * at.width, y: at.y + v * at.height };
+  var x = at.x + u * at.width;
+  return { x: cell.flip ? (rect.x * 2 + rect.width) - x : x, y: at.y + v * at.height };
 }
 
 function markRect(index, width) {
@@ -1518,6 +1528,21 @@ function markEdit() {
   el(id).addEventListener('change', markEdit);
 });
 el('mark-kind').addEventListener('change', markControls);
+
+/* Mirror turns the photo being worked on: in Swipe that is the one named by
+   Dragging moves, and in a grid it is the cell that is picked. */
+function flipTarget() {
+  if (mode === 'swipe') {
+    var list = swipeTargets();
+    return list.length ? list : (cells[0] && cells[0].image ? [cells[0]] : []);
+  }
+  return picked >= 0 && cells[picked] && cells[picked].image ? [cells[picked]] : [];
+}
+
+el('flip-cell').addEventListener('change', function () {
+  flipTarget().forEach(function (cell) { cell.flip = el('flip-cell').checked; });
+  paint();
+});
 
 el('drag-does').addEventListener('change', function () {
   var doing = el('drag-does').value;
