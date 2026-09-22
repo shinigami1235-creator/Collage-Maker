@@ -238,6 +238,10 @@ input[type=range] { width: 100%; accent-color: var(--primary); height: 34px; }
           <button class="btn" type="button" id="zoom-in">Zoom in</button>
           <button class="btn" type="button" id="reset">Reset view</button>
         </div>
+        <div class="field">
+          <label for="photo-size">Size <span class="count" id="photo-size-read">100%</span></label>
+          <input type="range" id="photo-size" min="100" max="400" step="1" value="100">
+        </div>
         <div class="actions">
           <button class="btn" type="button" id="swap">Swap</button>
           <button class="btn" type="button" id="drop-photo">Remove</button>
@@ -350,6 +354,8 @@ input[type=range] { width: 100%; accent-color: var(--primary); height: 34px; }
           <li>Zoom set to All photos moves them together, which lines up the same spot on a before and after.</li>
           <li>In Swipe, set Dragging the picture to a photo to line the two up, and use the nudge buttons.</li>
           <li>Dragging the picture set to the divider slides the divider. The button under it puts the divider back in the middle.</li>
+          <li>In Swipe, Dragging the picture also decides which photo the Size slider, the scroll wheel and a pinch act on.</li>
+          <li>Swap trades the two photos over. Before and After stay on their own side.</li>
           <li>Press Save.</li>
         </ol>
       </div>
@@ -779,13 +785,28 @@ function report() {
     el('out-size').textContent = box.width + ' by ' + box.height;
   }
   var filled = cells.filter(function (cell) { return cell.image; }).length;
-  el('picked').textContent = picked >= 0 && cells[picked]
-    ? 'Cell ' + (picked + 1) + ' of ' + cellCount() + ', ' + Math.round(cells[picked].zoom * 100) + '%'
-    : filled + (filled === 1 ? ' photo placed' : ' photos placed');
-  el('label-text').value = picked >= 0 && cells[picked] ? cells[picked].label : '';
-  ['label-text', 'zoom-in', 'zoom-out', 'reset', 'swap', 'drop-photo'].forEach(function (id) {
-    el(id).disabled = picked < 0 || !cells[picked] || !cells[picked].image;
+  var act = activeCells();
+  var one = namedCell();
+  if (mode === 'swipe') {
+    el('picked').textContent = act.length === 1
+      ? (act[0] === cells[0] ? 'First photo, ' : 'Second photo, ') + Math.round(act[0].zoom * 100) + '%'
+      : filled + (filled === 1 ? ' photo placed' : ' photos placed');
+  } else {
+    el('picked').textContent = picked >= 0 && cells[picked]
+      ? 'Cell ' + (picked + 1) + ' of ' + cellCount() + ', ' + Math.round(cells[picked].zoom * 100) + '%'
+      : filled + (filled === 1 ? ' photo placed' : ' photos placed');
+  }
+  el('label-text').value = one ? one.label : '';
+  ['zoom-in', 'zoom-out', 'reset', 'photo-size'].forEach(function (id) {
+    el(id).disabled = act.length === 0;
   });
+  el('swap').disabled = mode === 'swipe' ? filled < 2 : !one;
+  el('label-text').disabled = !one;
+  el('drop-photo').disabled = !one;
+  if (act.length && document.activeElement !== el('photo-size')) {
+    el('photo-size').value = String(Math.round(Math.min(400, Math.max(100, act[0].zoom * 100))));
+  }
+  if (act.length) el('photo-size-read').textContent = Math.round(act[0].zoom * 100) + '%';
   el('save').disabled = filled === 0;
   var shown = flipTarget()[0];
   el('flip-cell').checked = Boolean(shown && shown.flip);
@@ -925,6 +946,10 @@ stage.addEventListener('pointerdown', function (event) {
       paint();
       return;
     }
+    if (ensureRoom(swipeTargets())) {
+      el('nudge-note').textContent = ROOM_SAID;
+      paint();
+    }
     drag = { kind: 'align', id: event.pointerId, x: point.x, y: point.y, rect: grid.rects[0] };
     return;
   }
@@ -944,6 +969,22 @@ function roomToMove(list, rect) {
     if (at.width > rect.width + 1 || at.height > rect.height + 1) return true;
   }
   return false;
+}
+
+/* A photo the same shape as the frame meets it exactly, which leaves nothing to
+   drag at the point where lining two up is the whole job. Zoom it enough to have
+   somewhere to go. */
+var ROOM_ZOOM = 1.12;
+var ROOM_SAID = 'Zoomed in a little so there is room to move. Press Smaller to undo that.';
+
+function ensureRoom(list) {
+  var rect = grid.rects[0];
+  if (!rect || !list.length) return false;
+  if (roomToMove(list, rect)) return false;
+  list.forEach(function (cell) {
+    zoomAt(cell, rect, rect.x + rect.width / 2, rect.y + rect.height / 2, ROOM_ZOOM);
+  });
+  return true;
 }
 
 stage.addEventListener('pointermove', function (event) {
@@ -976,11 +1017,6 @@ stage.addEventListener('pointermove', function (event) {
   event.preventDefault();
   var point = stagePoint(event);
   if (drag.kind === 'align') {
-    if (!roomToMove(swipeTargets(), drag.rect)) {
-      el('nudge-note').textContent = 'The photo fills the frame, so there is nothing to move. Press Bigger first.';
-      return;
-    }
-    el('nudge-note').textContent = '';
     var adx = point.x - drag.x;
     var ady = point.y - drag.y;
     drag.x = point.x;
@@ -1054,8 +1090,9 @@ stage.addEventListener('wheel', function (event) {
   if (!hit) return;
   event.preventDefault();
   if (mode !== 'swipe') picked = hit.index;
-  var factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-  targets(hit.index).forEach(function (cell) { zoomAt(cell, hit.rect, point.x, point.y, factor); });
+  var factor = event.deltaY < 0 ? 1.06 : 1 / 1.06;
+  var list = mode === 'swipe' ? activeCells() : targets(hit.index);
+  list.forEach(function (cell) { zoomAt(cell, hit.rect, point.x, point.y, factor); });
   paint();
 }, { passive: false });
 
@@ -1077,7 +1114,8 @@ stage.addEventListener('pointermove', function (event) {
     var factor = span / pinch.span;
     var hit = mode === 'swipe' ? { index: 0, rect: grid.rects[0] } : cellAt(grid, mid.x, mid.y);
     if (hit) {
-      targets(hit.index).forEach(function (cell) { zoomAt(cell, hit.rect, mid.x, mid.y, factor); });
+      var pinched = mode === 'swipe' ? activeCells() : targets(hit.index);
+      pinched.forEach(function (cell) { zoomAt(cell, hit.rect, mid.x, mid.y, factor); });
       paint();
     }
   }
@@ -1091,36 +1129,65 @@ stage.addEventListener('pointermove', function (event) {
 });
 
 function stepZoom(factor) {
-  if (picked < 0 && mode !== 'swipe') return;
   var rect = (grid.rects[picked] || grid.rects[0]);
-  targets().forEach(function (cell) {
+  if (!rect) return;
+  activeCells().forEach(function (cell) {
     zoomAt(cell, rect, rect.x + rect.width / 2, rect.y + rect.height / 2, factor);
   });
   paint();
 }
-el('zoom-in').addEventListener('click', function () { stepZoom(1.25); });
-el('zoom-out').addEventListener('click', function () { stepZoom(1 / 1.25); });
+el('zoom-in').addEventListener('click', function () { stepZoom(1.1); });
+el('zoom-out').addEventListener('click', function () { stepZoom(1 / 1.1); });
 el('reset').addEventListener('click', function () {
-  targets().forEach(function (cell) { cell.zoom = 1; cell.fx = 0.5; cell.fy = 0.5; });
+  activeCells().forEach(function (cell) { cell.zoom = 1; cell.fx = 0.5; cell.fy = 0.5; });
+  paint();
+});
+el('photo-size').addEventListener('input', function () {
+  var want = Number(el('photo-size').value) / 100;
+  var rect = grid.rects[mode === 'swipe' ? 0 : Math.max(picked, 0)] || grid.rects[0];
+  if (!rect) return;
+  activeCells().forEach(function (cell) {
+    zoomAt(cell, rect, rect.x + rect.width / 2, rect.y + rect.height / 2, want / cell.zoom);
+  });
+  el('photo-size-read').textContent = Math.round(want * 100) + '%';
   paint();
 });
 el('label-text').addEventListener('input', function () {
-  if (picked < 0 || !cells[picked]) return;
-  cells[picked].label = el('label-text').value;
+  var one = namedCell();
+  if (!one) return;
+  one.label = el('label-text').value;
   paint();
 });
+/* Swap trades the photos and leaves the labels where they are, since Before and
+   After name the side of the picture rather than the photo. Marks travel with
+   the photo they were drawn on. */
+function swapCells(a, b) {
+  if (!cells[a] || !cells[b]) return;
+  ['image', 'zoom', 'fx', 'fy', 'flip'].forEach(function (key) {
+    var keep = cells[a][key];
+    cells[a][key] = cells[b][key];
+    cells[b][key] = keep;
+  });
+  marks.forEach(function (mark) {
+    if (mark.cell === a) mark.cell = b;
+    else if (mark.cell === b) mark.cell = a;
+  });
+}
 el('swap').addEventListener('click', function () {
+  if (mode === 'swipe') {
+    swapCells(0, 1);
+    paint();
+    return;
+  }
   if (picked < 0) return;
   var next = (picked + 1) % cellCount();
-  var keep = cells[picked];
-  cells[picked] = cells[next];
-  cells[next] = keep;
-  picked = next;
+  swapCells(picked, next);
   paint();
 });
 el('drop-photo').addEventListener('click', function () {
-  if (picked < 0 || !cells[picked].image) return;
-  var gone = cells[picked].image;
+  var one = namedCell();
+  if (!one || !one.image) return;
+  var gone = one.image;
   photos = photos.filter(function (photo) { return photo !== gone; });
   refresh();
 });
@@ -1331,6 +1398,7 @@ function showTools() {
 function nudge(dx, dy) {
   var rect = grid.rects[0];
   var list = swipeTargets();
+  var gave = ensureRoom(list);
   var moved = false;
   list.forEach(function (cell) {
     var at = placement(cell, rect);
@@ -1340,7 +1408,8 @@ function nudge(dx, dy) {
     cell.fx = fx;
     cell.fy = fy;
   });
-  el('nudge-note').textContent = list.length && !moved ? 'The photo is as far over as it goes. Zoom in to make room.' : '';
+  el('nudge-note').textContent = gave ? ROOM_SAID
+    : (list.length && !moved ? 'The photo is as far over as it goes. Press Bigger to make room.' : '');
   paint();
 }
 
@@ -1353,8 +1422,8 @@ el('split-centre').addEventListener('click', function () {
   swipePosition = 0.5;
   paint();
 });
-el('nudge-in').addEventListener('click', function () { swipeZoom(1.04); });
-el('nudge-out').addEventListener('click', function () { swipeZoom(1 / 1.04); });
+el('nudge-in').addEventListener('click', function () { swipeZoom(1.02); });
+el('nudge-out').addEventListener('click', function () { swipeZoom(1 / 1.02); });
 
 function swipeZoom(factor) {
   var rect = grid.rects[0];
@@ -1366,6 +1435,9 @@ function swipeZoom(factor) {
 
 el('drag-does').addEventListener('change', function () {
   showTools();
+  var choice = el('drag-does').value;
+  var lining = mode === 'swipe' && (choice === 'first' || choice === 'second' || choice === 'both');
+  el('nudge-note').textContent = lining && ensureRoom(swipeTargets()) ? ROOM_SAID : '';
   report();
   paint();
 });
@@ -1570,6 +1642,28 @@ el('mark-kind').addEventListener('change', markControls);
 
 /* Mirror turns the photo being worked on: in Swipe that is the one named by
    Dragging moves, and in a grid it is the cell that is picked. */
+/* The photos the size controls act on. In Swipe that is whichever photo the
+   Dragging box names, and both when it names neither. */
+function activeCells() {
+  if (mode === 'swipe') {
+    var list = swipeTargets();
+    return list.length ? list : cells.filter(function (cell) { return cell.image; });
+  }
+  return targets();
+}
+
+/* The one photo a label or a Remove applies to, or nothing when that is open
+   to more than one reading. */
+function namedCell() {
+  if (mode === 'swipe') {
+    var choice = el('drag-does').value;
+    if (choice === 'first') return cells[0] && cells[0].image ? cells[0] : null;
+    if (choice === 'second') return cells[1] && cells[1].image ? cells[1] : null;
+    return null;
+  }
+  return picked >= 0 && cells[picked] && cells[picked].image ? cells[picked] : null;
+}
+
 function flipTarget() {
   if (mode === 'swipe') {
     var list = swipeTargets();
