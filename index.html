@@ -109,6 +109,7 @@ select, input[type=text], input[type=number] {
   color: var(--text);
 }
 input[type=text] { width: 140px; padding: 0 12px; }
+input[type=range] { width: 100%; accent-color: var(--primary); height: 34px; }
 input[type=color] {
   width: 46px; height: 40px; padding: 2px;
   border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface);
@@ -194,6 +195,8 @@ footer .inner {
 @media (pointer: coarse) {
   .btn, select, input[type=text], input[type=number], .tab { min-height: 44px; font-size: 16px; }
   input[type=color] { height: 44px; width: 56px; }
+  input[type=range] { height: 44px; }
+  input[type=checkbox] { width: 24px; height: 24px; }
   .options .field > label { font-size: 14px; }
 }
 
@@ -237,7 +240,7 @@ footer .inner {
   <p class="lede">Put photos side by side or in a grid, zoom them to the same spot, and save the lot as one picture.</p>
 
   <div id="messages"></div>
-  <p class="note hidden" id="ios-note">On an iPhone, open the Share menu and pick Add to Home Screen to install this.</p>
+  <p class="note hidden" id="ios-note">On an iPhone or iPad, open the Share menu and pick Add to Home Screen to install this.</p>
 
   <div class="tabs" role="tablist">
     <button class="tab on" type="button" id="tab-grid" role="tab">Grid</button>
@@ -293,6 +296,103 @@ footer .inner {
       <div class="hint hidden" id="swipe-hint">Drag left and right</div>
     </div>
 
+    <div class="options hidden" id="swipe-tools">
+      <div class="field">
+        <label for="swipe-drag">Dragging moves</label>
+        <select id="swipe-drag">
+          <option value="divider">The divider</option>
+          <option value="first">The first photo</option>
+          <option value="second">The second photo</option>
+          <option value="both">Both photos</option>
+        </select>
+      </div>
+      <div class="field wide">
+        <div class="actions" style="margin:0">
+          <button class="btn" type="button" id="nudge-left">Left</button>
+          <button class="btn" type="button" id="nudge-right">Right</button>
+          <button class="btn" type="button" id="nudge-up">Up</button>
+          <button class="btn" type="button" id="nudge-down">Down</button>
+          <button class="btn" type="button" id="nudge-in">Bigger</button>
+          <button class="btn" type="button" id="nudge-out">Smaller</button>
+          <span class="count" id="nudge-note"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="options" id="censor">
+      <div class="field">
+        <label for="drag-does">Dragging does</label>
+        <select id="drag-does">
+          <option value="move">Move the photos</option>
+          <option value="cover">Cover something up</option>
+          <option value="mark">Draw a mark</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="cover-kind">Cover with</label>
+        <select id="cover-kind">
+          <option value="bar">Eye bar</option>
+          <option value="blur">Blur</option>
+          <option value="oval">Oval blur</option>
+          <option value="block">Solid block</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="cover-colour">Bar colour</label>
+        <input type="color" id="cover-colour" value="#101C2B">
+      </div>
+      <div class="field">
+        <label for="cover-strength">Blur <span class="count" id="cover-strength-value">14 blocks</span></label>
+        <input type="range" id="cover-strength" min="4" max="30" value="14">
+      </div>
+      <div class="field">
+        <label for="cover-angle">Angle <span class="count" id="cover-angle-value">0 degrees</span></label>
+        <input type="range" id="cover-angle" min="-90" max="90" value="0">
+      </div>
+      <div class="field wide">
+        <div class="actions" style="margin:0">
+          <button class="btn" type="button" id="cover-undo">Undo the last one</button>
+          <button class="btn" type="button" id="cover-clear">Clear them</button>
+          <span class="count" id="cover-count">None.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="options hidden" id="marks-box">
+      <div class="field">
+        <label for="mark-kind">Mark</label>
+        <select id="mark-kind">
+          <option value="arrow">Arrow</option>
+          <option value="circle">Circle</option>
+          <option value="line">Line</option>
+          <option value="box">Box</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="mark-colour">Mark colour</label>
+        <input type="color" id="mark-colour" value="#E0B45A">
+      </div>
+      <div class="field">
+        <label for="mark-width">Thickness <span class="count" id="mark-width-value">8px</span></label>
+        <input type="range" id="mark-width" min="2" max="24" value="8">
+      </div>
+      <div class="field">
+        <label for="mark-show">Shows on</label>
+        <select id="mark-show">
+          <option value="both">Both photos</option>
+          <option value="first">The first photo</option>
+          <option value="second">The second photo</option>
+        </select>
+      </div>
+      <div class="field wide">
+        <div class="actions" style="margin:0">
+          <button class="btn" type="button" id="mark-undo">Undo the last one</button>
+          <button class="btn" type="button" id="mark-clear">Clear them</button>
+          <span class="count" id="mark-count">None.</span>
+        </div>
+      </div>
+    </div>
+
     <div class="actions">
       <span class="count" id="picked"></span>
       <label class="inline" for="label-text">Label</label>
@@ -330,12 +430,15 @@ footer .inner {
     <li>Zoom set to All photos moves them together, which lines up the same spot on a before and an after.</li>
     <li>Set Zoom to One photo when a shot was taken closer or further away, and size that one on its own until the subjects match. The percentage next to each photo tells you where you are.</li>
     <li>Tap a cell to select it, then type its label.</li>
+    <li>In Swipe, set Dragging moves to a photo to line the two up, and use the nudge buttons for the last few pixels.</li>
+    <li>Cover something up draws an eye bar, a blur or a block over anything that should not be posted.</li>
+    <li>Draw a mark puts an arrow, a circle, a line or a box on the photo. It holds its place on that photo while you drag the divider or line the photos up again.</li>
     <li>Press Save.</li>
   </ol>
 
   <h2>Swipe</h2>
-  <p class="note">The Swipe tab lays the second photo over the first and gives you a divider to drag across.
-  Saving there writes the divider where you left it, so the file shows the same split you were looking at.</p>
+  <p class="note">The Swipe tab lays the second photo over the first with a divider to drag across.
+  Saving writes the divider where you left it.</p>
 </main>
 
 <footer><div class="inner">Cygnus Tools</div></footer>
@@ -369,7 +472,10 @@ window.addEventListener('appinstalled', function () {
 });
 (function () {
   var standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-  var iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  /* An iPad on iPadOS 13 and later reports itself as a Mac, so the touch count
+     is what tells the two apart. */
+  var iOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   if (iOS && !standalone) el('ios-note').classList.remove('hidden');
 })();
 
@@ -639,6 +745,10 @@ function stageWidth() {
   return Math.max(280, Math.min(wrap.clientWidth || 900, 900));
 }
 
+function stageHeight() {
+  return parseFloat(stage.style.height) || stageWidth();
+}
+
 function paint() {
   fitCells();
   var width = stageWidth();
@@ -653,6 +763,8 @@ function paint() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawSwipe(ctx, config, cells, width, swipePosition);
     grid = { rects: [{ x: 0, y: 0, width: width, height: height }], width: width, height: height };
+    drawCovers(ctx, width, height);
+    drawMarks(ctx, width, height, false);
   } else {
     var box = layoutOf(config, width);
     stage.width = width * dpr;
@@ -661,6 +773,8 @@ function paint() {
     stage.style.height = box.height + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     grid = drawGrid(ctx, config, cells, width);
+    drawCovers(ctx, width, grid.height);
+    drawMarks(ctx, width, grid.height, false);
     markZoom(ctx, grid);
     if (picked >= 0 && grid.rects[picked]) {
       var rect = grid.rects[picked];
@@ -794,6 +908,7 @@ function showMode(next) {
   place();
   el('tab-grid').classList.toggle('on', next === 'grid');
   el('tab-swipe').classList.toggle('on', next === 'swipe');
+  el('swipe-tools').classList.toggle('hidden', next !== 'swipe');
   el('swipe-hint').classList.toggle('hidden', next !== 'swipe');
   el('layout').disabled = next === 'swipe';
   picked = -1;
@@ -818,10 +933,34 @@ stage.addEventListener('pointerdown', function (event) {
   event.preventDefault();
   stage.setPointerCapture(event.pointerId);
   var point = stagePoint(event);
+  if (el('drag-does').value === 'mark') {
+    var pickedMark = markAt(point);
+    if (pickedMark >= 0) {
+      markPick = pickedMark;
+      markControls();
+      paint();
+    }
+    marking = { id: event.pointerId, x: point.x, y: point.y, made: false };
+    return;
+  }
+  if (el('drag-does').value === 'cover') {
+    var already = coverAt(point);
+    if (already >= 0) {
+      coverPick = already;
+      coverControls();
+      paint();
+    }
+    covering = { id: event.pointerId, x: point.x, y: point.y, box: null };
+    return;
+  }
   if (mode === 'swipe') {
-    swipePosition = Math.min(1, Math.max(0, point.x / stageWidth()));
-    drag = { kind: 'swipe', id: event.pointerId };
-    paint();
+    if (el('swipe-drag').value === 'divider') {
+      swipePosition = Math.min(1, Math.max(0, point.x / stageWidth()));
+      drag = { kind: 'swipe', id: event.pointerId };
+      paint();
+      return;
+    }
+    drag = { kind: 'align', id: event.pointerId, x: point.x, y: point.y, rect: grid.rects[0] };
     return;
   }
   var hit = cellAt(grid, point.x, point.y);
@@ -834,9 +973,47 @@ stage.addEventListener('pointerdown', function (event) {
 });
 
 stage.addEventListener('pointermove', function (event) {
+  if (marking && event.pointerId === marking.id) {
+    event.preventDefault();
+    var spot = stagePoint(event);
+    var mark = newMark({ x: marking.x, y: marking.y }, spot);
+    if (!mark) return;
+    if (marking.made) marks.pop();
+    marks.push(mark);
+    marking.made = true;
+    markPick = marks.length - 1;
+    markControls();
+    paint();
+    return;
+  }
+  if (covering && event.pointerId === covering.id) {
+    event.preventDefault();
+    var here = stagePoint(event);
+    var box = newCover({ x: covering.x, y: covering.y }, here);
+    if (covering.box) covers.pop();
+    covering.box = box;
+    covers.push(box);
+    coverPick = covers.length - 1;
+    coverControls();
+    paint();
+    return;
+  }
   if (!drag || event.pointerId !== drag.id) return;
   event.preventDefault();
   var point = stagePoint(event);
+  if (drag.kind === 'align') {
+    var adx = point.x - drag.x;
+    var ady = point.y - drag.y;
+    drag.x = point.x;
+    drag.y = point.y;
+    swipeTargets().forEach(function (cell) {
+      var at = placement(cell, drag.rect);
+      cell.fx = clampFocus(cell.fx - adx / at.width, drag.rect.width, at.width);
+      cell.fy = clampFocus(cell.fy - ady / at.height, drag.rect.height, at.height);
+    });
+    paint();
+    return;
+  }
   if (drag.kind === 'swipe') {
     swipePosition = Math.min(1, Math.max(0, point.x / stageWidth()));
     paint();
@@ -855,6 +1032,25 @@ stage.addEventListener('pointermove', function (event) {
 });
 
 function endDrag(event) {
+  if (marking && event.pointerId === marking.id) {
+    var last = marks[marks.length - 1];
+    /* a tap with no drag leaves nothing behind */
+    if (marking.made && last && Math.abs(last.bu - last.au) < 0.01 && Math.abs(last.bv - last.av) < 0.01) {
+      marks.pop();
+    }
+    marking = null;
+    markControls();
+    paint();
+  }
+  if (covering && event.pointerId === covering.id) {
+    if (covering.box && (covering.box.w < 0.02 || covering.box.h < 0.006)) {
+      covers.pop();
+      coverPick = covers.length - 1;
+    }
+    covering = null;
+    coverControls();
+    paint();
+  }
   if (drag && event.pointerId === drag.id) drag = null;
 }
 stage.addEventListener('pointerup', endDrag);
@@ -950,6 +1146,385 @@ el('drop-photo').addEventListener('click', function () {
   refresh();
 });
 
+
+/* ---------- covering something up ---------- */
+
+var covers = [];
+var coverPick = -1;
+var covering = null;
+
+function coverTool() { return el('cover-kind').value; }
+
+/* Which cell sits under this spot, so a blur has a photo to work from. */
+function cellUnder(point) {
+  if (mode === 'swipe') {
+    var side = point.x < stageWidth() * swipePosition ? 0 : 1;
+    return cells[side] && cells[side].image ? { cell: cells[side], rect: grid.rects[0] } : null;
+  }
+  var hit = cellAt(grid, point.x, point.y);
+  if (!hit || !cells[hit.index] || !cells[hit.index].image) return null;
+  return { cell: cells[hit.index], rect: hit.rect };
+}
+
+function pixelate(c, cell, cellRect, box, blocks) {
+  var at = placement(cell, cellRect);
+  blocks = Math.max(3, Math.round(blocks || 14));
+  var small = document.createElement('canvas');
+  small.width = blocks;
+  small.height = Math.max(1, Math.round(blocks * box.h / box.w));
+  var tiny = small.getContext('2d');
+  tiny.setTransform(small.width / box.w, 0, 0, small.height / box.h, 0, 0);
+  tiny.drawImage(cell.image.bitmap, at.x - box.x, at.y - box.y, at.width, at.height);
+  c.save();
+  c.imageSmoothingEnabled = false;
+  c.drawImage(small, box.x, box.y, box.w, box.h);
+  c.restore();
+}
+
+function drawCovers(c, width, height) {
+  for (var i = 0; i < covers.length; i++) {
+    var cover = covers[i];
+    var box = { x: cover.x * width, y: cover.y * height, w: cover.w * width, h: cover.h * height };
+    var middle = { x: box.x + box.w / 2, y: box.y + box.h / 2 };
+    c.save();
+    if (cover.angle) {
+      c.translate(middle.x, middle.y);
+      c.rotate(cover.angle * Math.PI / 180);
+      c.translate(-middle.x, -middle.y);
+    }
+    if (cover.kind === 'bar' || cover.kind === 'block') {
+      c.fillStyle = cover.colour || '#101C2B';
+      c.fillRect(box.x, box.y, box.w, box.h);
+      c.restore();
+      continue;
+    }
+    c.beginPath();
+    if (cover.kind === 'oval') c.ellipse(middle.x, middle.y, box.w / 2, box.h / 2, 0, 0, Math.PI * 2);
+    else c.rect(box.x, box.y, box.w, box.h);
+    c.clip();
+    var under = coverSource(cover, width);
+    if (under) pixelate(c, under.cell, under.rect, box, cover.strength || 14);
+    else {
+      c.fillStyle = 'rgba(16,28,43,.55)';
+      c.fillRect(box.x, box.y, box.w, box.h);
+    }
+    c.restore();
+  }
+}
+
+/* The cell a cover belongs to, measured at the size being drawn. */
+function coverSource(cover, width) {
+  var cell = cells[cover.cell];
+  if (!cell || !cell.image) return null;
+  var config = settings();
+  if (mode === 'swipe') {
+    return { cell: cell, rect: { x: 0, y: 0, width: width, height: Math.round(width / (config.ratio || 1)) } };
+  }
+  var box = layoutOf(config, width);
+  var rect = box.rects[cover.cell];
+  return rect ? { cell: cell, rect: rect } : null;
+}
+
+function newCover(from, to) {
+  var width = stageWidth();
+  var height = stageHeight();
+  var kind = coverTool();
+  var under = cellUnder(from);
+  var index = under ? cells.indexOf(under.cell) : 0;
+  if (kind === 'bar') {
+    var span = Math.hypot(to.x - from.x, to.y - from.y);
+    var high = Math.max(span * 0.42, height * 0.02);
+    var wide = span * 1.35;
+    var mid = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+    return {
+      kind: 'bar', cell: index,
+      x: (mid.x - wide / 2) / width, y: (mid.y - high / 2) / height,
+      w: wide / width, h: high / height,
+      angle: Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI,
+      colour: el('cover-colour').value
+    };
+  }
+  return {
+    kind: kind, cell: index,
+    x: Math.min(from.x, to.x) / width, y: Math.min(from.y, to.y) / height,
+    w: Math.abs(to.x - from.x) / width, h: Math.abs(to.y - from.y) / height,
+    angle: 0, strength: Number(el('cover-strength').value),
+    colour: el('cover-colour').value
+  };
+}
+
+function coverAt(point) {
+  var width = stageWidth();
+  var height = stageHeight();
+  for (var i = covers.length - 1; i >= 0; i--) {
+    var cover = covers[i];
+    if (point.x >= cover.x * width && point.x <= (cover.x + cover.w) * width
+      && point.y >= cover.y * height && point.y <= (cover.y + cover.h) * height) return i;
+  }
+  return -1;
+}
+
+function coverControls() {
+  var cover = covers[coverPick];
+  el('cover-angle').value = cover ? Math.round(cover.angle || 0) : 0;
+  el('cover-angle-value').textContent = (cover ? Math.round(cover.angle || 0) : 0) + ' degrees';
+  el('cover-strength-value').textContent = el('cover-strength').value + ' blocks';
+  el('cover-count').textContent = covers.length
+    ? covers.length + (covers.length === 1 ? ' cover.' : ' covers.')
+    : 'None.';
+}
+
+/* the cover controls only matter while dragging covers */
+el('cover-undo').addEventListener('click', function () {
+  covers.pop();
+  coverPick = covers.length - 1;
+  coverControls();
+  paint();
+});
+el('cover-clear').addEventListener('click', function () {
+  covers = [];
+  coverPick = -1;
+  coverControls();
+  paint();
+});
+el('cover-angle').addEventListener('input', function () {
+  var cover = covers[coverPick];
+  if (cover) cover.angle = Number(el('cover-angle').value);
+  coverControls();
+  paint();
+});
+el('cover-strength').addEventListener('input', function () {
+  var cover = covers[coverPick];
+  if (cover && cover.kind !== 'bar' && cover.kind !== 'block') cover.strength = Number(el('cover-strength').value);
+  coverControls();
+  paint();
+});
+
+/* ---------- lining the two photos up in Swipe ---------- */
+
+function swipeTargets() {
+  var choice = el('swipe-drag').value;
+  if (choice === 'both') return cells.filter(function (cell) { return cell.image; });
+  if (choice === 'first') return cells[0] && cells[0].image ? [cells[0]] : [];
+  if (choice === 'second') return cells[1] && cells[1].image ? [cells[1]] : [];
+  return [];
+}
+
+function nudge(dx, dy) {
+  var rect = grid.rects[0];
+  var list = swipeTargets();
+  var moved = false;
+  list.forEach(function (cell) {
+    var at = placement(cell, rect);
+    var fx = clampFocus(cell.fx + dx / at.width, rect.width, at.width);
+    var fy = clampFocus(cell.fy + dy / at.height, rect.height, at.height);
+    if (fx !== cell.fx || fy !== cell.fy) moved = true;
+    cell.fx = fx;
+    cell.fy = fy;
+  });
+  el('nudge-note').textContent = list.length && !moved ? 'The photo is as far over as it goes. Zoom in to make room.' : '';
+  paint();
+}
+
+var STEP = 6;
+el('nudge-left').addEventListener('click', function () { nudge(STEP, 0); });
+el('nudge-right').addEventListener('click', function () { nudge(-STEP, 0); });
+el('nudge-up').addEventListener('click', function () { nudge(0, STEP); });
+el('nudge-down').addEventListener('click', function () { nudge(0, -STEP); });
+el('nudge-in').addEventListener('click', function () { swipeZoom(1.04); });
+el('nudge-out').addEventListener('click', function () { swipeZoom(1 / 1.04); });
+
+function swipeZoom(factor) {
+  var rect = grid.rects[0];
+  swipeTargets().forEach(function (cell) {
+    zoomAt(cell, rect, rect.x + rect.width / 2, rect.y + rect.height / 2, factor);
+  });
+  paint();
+}
+
+el('swipe-drag').addEventListener('change', function () {
+  el('swipe-hint').textContent = el('swipe-drag').value === 'divider'
+    ? 'Drag left and right'
+    : 'Drag to line the photo up';
+  report();
+});
+
+
+/* ---------- marks that hold their place on a photo ---------- */
+
+var marks = [];
+var markPick = -1;
+var marking = null;
+
+/* A spot on the picture, written down in the photo's own coordinates so it
+   travels with the photo when it is moved or zoomed. */
+function toImage(cell, rect, point) {
+  var at = placement(cell, rect);
+  return { u: (point.x - at.x) / at.width, v: (point.y - at.y) / at.height };
+}
+
+function toCanvas(cell, rect, u, v) {
+  var at = placement(cell, rect);
+  return { x: at.x + u * at.width, y: at.y + v * at.height };
+}
+
+function markRect(index, width) {
+  var config = settings();
+  if (mode === 'swipe') {
+    return { x: 0, y: 0, width: width, height: Math.round(width / (config.ratio || 1)) };
+  }
+  var box = layoutOf(config, width);
+  return box.rects[index] || null;
+}
+
+function drawMarks(c, width, height, forSaving) {
+  for (var i = 0; i < marks.length; i++) {
+    var mark = marks[i];
+    var cell = cells[mark.cell];
+    var rect = markRect(mark.cell, width);
+    if (!cell || !cell.image || !rect) continue;
+    var a = toCanvas(cell, rect, mark.au, mark.av);
+    var b = toCanvas(cell, rect, mark.bu, mark.bv);
+    c.save();
+    if (mode === 'swipe' && mark.show !== 'both') {
+      var cut = width * swipePosition;
+      c.beginPath();
+      if (mark.show === 'first') c.rect(0, 0, cut, height);
+      else c.rect(cut, 0, width - cut, height);
+      c.clip();
+    }
+    c.strokeStyle = mark.colour;
+    c.fillStyle = mark.colour;
+    c.lineWidth = Math.max(1, mark.width * width / 1000);
+    c.lineCap = 'round';
+    c.lineJoin = 'round';
+    if (mark.kind === 'circle') {
+      c.beginPath();
+      c.ellipse((a.x + b.x) / 2, (a.y + b.y) / 2, Math.abs(b.x - a.x) / 2, Math.abs(b.y - a.y) / 2, 0, 0, Math.PI * 2);
+      c.stroke();
+    } else if (mark.kind === 'box') {
+      c.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+    } else {
+      c.beginPath();
+      c.moveTo(a.x, a.y);
+      c.lineTo(b.x, b.y);
+      c.stroke();
+      if (mark.kind === 'arrow') drawHead(c, a, b, c.lineWidth);
+    }
+    if (!forSaving && i === markPick) {
+      c.setLineDash([10, 7]);
+      c.strokeStyle = '#1F5E99';
+      c.lineWidth = 2;
+      c.strokeRect(Math.min(a.x, b.x) - 8, Math.min(a.y, b.y) - 8, Math.abs(b.x - a.x) + 16, Math.abs(b.y - a.y) + 16);
+    }
+    c.restore();
+  }
+}
+
+function drawHead(c, from, to, thick) {
+  var angle = Math.atan2(to.y - from.y, to.x - from.x);
+  var size = thick * 3.4;
+  c.beginPath();
+  c.moveTo(to.x, to.y);
+  c.lineTo(to.x - size * Math.cos(angle - 0.4), to.y - size * Math.sin(angle - 0.4));
+  c.lineTo(to.x - size * Math.cos(angle + 0.4), to.y - size * Math.sin(angle + 0.4));
+  c.closePath();
+  c.fill();
+}
+
+/* Which photo a mark belongs to: in Swipe, the side it was started on. */
+function markCell(point) {
+  if (mode === 'swipe') {
+    var side = point.x < stageWidth() * swipePosition ? 0 : 1;
+    return cells[side] && cells[side].image ? side : (cells[0] && cells[0].image ? 0 : -1);
+  }
+  var hit = cellAt(grid, point.x, point.y);
+  return hit && cells[hit.index] && cells[hit.index].image ? hit.index : -1;
+}
+
+function newMark(from, to) {
+  var index = markCell(from);
+  if (index < 0) return null;
+  var rect = mode === 'swipe' ? grid.rects[0] : grid.rects[index];
+  var cell = cells[index];
+  var a = toImage(cell, rect, from);
+  var b = toImage(cell, rect, to);
+  return {
+    kind: el('mark-kind').value, cell: index,
+    au: a.u, av: a.v, bu: b.u, bv: b.v,
+    colour: el('mark-colour').value,
+    width: Number(el('mark-width').value),
+    show: el('mark-show').value
+  };
+}
+
+function markAt(point) {
+  var width = stageWidth();
+  for (var i = marks.length - 1; i >= 0; i--) {
+    var mark = marks[i];
+    var cell = cells[mark.cell];
+    var rect = mode === 'swipe' ? grid.rects[0] : grid.rects[mark.cell];
+    if (!cell || !cell.image || !rect) continue;
+    var a = toCanvas(cell, rect, mark.au, mark.av);
+    var b = toCanvas(cell, rect, mark.bu, mark.bv);
+    var pad = Math.max(14, mark.width * width / 500);
+    if (point.x >= Math.min(a.x, b.x) - pad && point.x <= Math.max(a.x, b.x) + pad
+      && point.y >= Math.min(a.y, b.y) - pad && point.y <= Math.max(a.y, b.y) + pad) return i;
+  }
+  return -1;
+}
+
+function markControls() {
+  var mark = marks[markPick];
+  if (mark) {
+    el('mark-colour').value = mark.colour;
+    el('mark-width').value = mark.width;
+    el('mark-show').value = mark.show;
+  }
+  el('mark-width-value').textContent = el('mark-width').value + 'px';
+  el('mark-count').textContent = marks.length
+    ? marks.length + (marks.length === 1 ? ' mark.' : ' marks.')
+    : 'None.';
+}
+
+el('mark-undo').addEventListener('click', function () {
+  marks.pop();
+  markPick = marks.length - 1;
+  markControls();
+  paint();
+});
+el('mark-clear').addEventListener('click', function () {
+  marks = [];
+  markPick = -1;
+  markControls();
+  paint();
+});
+/* Colour, thickness and where it shows apply to the mark being worked on, which
+   is the last one drawn or the one tapped. Mark only sets what the next one is,
+   so picking a new shape leaves the marks already down alone. */
+function markEdit() {
+  var mark = marks[markPick];
+  if (mark) {
+    mark.colour = el('mark-colour').value;
+    mark.width = Number(el('mark-width').value);
+    mark.show = el('mark-show').value;
+  }
+  markControls();
+  paint();
+}
+
+['mark-colour', 'mark-width', 'mark-show'].forEach(function (id) {
+  el(id).addEventListener('input', markEdit);
+  el(id).addEventListener('change', markEdit);
+});
+el('mark-kind').addEventListener('change', markControls);
+
+el('drag-does').addEventListener('change', function () {
+  var doing = el('drag-does').value;
+  el('marks-box').classList.toggle('hidden', doing !== 'mark');
+  paint();
+});
+
 /* Saving */
 
 function render(width) {
@@ -960,11 +1535,15 @@ function render(width) {
     canvas.width = width;
     canvas.height = Math.round(width / (config.ratio || 1));
     drawSwipe(out, config, cells, width, swipePosition);
+    drawCovers(out, canvas.width, canvas.height);
+    drawMarks(out, canvas.width, canvas.height, true);
   } else {
     var box = layoutOf(config, width);
     canvas.width = box.width;
     canvas.height = box.height;
     drawGrid(out, config, cells, width);
+    drawCovers(out, canvas.width, canvas.height);
+    drawMarks(out, canvas.width, canvas.height, true);
   }
   return canvas;
 }

@@ -1,6 +1,6 @@
 /* Bump CACHE_VERSION on every deploy. Browsers keep serving the old build
    until this string changes. */
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const CACHE = `collage-maker-${CACHE_VERSION}`;
 
 const FILES = [
