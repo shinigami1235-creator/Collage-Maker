@@ -682,9 +682,26 @@ function place() {
   });
 }
 
-function stageWidth() {
+/* How much room the picture has, inside the padding of the space it sits in. */
+function stageRoom() {
   var wrap = stage.parentElement;
-  return Math.max(280, Math.min(wrap.clientWidth || 900, 900));
+  var style = window.getComputedStyle(wrap);
+  var wide = (wrap.clientWidth || 900) - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  var high = (wrap.clientHeight || 600) - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+  return { width: Math.max(280, Math.min(wide, 900)), height: Math.max(200, high) };
+}
+
+/* The width the preview is drawn at. A tall frame is fitted to the height of the
+   space as well as its width, which is why paint sets this rather than working
+   it out from the width alone. */
+var stagePx = 0;
+function stageWidth() {
+  return stagePx || stageRoom().width;
+}
+
+/* The height the frame comes out at for a given width, before any fitting. */
+function frameHeight(config, width) {
+  return mode === 'swipe' ? width / (config.ratio || 1) : layoutOf(config, width).height;
 }
 
 function stageHeight() {
@@ -693,13 +710,17 @@ function stageHeight() {
 
 function paint() {
   fitCells();
-  var width = stageWidth();
   var dpr = Math.min(window.devicePixelRatio || 1, 2);
   var config = settings();
+  var room = stageRoom();
+  var width = room.width;
+  var tall = frameHeight(config, width);
+  if (tall > room.height) width = Math.max(200, Math.floor(width * room.height / tall));
+  stagePx = width;
   if (mode === 'swipe') {
     var height = Math.round(width / (config.ratio || 1));
-    stage.width = width * dpr;
-    stage.height = height * dpr;
+    stage.width = Math.round(width * dpr);
+    stage.height = Math.round(height * dpr);
     stage.style.width = width + 'px';
     stage.style.height = height + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -709,10 +730,10 @@ function paint() {
     drawMarks(ctx, width, height, false);
   } else {
     var box = layoutOf(config, width);
-    stage.width = width * dpr;
-    stage.height = box.height * dpr;
+    stage.width = Math.round(width * dpr);
+    stage.height = Math.round(box.height * dpr);
     stage.style.width = width + 'px';
-    stage.style.height = box.height + 'px';
+    stage.style.height = Math.round(box.height) + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     grid = drawGrid(ctx, config, cells, width);
     drawCovers(ctx, width, grid.height);
