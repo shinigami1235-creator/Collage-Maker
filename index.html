@@ -1414,12 +1414,13 @@ function drawMarks(c, width, height, forSaving) {
       c.stroke();
     } else if (mark.kind === 'box') {
       c.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+    } else if (mark.kind === 'arrow') {
+      drawArrow(c, a, b, c.lineWidth);
     } else {
       c.beginPath();
       c.moveTo(a.x, a.y);
       c.lineTo(b.x, b.y);
       c.stroke();
-      if (mark.kind === 'arrow') drawHead(c, a, b, c.lineWidth);
     }
     if (!forSaving && i === markPick) {
       c.setLineDash([10, 7]);
@@ -1431,13 +1432,24 @@ function drawMarks(c, width, height, forSaving) {
   }
 }
 
-function drawHead(c, from, to, thick) {
+function drawArrow(c, from, to, thick) {
   var angle = Math.atan2(to.y - from.y, to.x - from.x);
-  var size = thick * 3.4;
+  var length = Math.hypot(to.x - from.x, to.y - from.y);
+  /* The head grows with the line it sits on, so a long arrow does not end in a
+     whisker. */
+  var size = Math.min(Math.max(thick * 5, length * 0.16), length * 0.34);
+  var spread = 0.42;
+  var back = { x: to.x - size * 0.66 * Math.cos(angle), y: to.y - size * 0.66 * Math.sin(angle) };
+  c.lineCap = 'butt';
+  c.beginPath();
+  c.moveTo(from.x, from.y);
+  c.lineTo(back.x, back.y);
+  c.stroke();
   c.beginPath();
   c.moveTo(to.x, to.y);
-  c.lineTo(to.x - size * Math.cos(angle - 0.4), to.y - size * Math.sin(angle - 0.4));
-  c.lineTo(to.x - size * Math.cos(angle + 0.4), to.y - size * Math.sin(angle + 0.4));
+  c.lineTo(to.x - size * Math.cos(angle - spread), to.y - size * Math.sin(angle - spread));
+  c.lineTo(to.x - size * 0.7 * Math.cos(angle), to.y - size * 0.7 * Math.sin(angle));
+  c.lineTo(to.x - size * Math.cos(angle + spread), to.y - size * Math.sin(angle + spread));
   c.closePath();
   c.fill();
 }
