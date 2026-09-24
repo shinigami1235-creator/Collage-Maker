@@ -56,9 +56,20 @@ body {
 }
 .tab-mode.on { background: var(--gold); border-color: var(--gold); color: var(--navy); font-weight: 600; }
 
-/* Picture in the middle, controls either side of it. */
-.work { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 250px minmax(0, 1fr) 290px; gap: 12px; padding: 12px 14px 0; }
-.rail { min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 12px; }
+/* Tools down the left, the picture in the middle, the picked tool's controls on
+   the right. Only one tool's controls show at a time. */
+.work { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 170px minmax(0, 1fr) 300px; gap: 12px; padding: 12px 14px 0; }
+.tools { min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+.tool {
+  font: 500 15px/20px var(--font); min-height: 48px; padding: 0 14px; text-align: left;
+  border: 1px solid var(--line-strong); border-radius: 8px;
+  background: var(--surface); color: var(--text); cursor: pointer;
+}
+.tool:hover:not(.on) { background: #EEF1F5; }
+.tool.on { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+.tool-help { margin-top: auto; border-color: transparent; background: transparent; color: var(--primary); }
+.tool-help.on { background: #E6EEF6; border-color: #E6EEF6; color: var(--primary); }
+.controls { min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .stage-wrap { position: relative; min-height: 0; display: flex; align-items: center; justify-content: center; }
 #stage {
   max-width: 100%; max-height: 100%;
@@ -72,19 +83,25 @@ body {
   background: rgba(16,28,43,.72); border-radius: 999px; padding: 5px 12px; pointer-events: none;
 }
 
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
-.panel h3 { font: 600 13px/18px var(--font); margin: 0 0 10px; color: var(--muted); letter-spacing: .02em; }
-/* A panel whose tool is not the one dragging uses. Touching it picks it up. */
-.panel.dim { opacity: .5; }
+.panel { display: none; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+.panel.on { display: block; }
+.panel h3 { font: 600 13px/18px var(--font); margin: 0 0 12px; color: var(--muted); letter-spacing: .02em; }
 
-.tabs { display: none; gap: 6px; padding: 8px 14px 0; overflow-x: auto; scrollbar-width: none; }
-.tabs::-webkit-scrollbar { display: none; }
-.tab {
-  flex: 0 0 auto; font: 500 14px/18px var(--font); min-height: 38px; padding: 0 14px;
-  border: 1px solid var(--line-strong); border-bottom: none; border-radius: 8px 8px 0 0;
-  background: #E9EDF1; color: var(--muted); cursor: pointer;
-}
-.tab.on { background: var(--surface); color: var(--primary); font-weight: 600; }
+/* the choice of which photo Line up moves, as one row of buttons */
+.seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 12px; }
+.seg .btn { padding: 0 4px; }
+.seg .btn.on { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+
+/* the settings needed less often, folded under each tool */
+.more { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px; }
+.more > summary { list-style: none; display: flex; align-items: center; gap: 6px; min-height: 40px; }
+.more > summary::-webkit-details-marker { display: none; }
+.more > summary::before { content: "+"; font-weight: 600; width: 14px; }
+.more[open] > summary::before { content: "\2212"; }
+
+.update { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font: 400 14px/20px var(--font); padding: 8px 12px; margin: 6px 14px 0;
+  border-radius: 6px; background: #FFF6E3; color: #5A4210; }
 
 .save-bar {
   flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
@@ -124,6 +141,8 @@ input[type=range] { width: 100%; accent-color: var(--primary); height: 34px; }
 .count { font: 500 13px/18px var(--font); color: var(--muted); }
 .note { font: 400 13px/19px var(--font); color: var(--muted); margin: 0 0 8px; }
 .note:last-child { margin-bottom: 0; }
+summary { font: 500 14px/20px var(--font); color: var(--primary); cursor: pointer; min-height: 32px; }
+details[open] summary { margin-bottom: 8px; }
 .steps { font: 400 13px/19px var(--font); color: var(--muted); padding-left: 16px; margin: 0; }
 .steps li { margin-bottom: 4px; }
 .msg { font: 400 14px/20px var(--font); padding: 8px 12px; border-radius: 6px; background: var(--danger-tint); color: var(--danger); margin: 6px 14px 0; }
@@ -136,33 +155,47 @@ input[type=range] { width: 100%; accent-color: var(--primary); height: 34px; }
 .nudge .btn { padding: 0 6px; }
 
 @media (pointer: coarse) {
-  .btn, select, input[type=text], input[type=number], .tab { min-height: 44px; font-size: 16px; }
+  .btn, select, input[type=text], input[type=number] { min-height: 44px; font-size: 16px; }
+  .tool { min-height: 44px; }
   .btn-install { min-height: 36px; font-size: 14px; }
   .tab-mode { min-height: 44px; font-size: 15px; padding: 0 16px; }
   input[type=color] { height: 44px; }
   input[type=range] { height: 44px; }
   input[type=checkbox] { width: 24px; height: 24px; }
   .switch { min-height: 44px; }
+  .more > summary { min-height: 44px; font-size: 16px; }
   .field > label { font-size: 14px; }
 }
 
-/* Narrow or portrait: the picture keeps the top of the frame and the controls
-   sit in one panel under it, a tab at a time. */
+/* Narrow or portrait: the picture keeps the top of the frame, the tools become a
+   strip of tabs under it, and the picked tool's controls sit under that. */
 @media (max-width: 999px), (orientation: portrait) and (max-width: 1200px) {
   .work { display: flex; flex-direction: column; gap: 0; padding: 8px 0 0; }
-  .rail { display: contents; }
-  .stage-wrap { flex: 1 1 auto; order: -1; padding: 0 14px 6px; }
-  .tabs { display: flex; }
-  .panel {
-    display: none; order: 2; flex: 0 0 auto; border-radius: 0; border-left: none; border-right: none;
-    max-height: 38vh; overflow-y: auto; margin: 0; border-bottom: none;
-  }
-  .panel.on { display: block; }
+  .stage-wrap { flex: 1 1 auto; order: 1; padding: 0 14px 6px; }
+  .tools { order: 2; flex: 0 0 auto; flex-direction: row; gap: 4px; padding: 0 14px;
+    overflow-x: auto; scrollbar-width: none; }
+  .tools::-webkit-scrollbar { display: none; }
+  /* all five tools have to show at once on a phone, so the tabs share the width
+     and only scroll on the very narrowest screens */
+  .tool { flex: 1 0 auto; text-align: center; padding: 0 7px; border-radius: 8px 8px 0 0; border-bottom: none;
+    background: #E9EDF1; color: var(--muted); font-size: 15px; }
+  .tool.on { background: var(--surface); border-color: var(--line-strong); color: var(--primary); }
+  .tool-help { margin-top: 0; border-color: var(--line-strong); background: #E9EDF1; color: var(--muted); }
+  .tool-help.on { background: var(--surface); border-color: var(--line-strong); }
+  .controls { order: 3; flex: 0 0 auto; max-height: 38vh; background: var(--surface); border-top: 1px solid var(--line-strong); }
+  .panel { border: none; border-radius: 0; }
   .panel h3 { display: none; }
+  .save-bar label[for="size"] { display: none; }
+}
+
+/* the narrowest phones still in use: tighter tabs so all five tools still show */
+@media (max-width: 360px) {
+  .tools { gap: 3px; padding: 0 8px; }
+  .tool { padding: 0 5px; font-size: 14px; }
 }
 
 @media (max-height: 700px) and (max-width: 999px) {
-  .panel { max-height: 32vh; }
+  .controls { max-height: 32vh; }
   .top { padding-top: calc(5px + env(safe-area-inset-top)); padding-bottom: 5px; }
 }
 </style>
@@ -184,17 +217,36 @@ input[type=range] { width: 100%; accent-color: var(--primary); height: 34px; }
   <div class="msg hidden" id="messages"></div>
   <p class="note hidden" id="ios-note" style="margin:6px 14px">On an iPhone or iPad, open Share and pick Add to Home Screen.</p>
 
-  <div class="tabs" id="tabs"></div>
+  <div class="update hidden" id="update-note">
+    <span>A new version is ready. Reload after you save, since reloading clears the photos.</span>
+    <button class="btn" type="button" id="update-now">Reload</button>
+  </div>
 
   <div class="work" id="workspace">
-    <div class="rail">
-      <div class="panel" id="panel-photos">
+    <nav class="tools" id="tools" aria-label="Tools">
+      <button class="tool on" type="button" id="tool-photos">Photos</button>
+      <button class="tool" type="button" id="tool-line">Line up</button>
+      <button class="tool" type="button" id="tool-cover">Cover</button>
+      <button class="tool" type="button" id="tool-mark">Mark</button>
+      <button class="tool" type="button" id="tool-video">Video</button>
+      <button class="tool tool-help" type="button" id="tool-steps">Steps</button>
+    </nav>
+
+    <div class="stage-wrap">
+      <canvas id="stage"></canvas>
+      <div class="hint hidden" id="swipe-hint">Drag left and right</div>
+    </div>
+
+    <div class="controls" id="controls">
+      <select id="drag-does" hidden></select>
+
+      <section class="panel on" id="panel-photos">
         <h3>Photos</h3>
         <div class="actions">
-          <button class="btn" type="button" id="add">Add photos</button>
-          <button class="btn" type="button" id="clear">Start over</button>
+          <button class="btn btn-primary" type="button" id="add">Add photos</button>
+          <button class="btn" type="button" id="swap">Swap</button>
         </div>
-        <div class="field">
+        <div class="field" id="layout-field">
           <label for="layout">Layout</label>
           <select id="layout"></select>
         </div>
@@ -202,70 +254,50 @@ input[type=range] { width: 100%; accent-color: var(--primary); height: 34px; }
           <label for="shape">Cell shape</label>
           <select id="shape"></select>
         </div>
-        <div class="row">
-          <div class="field">
-            <label for="gap">Gap</label>
-            <select id="gap">
-              <option value="0">None</option>
-              <option value="10" selected>Thin</option>
-              <option value="25">Wide</option>
-            </select>
+        <details class="more">
+          <summary>More</summary>
+          <div class="row">
+            <div class="field">
+              <label for="gap">Gap</label>
+              <select id="gap">
+                <option value="0">None</option>
+                <option value="10" selected>Thin</option>
+                <option value="25">Wide</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="background">Background</label>
+              <input type="color" id="background" value="#ffffff">
+            </div>
           </div>
-          <div class="field">
-            <label for="background">Background</label>
-            <input type="color" id="background" value="#ffffff">
+          <label class="switch"><input type="checkbox" id="labels" checked> Labels</label>
+          <div class="actions">
+            <button class="btn" type="button" id="clear">Start over</button>
           </div>
+        </details>
+      </section>
+
+      <section class="panel" id="panel-line">
+        <h3>Line up</h3>
+        <div class="seg" id="moves" role="group" aria-label="Moves">
+          <button class="btn" type="button" id="moves-move">Divider</button>
+          <button class="btn" type="button" id="moves-first">First</button>
+          <button class="btn" type="button" id="moves-second">Second</button>
+          <button class="btn" type="button" id="moves-both">Both</button>
         </div>
-        <label class="switch"><input type="checkbox" id="labels" checked> Labels</label>
-        <div class="field">
-          <label for="zoom-scope">Zoom</label>
+        <div class="field" id="zoom-field">
+          <label for="zoom-scope">Zoom works on</label>
           <select id="zoom-scope">
             <option value="all" selected>All photos</option>
             <option value="one">One photo</option>
           </select>
         </div>
-      </div>
-
-      <div class="panel" id="panel-cell">
-        <h3>This photo</h3>
         <span class="count" id="picked"></span>
         <div class="field" style="margin-top:8px">
-          <label for="label-text">Label</label>
-          <input type="text" id="label-text" maxlength="40" placeholder="Before">
-        </div>
-        <div class="actions">
-          <button class="btn" type="button" id="zoom-out">Zoom out</button>
-          <button class="btn" type="button" id="zoom-in">Zoom in</button>
-          <button class="btn" type="button" id="reset">Reset view</button>
-        </div>
-        <div class="field">
           <label for="photo-size">Size <span class="count" id="photo-size-read">100%</span></label>
           <input type="range" id="photo-size" min="100" max="400" step="1" value="100">
         </div>
-        <div class="actions">
-          <button class="btn" type="button" id="swap">Swap</button>
-          <button class="btn" type="button" id="drop-photo">Remove</button>
-        </div>
-        <label class="switch"><input type="checkbox" id="flip-cell"> Mirror this photo</label>
-      </div>
-    </div>
-
-    <div class="stage-wrap">
-      <canvas id="stage"></canvas>
-      <div class="hint hidden" id="swipe-hint">Drag left and right</div>
-    </div>
-
-    <div class="rail">
-      <div class="panel" id="panel-drag">
-        <h3>Dragging</h3>
-        <div class="field">
-          <label for="drag-does">Dragging the picture</label>
-          <select id="drag-does"></select>
-        </div>
         <p class="note" id="nudge-note"></p>
-        <div class="actions hidden" id="split-tools">
-          <button class="btn" type="button" id="split-centre">Put the divider back in the middle</button>
-        </div>
         <div class="nudge" id="swipe-tools">
           <button class="btn" type="button" id="nudge-left">Left</button>
           <button class="btn" type="button" id="nudge-up">Up</button>
@@ -274,43 +306,63 @@ input[type=range] { width: 100%; accent-color: var(--primary); height: 34px; }
           <button class="btn" type="button" id="nudge-down">Down</button>
           <button class="btn" type="button" id="nudge-out">Smaller</button>
         </div>
-      </div>
+        <div class="actions hidden" id="split-tools" style="margin-top:10px">
+          <button class="btn" type="button" id="split-centre">Put the divider back in the middle</button>
+        </div>
+        <details class="more">
+          <summary>More</summary>
+          <div class="actions">
+            <button class="btn" type="button" id="zoom-out">Zoom out</button>
+            <button class="btn" type="button" id="zoom-in">Zoom in</button>
+            <button class="btn" type="button" id="reset">Reset view</button>
+          </div>
+          <div class="field">
+            <label for="label-text">Label</label>
+            <input type="text" id="label-text" maxlength="40" placeholder="Before">
+          </div>
+          <label class="switch"><input type="checkbox" id="flip-cell"> Mirror this photo</label>
+          <div class="actions">
+            <button class="btn" type="button" id="drop-photo">Remove</button>
+          </div>
+        </details>
+      </section>
 
-      <div class="panel" id="panel-cover">
-        <h3>Cover up</h3>
-        <div class="row">
-          <div class="field">
-            <label for="cover-kind">Cover with</label>
-            <select id="cover-kind">
-              <option value="bar">Eye bar</option>
-              <option value="blur">Blur</option>
-              <option value="oval">Oval blur</option>
-              <option value="block">Solid block</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="cover-colour">Bar colour</label>
-            <input type="color" id="cover-colour" value="#101C2B">
-          </div>
-        </div>
+      <section class="panel" id="panel-cover">
+        <h3>Cover</h3>
         <div class="field">
-          <label for="cover-strength">Blur <span class="count" id="cover-strength-value">14 blocks</span></label>
-          <input type="range" id="cover-strength" min="4" max="30" value="14">
+          <label for="cover-kind">Cover with</label>
+          <select id="cover-kind">
+            <option value="bar">Eye bar</option>
+            <option value="blur">Blur</option>
+            <option value="oval">Oval blur</option>
+            <option value="block">Solid block</option>
+          </select>
         </div>
-        <div class="field">
-          <label for="cover-angle">Angle <span class="count" id="cover-angle-value">0 degrees</span></label>
-          <input type="range" id="cover-angle" min="-90" max="90" value="0">
-        </div>
+        <p class="note">Drag over the eyes, a name or an address.</p>
         <div class="actions">
           <button class="btn" type="button" id="cover-undo">Undo</button>
           <button class="btn" type="button" id="cover-clear">Clear</button>
           <span class="count" id="cover-count">None.</span>
         </div>
-        <p class="note">Open this panel and drag over the eyes, a name or an address.</p>
-      </div>
+        <details class="more">
+          <summary>More</summary>
+          <div class="field">
+            <label for="cover-colour">Bar colour</label>
+            <input type="color" id="cover-colour" value="#101C2B">
+          </div>
+          <div class="field">
+            <label for="cover-strength">Blur <span class="count" id="cover-strength-value">14 blocks</span></label>
+            <input type="range" id="cover-strength" min="4" max="30" value="14">
+          </div>
+          <div class="field">
+            <label for="cover-angle">Angle <span class="count" id="cover-angle-value">0 degrees</span></label>
+            <input type="range" id="cover-angle" min="-90" max="90" value="0">
+          </div>
+        </details>
+      </section>
 
-      <div class="panel" id="panel-marks">
-        <h3>Marks</h3>
+      <section class="panel" id="panel-mark">
+        <h3>Mark</h3>
         <div class="row">
           <div class="field">
             <label for="mark-kind">Mark</label>
@@ -326,18 +378,7 @@ input[type=range] { width: 100%; accent-color: var(--primary); height: 34px; }
             <input type="color" id="mark-colour" value="#E0B45A">
           </div>
         </div>
-        <div class="field">
-          <label for="mark-width">Thickness <span class="count" id="mark-width-value">8px</span></label>
-          <input type="range" id="mark-width" min="2" max="24" value="8">
-        </div>
-        <div class="field">
-          <label for="mark-show">Shows on</label>
-          <select id="mark-show">
-            <option value="both">Both photos</option>
-            <option value="first">The first photo</option>
-            <option value="second">The second photo</option>
-          </select>
-        </div>
+        <p class="note">Drag on the photo to draw. Drag a mark to move it, or either end to reshape it.</p>
         <div class="actions">
           <button class="btn" type="button" id="mark-copy">Copy to the other photo</button>
         </div>
@@ -346,10 +387,24 @@ input[type=range] { width: 100%; accent-color: var(--primary); height: 34px; }
           <button class="btn" type="button" id="mark-clear">Clear</button>
           <span class="count" id="mark-count">None.</span>
         </div>
-        <p class="note">Open this panel and drag on the photo. Drag a mark you have already made to move it, or drag either end to reshape it.</p>
-      </div>
+        <details class="more">
+          <summary>More</summary>
+          <div class="field">
+            <label for="mark-width">Thickness <span class="count" id="mark-width-value">8px</span></label>
+            <input type="range" id="mark-width" min="2" max="24" value="8">
+          </div>
+          <div class="field">
+            <label for="mark-show">Shows on</label>
+            <select id="mark-show">
+              <option value="both">Both photos</option>
+              <option value="first">The first photo</option>
+              <option value="second">The second photo</option>
+            </select>
+          </div>
+        </details>
+      </section>
 
-      <div class="panel" id="panel-video">
+      <section class="panel" id="panel-video">
         <h3>Video</h3>
         <div class="field">
           <label for="tape-seconds">Length</label>
@@ -367,23 +422,22 @@ input[type=range] { width: 100%; accent-color: var(--primary); height: 34px; }
         </div>
         <p class="note" id="tape-note"></p>
         <p class="note">The video holds the picture on its own, none of the buttons around it. Instagram wants 3 seconds or more.</p>
-      </div>
+      </section>
 
-      <div class="panel" id="panel-steps">
+      <section class="panel" id="panel-steps">
         <h3>Steps</h3>
         <ol class="steps">
-          <li>Add the photos. They fill the cells in the order you picked them.</li>
-          <li>Drag inside a cell to move the photo, and scroll or pinch to zoom.</li>
-          <li>Zoom set to All photos moves them together, which lines up the same spot on a before and after.</li>
-          <li>In Swipe, set Dragging the picture to a photo to line the two up, and use the nudge buttons.</li>
-          <li>Dragging the picture set to the divider slides the divider. The button under it puts the divider back in the middle.</li>
-          <li>In Swipe, Dragging the picture also decides which photo the Size slider, the scroll wheel and a pinch act on.</li>
-          <li>Swap trades the two photos over. Before and After stay on their own side.</li>
-          <li>Drag a mark to move it, or drag either end to reshape it. Copy to the other photo puts the same mark on the same spot of the other one.</li>
-          <li>Video records the picture on its own. Record the swipe runs the divider across by itself, and Record while I drag follows whatever you do until you press Stop.</li>
+          <li>Add the photos. They fill the cells in the order you picked them. Swap trades two over, and Before and After stay on their own side.</li>
+          <li>Pick a tool. It decides what dragging on the picture does and shows only the controls for that job.</li>
+          <li>Photos: drag a photo inside its cell to move it, and scroll or pinch to zoom.</li>
+          <li>Line up: in Swipe, pick which photo moves, then drag it, nudge it or set its Size. Divider slides the divider instead. In Grid, Zoom works on All photos zooms them together to the same spot.</li>
+          <li>Cover: drag over the eyes, a name or an address.</li>
+          <li>Mark: drag to draw an arrow, circle, line or box. Drag a mark to move it, or an end to reshape it.</li>
+          <li>Video: Record the swipe runs the divider across by itself. Record while I drag follows what you do until you press Stop.</li>
+          <li>More under each tool holds the settings you need less often.</li>
           <li>Press Save.</li>
         </ol>
-      </div>
+      </section>
     </div>
   </div>
 
@@ -448,8 +502,28 @@ window.addEventListener('appinstalled', function () {
 })();
 
 if ('serviceWorker' in navigator) {
+  /* When a new version takes over a copy that was already open, reload it, since
+     otherwise an installed app keeps showing the old build until it is closed and
+     opened again. With photos in, reloading would lose them, so it asks instead. */
+  var hadWorker = Boolean(navigator.serviceWorker.controller);
+  var reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function () {
+    if (!hadWorker || reloading) return;
+    if (!photos.length && !taping) {
+      reloading = true;
+      window.location.reload();
+      return;
+    }
+    el('update-note').classList.remove('hidden');
+  });
+  el('update-now').addEventListener('click', function () {
+    reloading = true;
+    window.location.reload();
+  });
   window.addEventListener('load', function () {
-    navigator.serviceWorker.register('./sw.js').catch(function () {
+    navigator.serviceWorker.register('./sw.js').then(function (registration) {
+      registration.update();
+    }).catch(function () {
       /* Opened straight from the file system, where workers cannot run. */
     });
   });
@@ -813,9 +887,8 @@ function report() {
   var act = activeCells();
   var one = namedCell();
   if (mode === 'swipe') {
-    el('picked').textContent = act.length === 1
-      ? (act[0] === cells[0] ? 'First photo, ' : 'Second photo, ') + Math.round(act[0].zoom * 100) + '%'
-      : filled + (filled === 1 ? ' photo placed' : ' photos placed');
+    /* the Moves buttons already say which photo and Size says how big */
+    el('picked').textContent = '';
   } else {
     el('picked').textContent = picked >= 0 && cells[picked]
       ? 'Cell ' + (picked + 1) + ' of ' + cellCount() + ', ' + Math.round(cells[picked].zoom * 100) + '%'
@@ -922,7 +995,8 @@ function showMode(next) {
   el('tab-swipe').classList.toggle('on', next === 'swipe');
   buildDrag();
   el('swipe-hint').classList.toggle('hidden', next !== 'swipe');
-  el('layout').disabled = next === 'swipe';
+  el('layout-field').classList.toggle('hidden', next === 'swipe');
+  setDoing(dragFor(tool));
   picked = -1;
   paint();
 }
@@ -1432,11 +1506,18 @@ function buildDrag() {
 
 function showTools() {
   var doing = el('drag-does').value;
-  el('swipe-tools').classList.toggle('hidden', mode !== 'swipe' || doing === 'cover' || doing === 'mark' || doing === 'move');
-  el('split-tools').classList.toggle('hidden', mode !== 'swipe');
-  el('panel-cover').classList.toggle('dim', doing !== 'cover');
-  el('panel-marks').classList.toggle('dim', doing !== 'mark');
-  el('swipe-hint').textContent = doing === 'move' ? 'Drag left and right' : 'Drag to line the photo up';
+  var swipe = mode === 'swipe';
+  el('moves').classList.toggle('hidden', !swipe);
+  el('zoom-field').classList.toggle('hidden', swipe);
+  el('swipe-tools').classList.toggle('hidden', !swipe || doing === 'cover' || doing === 'mark' || doing === 'move');
+  el('split-tools').classList.toggle('hidden', !swipe);
+  ['move', 'first', 'second', 'both'].forEach(function (key) {
+    el('moves-' + key).classList.toggle('on', swipe && doing === key);
+  });
+  el('swipe-hint').textContent = doing === 'move' ? 'Drag left and right'
+    : doing === 'cover' ? 'Drag over what to cover'
+    : doing === 'mark' ? 'Drag to draw a mark'
+    : 'Drag to line the photo up';
 }
 
 function nudge(dx, dy) {
@@ -1477,28 +1558,31 @@ function swipeZoom(factor) {
   paint();
 }
 
-el('drag-does').addEventListener('change', function () {
+/* What dragging on the picture does is set in one place, whichever button set
+   it: a tool, or one of the Moves buttons under Line up. */
+function setDoing(value) {
+  var select = el('drag-does');
+  var allowed = [].some.call(select.options, function (option) { return option.value === value; });
+  select.value = allowed ? value : 'move';
   showTools();
-  var choice = el('drag-does').value;
+  var choice = select.value;
   var lining = mode === 'swipe' && (choice === 'first' || choice === 'second' || choice === 'both');
-  el('nudge-note').textContent = lining && ensureRoom(swipeTargets()) ? ROOM_SAID : '';
-  report();
-  paint();
-});
-
-/* Touching the Cover up or Marks panel sets dragging to that tool, so nobody has
-   to find the Dragging box first. */
-function armTool(kind) {
-  var list = mode === 'swipe' ? DRAG_SWIPE : DRAG_GRID;
-  if (el('drag-does').value === kind) return;
-  if (!list.some(function (pair) { return pair[0] === kind; })) return;
-  el('drag-does').value = kind;
-  showTools();
+  if (!lining) el('nudge-note').textContent = '';
+  else if (ensureRoom(swipeTargets())) el('nudge-note').textContent = ROOM_SAID;
   report();
   paint();
 }
-el('panel-cover').addEventListener('pointerdown', function () { armTool('cover'); });
-el('panel-marks').addEventListener('pointerdown', function () { armTool('mark'); });
+el('drag-does').addEventListener('change', function () { setDoing(el('drag-does').value); });
+
+/* Line up in Swipe remembers which photo it was moving, so going to Cover and
+   back does not reset it. */
+var lineMoves = 'second';
+['move', 'first', 'second', 'both'].forEach(function (key) {
+  el('moves-' + key).addEventListener('click', function () {
+    lineMoves = key;
+    setDoing(key);
+  });
+});
 
 
 /* ---------- marks that hold their place on a photo ---------- */
@@ -1784,41 +1868,37 @@ el('flip-cell').addEventListener('change', function () {
 
 
 
-/* ---------- the panels, one at a time on a narrow screen ---------- */
+/* ---------- tools: the one picked shows its controls and sets the drag ---------- */
 
-var PANELS = [
-  ['photos', 'Photos'], ['cell', 'This photo'], ['drag', 'Dragging'],
-  ['cover', 'Cover up'], ['marks', 'Marks'], ['video', 'Video'], ['steps', 'Steps']
-];
-var panel = 'photos';
+var TOOLS = ['photos', 'line', 'cover', 'mark', 'video', 'steps'];
+var tool = 'photos';
 
-function buildPanels() {
-  var bar = el('tabs');
-  bar.textContent = '';
-  PANELS.forEach(function (pair) {
-    var button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'tab' + (pair[0] === panel ? ' on' : '');
-    button.id = 'tab-' + pair[0];
-    button.textContent = pair[1];
-    button.addEventListener('click', function () { showPanel(pair[0]); });
-    bar.appendChild(button);
-  });
-  showPanel(panel);
+function dragFor(name) {
+  if (name === 'cover') return 'cover';
+  if (name === 'mark') return 'mark';
+  if (name === 'line' && mode === 'swipe') return lineMoves;
+  return 'move';
 }
 
-function showPanel(key) {
-  panel = key;
-  PANELS.forEach(function (pair) {
-    el('tab-' + pair[0]).classList.toggle('on', pair[0] === key);
-    el('panel-' + pair[0]).classList.toggle('on', pair[0] === key);
+function pickTool(name) {
+  tool = name;
+  TOOLS.forEach(function (key) {
+    el('tool-' + key).classList.toggle('on', key === name);
+    el('panel-' + key).classList.toggle('on', key === name);
   });
-  var button = el('tab-' + key);
-  if (button.scrollIntoView) button.scrollIntoView({ inline: 'center', block: 'nearest' });
-  if (key === 'cover') armTool('cover');
-  if (key === 'marks') armTool('mark');
-  paint();
+  var button = el('tool-' + name);
+  if (button.scrollIntoView && getComputedStyle(el('tools')).flexDirection === 'row') {
+    button.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  }
+  el('controls').scrollTop = 0;
+  /* Steps is reading, so it leaves the drag as it was. */
+  if (name !== 'steps') setDoing(dragFor(name));
+  else paint();
 }
+
+TOOLS.forEach(function (key) {
+  el('tool-' + key).addEventListener('click', function () { pickTool(key); });
+});
 
 /* Saving */
 
@@ -2061,7 +2141,7 @@ window.addEventListener('resize', function () { if (photos.length) paint(); });
 
 fitCells();
 buildDrag();
-buildPanels();
+pickTool('photos');
 report();
 </script>
 </body>
