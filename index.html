@@ -349,6 +349,26 @@ input[type=range] { width: 100%; accent-color: var(--primary); height: 34px; }
         <p class="note">Open this panel and drag on the photo. Drag a mark you have already made to move it, or drag either end to reshape it.</p>
       </div>
 
+      <div class="panel" id="panel-video">
+        <h3>Video</h3>
+        <div class="field">
+          <label for="tape-seconds">Length</label>
+          <select id="tape-seconds">
+            <option value="3">3 seconds</option>
+            <option value="5" selected>5 seconds</option>
+            <option value="8">8 seconds</option>
+          </select>
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary" type="button" id="tape-auto">Record the swipe</button>
+        </div>
+        <div class="actions">
+          <button class="btn" type="button" id="tape-manual">Record while I drag</button>
+        </div>
+        <p class="note" id="tape-note"></p>
+        <p class="note">The video holds the picture on its own, none of the buttons around it. Instagram wants 3 seconds or more.</p>
+      </div>
+
       <div class="panel" id="panel-steps">
         <h3>Steps</h3>
         <ol class="steps">
@@ -360,6 +380,7 @@ input[type=range] { width: 100%; accent-color: var(--primary); height: 34px; }
           <li>In Swipe, Dragging the picture also decides which photo the Size slider, the scroll wheel and a pinch act on.</li>
           <li>Swap trades the two photos over. Before and After stay on their own side.</li>
           <li>Drag a mark to move it, or drag either end to reshape it. Copy to the other photo puts the same mark on the same spot of the other one.</li>
+          <li>Video records the picture on its own. Record the swipe runs the divider across by itself, and Record while I drag follows whatever you do until you press Stop.</li>
           <li>Press Save.</li>
         </ol>
       </div>
@@ -812,6 +833,7 @@ function report() {
   }
   if (act.length) el('photo-size-read').textContent = Math.round(act[0].zoom * 100) + '%';
   el('save').disabled = filled === 0;
+  tapeButtons();
   var shown = flipTarget()[0];
   el('flip-cell').checked = Boolean(shown && shown.flip);
 }
@@ -1766,7 +1788,7 @@ el('flip-cell').addEventListener('change', function () {
 
 var PANELS = [
   ['photos', 'Photos'], ['cell', 'This photo'], ['drag', 'Dragging'],
-  ['cover', 'Cover up'], ['marks', 'Marks'], ['steps', 'Steps']
+  ['cover', 'Cover up'], ['marks', 'Marks'], ['video', 'Video'], ['steps', 'Steps']
 ];
 var panel = 'photos';
 
@@ -1801,8 +1823,11 @@ function showPanel(key) {
 /* Saving */
 
 function render(width) {
+  return renderInto(document.createElement('canvas'), width);
+}
+
+function renderInto(canvas, width) {
   var config = settings();
-  var canvas = document.createElement('canvas');
   var out = canvas.getContext('2d');
   if (mode === 'swipe') {
     canvas.width = width;
@@ -1820,6 +1845,156 @@ function render(width) {
   }
   return canvas;
 }
+
+/* ---------- recording the picture as a video ---------- */
+
+/* MP4 first, since that is what Instagram takes. Chrome, Edge and Safari all
+   make one. Firefox only makes WebM, which the app says outright when it does. */
+var VIDEO_TYPES = [
+  'video/mp4;codecs=avc1.42E01E',
+  'video/mp4;codecs=avc1',
+  'video/mp4',
+  'video/webm;codecs=vp9',
+  'video/webm;codecs=vp8',
+  'video/webm'
+];
+
+function videoType() {
+  if (typeof MediaRecorder === 'undefined' || !document.createElement('canvas').captureStream) return null;
+  for (var i = 0; i < VIDEO_TYPES.length; i++) {
+    if (MediaRecorder.isTypeSupported(VIDEO_TYPES[i])) return VIDEO_TYPES[i];
+  }
+  return null;
+}
+
+/* Where the divider sits through an automatic take, as a fraction of the whole
+   length: all Before, across to all After, then back to the middle. */
+var TAPE_PATH = [[0, 1], [0.12, 1], [0.48, 0], [0.64, 0], [0.88, 0.5], [1, 0.5]];
+
+function ease(k) { return k < 0.5 ? 2 * k * k : 1 - Math.pow(2 - 2 * k, 2) / 2; }
+
+function splitAt(part) {
+  for (var i = 1; i < TAPE_PATH.length; i++) {
+    if (part <= TAPE_PATH[i][0]) {
+      var a = TAPE_PATH[i - 1];
+      var b = TAPE_PATH[i];
+      var span = b[0] - a[0];
+      return a[1] + (b[1] - a[1]) * (span > 0 ? ease((part - a[0]) / span) : 1);
+    }
+  }
+  return 0.5;
+}
+
+var taping = null;
+var MAX_TAPE = 30;
+
+function even(n) { n = Math.round(n); return n % 2 ? n + 1 : n; }
+
+function tapeSay(words) { el('tape-note').textContent = words; }
+
+function startTape(auto) {
+  if (taping) return;
+  var type = videoType();
+  if (!type) { tapeSay('This browser cannot make a video. Chrome, Edge and Safari can.'); return; }
+  /* 1080 across is as much as Instagram uses, and it keeps the file small. */
+  var wide = Math.min(Number(el('size').value), 1080);
+  var work = renderInto(document.createElement('canvas'), wide);
+  var canvas = document.createElement('canvas');
+  canvas.width = even(work.width);
+  canvas.height = even(work.height);
+  var out = canvas.getContext('2d');
+  var chunks = [];
+  var recorder;
+  try {
+    recorder = new MediaRecorder(canvas.captureStream(30), { mimeType: type, videoBitsPerSecond: 8000000 });
+  } catch (error) {
+    tapeSay('The recorder would not start. ' + error.message);
+    return;
+  }
+  recorder.ondataavailable = function (event) { if (event.data && event.data.size) chunks.push(event.data); };
+  recorder.onstop = function () { keepTape(chunks, type, canvas.width, canvas.height); };
+  taping = {
+    recorder: recorder, canvas: canvas, out: out, work: work, wide: wide,
+    auto: auto, seconds: auto ? Number(el('tape-seconds').value) : MAX_TAPE,
+    began: 0, split: swipePosition, frame: 0
+  };
+  recorder.start();
+  taping.began = performance.now();
+  tapeButtons();
+  rollTape();
+}
+
+function rollTape() {
+  if (!taping) return;
+  var gone = (performance.now() - taping.began) / 1000;
+  if (taping.auto) {
+    swipePosition = splitAt(Math.min(1, gone / taping.seconds));
+    paint();
+  }
+  renderInto(taping.work, taping.wide);
+  taping.out.drawImage(taping.work, 0, 0, taping.canvas.width, taping.canvas.height);
+  tapeSay('Recording, ' + gone.toFixed(1) + ' seconds.');
+  if (gone >= taping.seconds) { stopTape(); return; }
+  taping.frame = requestAnimationFrame(rollTape);
+}
+
+function stopTape() {
+  if (!taping) return;
+  cancelAnimationFrame(taping.frame);
+  var was = taping;
+  taping = null;
+  if (was.auto) { swipePosition = was.split; paint(); }
+  tapeSay('Putting the video together.');
+  was.recorder.stop();
+  tapeButtons();
+}
+
+/* An MP4 can hold something other than H.264, and Instagram only takes H.264.
+   The four letter code naming the video sits in the header, so read it back off
+   the file rather than trusting the type that was asked for. */
+function codecIn(head) {
+  var text = '';
+  for (var i = 0; i < head.length; i++) text += String.fromCharCode(head[i]);
+  if (text.indexOf('avc1') >= 0 || text.indexOf('avc3') >= 0) return 'H.264';
+  if (text.indexOf('hvc1') >= 0 || text.indexOf('hev1') >= 0) return 'HEVC';
+  if (text.indexOf('vp09') >= 0) return 'VP9';
+  if (text.indexOf('av01') >= 0) return 'AV1';
+  return '';
+}
+
+function keepTape(chunks, type, wide, high) {
+  var mp4 = type.indexOf('mp4') >= 0;
+  var blob = new Blob(chunks, { type: type.split(';')[0] });
+  var first = cells.filter(function (cell) { return cell.image; })[0];
+  var stem = (first ? first.image.stem : 'collage').slice(0, 40);
+  save(blob, stem + '-collage.' + (mp4 ? 'mp4' : 'webm'));
+  var size = wide + ' by ' + high + ', ' + readable(blob.size);
+  if (!mp4) {
+    tapeSay('Saved as WebM, ' + size
+      + '. Instagram turns WebM away. Record it in Chrome, Edge or Safari for an MP4.');
+    return;
+  }
+  blob.slice(0, 65536).arrayBuffer().then(function (head) {
+    var codec = codecIn(new Uint8Array(head));
+    if (codec === 'H.264' || !codec) tapeSay('Saved. ' + size + '.');
+    else tapeSay('Saved as an MP4 holding ' + codec + ', ' + size
+      + '. Instagram wants H.264 and may turn this one away. Chrome, Edge and Safari on a phone all make H.264.');
+  }).catch(function () { tapeSay('Saved. ' + size + '.'); });
+}
+
+function tapeButtons() {
+  var any = cells.filter(function (cell) { return cell.image; }).length > 0;
+  el('tape-auto').disabled = Boolean(taping) || mode !== 'swipe' || !any;
+  el('tape-seconds').disabled = Boolean(taping);
+  el('tape-manual').disabled = !any || (taping && taping.auto);
+  el('tape-manual').textContent = taping && !taping.auto ? 'Stop' : 'Record while I drag';
+}
+
+el('tape-auto').addEventListener('click', function () { startTape(true); });
+el('tape-manual').addEventListener('click', function () {
+  if (taping && !taping.auto) stopTape();
+  else startTape(false);
+});
 
 function save(blob, name) {
   var url = URL.createObjectURL(blob);
