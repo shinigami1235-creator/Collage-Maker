@@ -486,7 +486,7 @@ body.full .hint { display: none !important; }
           <li>Add the photos. They fill the cells in the order you picked them. Swap trades two over, and Before and After stay on their own side.</li>
           <li>Pick a tool. It decides what dragging on the picture does and shows only the controls for that job.</li>
           <li>Photos: drag a photo inside its cell to move it, and scroll or pinch to zoom.</li>
-          <li>Line up: in Swipe, pick which photo moves, then drag it, nudge it or set its Size and Turn. Divider slides the divider instead. In Grid, Zoom works on All photos zooms them together to the same spot.</li>
+          <li>Line up: in Swipe, drag a photo to move it or drag the divider to slide it. The photo you touch becomes the one picked under Moves, and the arrows, Size and Turn work on it. Both moves the two together. In Grid, Zoom works on All photos zooms them together to the same spot.</li>
           <li>Auto line up matches small spots across the photos and moves each photo onto the first. It runs by itself when the second photo of a pair goes in. Two-point line up has you tap the same two spots on each photo instead, like both pupils.</li>
           <li>Cover: drag over the eyes, a name or an address.</li>
           <li>Mark: drag to draw an arrow, circle, line or box. Drag a mark to move it, or an end to reshape it.</li>
@@ -1240,11 +1240,27 @@ stage.addEventListener('pointerdown', function (event) {
     return;
   }
   if (mode === 'swipe') {
-    if (el('drag-does').value === 'move') {
+    var doing = el('drag-does').value;
+    if (doing === 'move') {
       swipePosition = Math.min(1, Math.max(0, point.x / stageWidth()));
-      drag = { kind: 'swipe', id: event.pointerId };
+      drag = { kind: 'swipe', id: event.pointerId, offset: 0 };
       paint();
       return;
+    }
+    /* While lining up, a press on the divider slides it and a press on a photo
+       moves that photo, so there is no need to switch under Moves first. Both
+       still moves the two together. */
+    if (nearDivider(point)) {
+      drag = { kind: 'swipe', id: event.pointerId, offset: point.x / stageWidth() - swipePosition };
+      return;
+    }
+    if (doing !== 'both') {
+      var side = point.x < stageWidth() * swipePosition ? 'first' : 'second';
+      var sideCell = cells[side === 'first' ? 0 : 1];
+      if (side !== doing && sideCell && sideCell.image) {
+        lineMoves = side;
+        setDoing(side);
+      }
     }
     if (ensureRoom(swipeTargets())) {
       say(ROOM_SAID);
@@ -1260,6 +1276,20 @@ stage.addEventListener('pointerdown', function (event) {
     ? { kind: 'pan', id: event.pointerId, x: point.x, y: point.y, rect: hit.rect }
     : null;
   paint();
+});
+
+/* The divider can be grabbed within 24 screen pixels of it. */
+function nearDivider(point) {
+  var bounds = stage.getBoundingClientRect();
+  var perPixel = view.cssWidth / bounds.width / view.k;
+  return Math.abs(point.x - stageWidth() * swipePosition) <= 24 * perPixel;
+}
+
+/* Over the divider the pointer shows that it slides sideways. */
+stage.addEventListener('pointermove', function (event) {
+  if (event.pointerType !== 'mouse' || drag) return;
+  var lining = mode === 'swipe' && !pins && ['first', 'second', 'both'].indexOf(el('drag-does').value) >= 0;
+  stage.style.cursor = lining && nearDivider(stagePoint(event)) ? 'ew-resize' : '';
 });
 
 /* Whether the photos being dragged have any room to move. */
@@ -1336,7 +1366,7 @@ stage.addEventListener('pointermove', function (event) {
     return;
   }
   if (drag.kind === 'swipe') {
-    swipePosition = Math.min(1, Math.max(0, point.x / stageWidth()));
+    swipePosition = Math.min(1, Math.max(0, point.x / stageWidth() - (drag.offset || 0)));
     paint();
     return;
   }
@@ -1757,7 +1787,7 @@ function showTools() {
   el('swipe-hint').textContent = doing === 'move' ? 'Drag left and right'
     : doing === 'cover' ? 'Drag over what to cover'
     : doing === 'mark' ? 'Drag to draw a mark'
-    : 'Drag to line the photo up';
+    : 'Drag a photo or the divider';
   if (pins) el('swipe-hint').textContent = 'Tap spot ' + (pins.step % 2 + 1);
 }
 
