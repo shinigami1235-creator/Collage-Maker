@@ -29,6 +29,7 @@ installed the app keeps serving the old build until that string changes.
     sw.js                      offline cache
     icons/                     192, 512, maskable 512, apple touch
     vendor/pdf-lib.min.js      used by the PDF export
+    vendor/jsfeat.min.js       finds and pairs the spots for Auto line up
 
 ## Checking a deploy
 

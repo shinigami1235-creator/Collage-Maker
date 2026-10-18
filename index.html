@@ -146,6 +146,7 @@ details[open] summary { margin-bottom: 8px; }
 .steps { font: 400 13px/19px var(--font); color: var(--muted); padding-left: 16px; margin: 0; }
 .steps li { margin-bottom: 4px; }
 .msg { font: 400 14px/20px var(--font); padding: 8px 12px; border-radius: 6px; background: var(--danger-tint); color: var(--danger); margin: 6px 14px 0; }
+.msg.ok { background: #E7F2EA; color: #1D5A33; }
 
 .drop { border: 2px dashed var(--line-strong); border-radius: 10px; background: var(--surface); padding: 40px 20px; text-align: center; }
 .drop.over { border-color: var(--focus); background: #F2F7FB; }
@@ -179,7 +180,7 @@ body.full .fine-bar {
 .fine-row .seg .btn { min-width: 0; padding: 0 2px; font-size: 14px; }
 body.full .hint { display: none !important; }
 .fine-read { font: 600 14px/20px var(--font); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fine-pad { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.fine-pad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .fine-pad .btn { font-size: 18px; padding: 0; }
 .fine-say { font: 400 13px/18px var(--font); color: var(--muted); margin: 0; }
 /* a phone on its side: the fine controls go down the right so the picture
@@ -331,6 +332,10 @@ body.full .hint { display: none !important; }
           <button class="btn" type="button" id="moves-second">Second</button>
           <button class="btn" type="button" id="moves-both">Both</button>
         </div>
+        <div class="actions">
+          <button class="btn btn-primary" type="button" id="line-auto">Auto line up</button>
+          <button class="btn" type="button" id="line-pins">Two-point line up</button>
+        </div>
         <div class="field" id="zoom-field">
           <label for="zoom-scope">Zoom works on</label>
           <select id="zoom-scope">
@@ -342,6 +347,10 @@ body.full .hint { display: none !important; }
         <div class="field" style="margin-top:8px">
           <label for="photo-size">Size <span class="count" id="photo-size-read">100%</span></label>
           <input type="range" id="photo-size" min="20" max="400" step="1" value="100">
+        </div>
+        <div class="field">
+          <label for="photo-turn">Turn <span class="count" id="photo-turn-read">0.0 degrees</span></label>
+          <input type="range" id="photo-turn" min="-45" max="45" step="0.1" value="0">
         </div>
         <label class="switch"><input type="checkbox" id="free-move" checked> Move past the edges</label>
         <p class="note" id="nudge-note"></p>
@@ -477,11 +486,12 @@ body.full .hint { display: none !important; }
           <li>Add the photos. They fill the cells in the order you picked them. Swap trades two over, and Before and After stay on their own side.</li>
           <li>Pick a tool. It decides what dragging on the picture does and shows only the controls for that job.</li>
           <li>Photos: drag a photo inside its cell to move it, and scroll or pinch to zoom.</li>
-          <li>Line up: in Swipe, pick which photo moves, then drag it, nudge it or set its Size. Divider slides the divider instead. In Grid, Zoom works on All photos zooms them together to the same spot.</li>
+          <li>Line up: in Swipe, pick which photo moves, then drag it, nudge it or set its Size and Turn. Divider slides the divider instead. In Grid, Zoom works on All photos zooms them together to the same spot.</li>
+          <li>Auto line up matches small spots across the photos and moves each photo onto the first. It runs by itself when the second photo of a pair goes in. Two-point line up has you tap the same two spots on each photo instead, like both pupils.</li>
           <li>Cover: drag over the eyes, a name or an address.</li>
           <li>Mark: drag to draw an arrow, circle, line or box. Drag a mark to move it, or an end to reshape it.</li>
           <li>Video: Record the swipe runs the divider across by itself. Record while I drag follows what you do until you press Stop.</li>
-          <li>Full screen: one photo close up, with arrows that move a pixel per tap.</li>
+          <li>Full screen: one photo close up, with arrows that move a pixel per tap and buttons that turn it a tenth of a degree.</li>
           <li>More under each tool holds the settings you need less often.</li>
           <li>Press Save.</li>
         </ol>
@@ -514,6 +524,8 @@ body.full .hint { display: none !important; }
       <button class="btn" type="button" id="fine-right" aria-label="Move right">&rarr;</button>
       <button class="btn" type="button" id="fine-smaller" aria-label="Smaller">&minus;</button>
       <button class="btn" type="button" id="fine-bigger" aria-label="Bigger">+</button>
+      <button class="btn" type="button" id="fine-turn-left" aria-label="Turn left">&#8634;</button>
+      <button class="btn" type="button" id="fine-turn-right" aria-label="Turn right">&#8635;</button>
     </div>
     <p class="fine-say hidden" id="fine-note"></p>
   </div>
@@ -543,6 +555,7 @@ body.full .hint { display: none !important; }
 <input type="file" id="picker" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple hidden>
 
 <script src="./vendor/pdf-lib.min.js"></script>
+<script src="./vendor/jsfeat.min.js"></script>
 <script>
 /* Collage maker. Everything runs here, so the app works with no connection
    once it is installed. */
@@ -632,7 +645,7 @@ var SHAPES = {
 };
 
 function newCell() {
-  return { image: null, zoom: 1, fx: 0.5, fy: 0.5, label: '', flip: false };
+  return { image: null, zoom: 1, fx: 0.5, fy: 0.5, turn: 0, label: '', flip: false };
 }
 
 function layoutOf(settings, width) {
@@ -687,6 +700,71 @@ function placement(cell, rect) {
   };
 }
 
+/* Turn is in degrees as seen on the picture, clockwise. A mirrored photo is
+   drawn turned the other way before the mirror, so it still looks turned the
+   way the number says. */
+function turnOf(cell) {
+  var angle = (cell.turn || 0) * Math.PI / 180;
+  return cell.flip ? -angle : angle;
+}
+
+function spin(x, y, angle) {
+  var c = Math.cos(angle), s = Math.sin(angle);
+  return { x: c * x - s * y, y: s * x + c * y };
+}
+
+/* Where a spot on the photo lands on the picture, and back again. u and v run
+   from 0 to 1 across the photo as it was opened. */
+function imageToCanvas(cell, rect, u, v) {
+  var at = placement(cell, rect);
+  var d = spin((u - 0.5) * at.width, (v - 0.5) * at.height, turnOf(cell));
+  var x = at.x + at.width / 2 + d.x;
+  return { x: cell.flip ? rect.x * 2 + rect.width - x : x, y: at.y + at.height / 2 + d.y };
+}
+
+function canvasToImage(cell, rect, point) {
+  var at = placement(cell, rect);
+  var x = cell.flip ? rect.x * 2 + rect.width - point.x : point.x;
+  var d = spin(x - at.x - at.width / 2, point.y - at.y - at.height / 2, -turnOf(cell));
+  return { u: 0.5 + d.x / at.width, v: 0.5 + d.y / at.height };
+}
+
+/* Sets the focus so the photo's spot u, v sits on this point of the picture. */
+function pinAt(cell, rect, u, v, point) {
+  var image = cell.image;
+  var scale = Math.max(rect.width / image.width, rect.height / image.height) * cell.zoom;
+  var w = image.width * scale, h = image.height * scale;
+  var x = cell.flip ? rect.x * 2 + rect.width - point.x : point.x;
+  var d = spin((u - 0.5) * w, (v - 0.5) * h, turnOf(cell));
+  cell.fx = clampFocus(0.5 - (x - d.x - rect.x - rect.width / 2) / w, rect.width, w);
+  cell.fy = clampFocus(0.5 - (point.y - d.y - rect.y - rect.height / 2) / h, rect.height, h);
+}
+
+/* Turns the photo about the middle of its cell. */
+function turnTo(cell, rect, degrees) {
+  var middle = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+  var spot = canvasToImage(cell, rect, middle);
+  cell.turn = Math.max(-45, Math.min(45, degrees));
+  pinAt(cell, rect, spot.u, spot.v, middle);
+}
+
+function drawPhoto(c, cell, rect) {
+  var at = placement(cell, rect);
+  c.save();
+  c.imageSmoothingQuality = 'high';
+  /* a mirror selfie turned back the right way round */
+  if (cell.flip) { c.translate(rect.x * 2 + rect.width, 0); c.scale(-1, 1); }
+  var angle = turnOf(cell);
+  if (angle) {
+    var mx = at.x + at.width / 2, my = at.y + at.height / 2;
+    c.translate(mx, my);
+    c.rotate(angle);
+    c.translate(-mx, -my);
+  }
+  c.drawImage(cell.image.bitmap, at.x, at.y, at.width, at.height);
+  c.restore();
+}
+
 function drawLabel(ctx, rect, text, width, align) {
   var size = Math.max(11, Math.round(width / 40));
   var padX = Math.round(size * 0.7);
@@ -719,12 +797,7 @@ function drawGrid(ctx, settings, cells, width) {
     ctx.rect(rect.x, rect.y, rect.width, rect.height);
     ctx.clip();
     if (cell && cell.image) {
-      var at = placement(cell, rect);
-      ctx.imageSmoothingQuality = 'high';
-      /* a mirror selfie turned back the right way round */
-      if (cell.flip) { ctx.translate(rect.x * 2 + rect.width, 0); ctx.scale(-1, 1); }
-      ctx.drawImage(cell.image.bitmap, at.x, at.y, at.width, at.height);
-      if (cell.flip) { ctx.scale(-1, 1); ctx.translate(-(rect.x * 2 + rect.width), 0); }
+      drawPhoto(ctx, cell, rect);
       if (settings.labels && cell.label) drawLabel(ctx, rect, cell.label, width, 'left');
     } else {
       ctx.fillStyle = emptyShade(settings.background);
@@ -749,11 +822,7 @@ function drawSwipe(ctx, settings, cells, width, position) {
     if (index === 0) ctx.rect(0, 0, cut, height);
     else ctx.rect(cut, 0, width - cut, height);
     ctx.clip();
-    var at = placement(cell, rect);
-    ctx.imageSmoothingQuality = 'high';
-    if (cell.flip) { ctx.translate(rect.width, 0); ctx.scale(-1, 1); }
-    ctx.drawImage(cell.image.bitmap, at.x, at.y, at.width, at.height);
-    if (cell.flip) { ctx.scale(-1, 1); ctx.translate(-rect.width, 0); }
+    drawPhoto(ctx, cell, rect);
     if (settings.labels && cell.label) drawLabel(ctx, rect, cell.label, width, index === 0 ? 'left' : 'right');
     ctx.restore();
   });
@@ -774,13 +843,10 @@ function cellAt(grid, x, y) {
 }
 
 function zoomAt(cell, rect, pointerX, pointerY, factor) {
-  var before = placement(cell, rect);
-  var ix = (pointerX - before.x) / before.width;
-  var iy = (pointerY - before.y) / before.height;
+  var point = { x: pointerX, y: pointerY };
+  var spot = canvasToImage(cell, rect, point);
   cell.zoom = Math.min(8, Math.max(freeMove ? SMALLEST : 1, cell.zoom * factor));
-  var after = placement(cell, rect);
-  cell.fx = clampFocus(ix - (pointerX - rect.x - rect.width / 2) / after.width, rect.width, after.width);
-  cell.fy = clampFocus(iy - (pointerY - rect.y - rect.height / 2) / after.height, rect.height, after.height);
+  pinAt(cell, rect, spot.u, spot.v, point);
 }
 
 /* The app */
@@ -795,9 +861,9 @@ var stage = el('stage');
 var ctx = stage.getContext('2d');
 var nextId = 1;
 
-function message(text) {
+function message(text, ok) {
   var box = document.createElement('div');
-  box.className = 'msg';
+  box.className = ok ? 'msg ok' : 'msg';
   box.textContent = text;
   el('messages').appendChild(box);
   setTimeout(function () { box.remove(); }, 8000);
@@ -866,6 +932,7 @@ function place() {
       cell.zoom = 1;
       cell.fx = 0.5;
       cell.fy = 0.5;
+      cell.turn = 0;
     }
   });
   var taken = {};
@@ -943,10 +1010,12 @@ function paint() {
     grid = { rects: [{ x: 0, y: 0, width: width, height: height }], width: width, height: height };
     drawCovers(ctx, width, height);
     drawMarks(ctx, width, height, false);
+    drawPins(ctx);
   } else {
     grid = drawGrid(ctx, config, cells, width);
     drawCovers(ctx, width, grid.height);
     drawMarks(ctx, width, grid.height, false);
+    drawPins(ctx);
     if (close < 0) {
       markZoom(ctx, grid);
       if (picked >= 0 && grid.rects[picked]) {
@@ -1011,6 +1080,10 @@ function report() {
     el('photo-size').value = String(Math.round(Math.min(400, Math.max(freeMove ? SMALLEST * 100 : 100, act[0].zoom * 100))));
   }
   if (act.length) el('photo-size-read').textContent = Math.round(act[0].zoom * 100) + '%';
+  el('photo-turn').disabled = act.length === 0;
+  if (act.length && document.activeElement !== el('photo-turn')) el('photo-turn').value = String(act[0].turn || 0);
+  el('photo-turn-read').textContent = turnText(act.length ? act[0].turn : 0);
+  lineButtons();
   el('save').disabled = filled === 0;
   tapeButtons();
   var shown = flipTarget()[0];
@@ -1024,6 +1097,7 @@ function refresh() {
   el('empty').classList.toggle('hidden', any);
   el('workspace').classList.toggle('hidden', !any);
   paint();
+  autoLine();
 }
 
 function looksLikeImage(file) {
@@ -1040,6 +1114,7 @@ function addFiles(files) {
   var finish = function () {
     if (--pending > 0) return;
     slots.forEach(function (photo) { if (photo) photos.push(photo); });
+    cancelPins();
     refresh();
   };
   list.forEach(function (file, index) {
@@ -1079,9 +1154,11 @@ el('picker').addEventListener('change', function () {
 
 el('clear').addEventListener('click', function () {
   photos.forEach(function (photo) { photo.bitmap.close && photo.bitmap.close(); });
+  cancelPins();
   photos = [];
   cells = [];
   picked = -1;
+  linedPair = '';
   refresh();
 });
 
@@ -1096,6 +1173,7 @@ el('size').addEventListener('change', report);
 el('format').addEventListener('change', report);
 
 function showMode(next) {
+  cancelPins();
   mode = next;
   place();
   el('tab-grid').classList.toggle('on', next === 'grid');
@@ -1106,6 +1184,7 @@ function showMode(next) {
   setDoing(dragFor(tool));
   picked = -1;
   paint();
+  autoLine();
 }
 el('tab-grid').addEventListener('click', function () { showMode('grid'); });
 el('tab-swipe').addEventListener('click', function () { showMode('swipe'); });
@@ -1126,6 +1205,13 @@ stage.addEventListener('pointerdown', function (event) {
   event.preventDefault();
   stage.setPointerCapture(event.pointerId);
   var point = stagePoint(event);
+  /* while tapping spots, a tap counts on lifting the finger, so a pinch to zoom
+     in for a closer look does not drop a spot */
+  if (pins) {
+    if (pins.down) pins.down.multi = true;
+    else pins.down = { id: event.pointerId, x: event.clientX, y: event.clientY, multi: false };
+    return;
+  }
   if (el('drag-does').value === 'mark') {
     var pickedMark = markAt(point);
     if (pickedMark >= 0) {
@@ -1243,7 +1329,7 @@ stage.addEventListener('pointermove', function (event) {
     drag.y = point.y;
     swipeTargets().forEach(function (cell) {
       var at = placement(cell, drag.rect);
-      cell.fx = clampFocus(cell.fx - adx / at.width, drag.rect.width, at.width);
+      cell.fx = clampFocus(cell.fx - (cell.flip ? -adx : adx) / at.width, drag.rect.width, at.width);
       cell.fy = clampFocus(cell.fy - ady / at.height, drag.rect.height, at.height);
     });
     paint();
@@ -1260,13 +1346,21 @@ stage.addEventListener('pointermove', function (event) {
   drag.y = point.y;
   targets().forEach(function (cell) {
     var at = placement(cell, drag.rect);
-    cell.fx = clampFocus(cell.fx - dx / at.width, drag.rect.width, at.width);
+    cell.fx = clampFocus(cell.fx - (cell.flip ? -dx : dx) / at.width, drag.rect.width, at.width);
     cell.fy = clampFocus(cell.fy - dy / at.height, drag.rect.height, at.height);
   });
   paint();
 });
 
 function endDrag(event) {
+  if (pins && pins.down && event.pointerId === pins.down.id) {
+    var down = pins.down;
+    pins.down = null;
+    if (event.type === 'pointerup' && !down.multi && Math.hypot(event.clientX - down.x, event.clientY - down.y) < 10) {
+      pinTap(stagePoint(event));
+    }
+    return;
+  }
   if (moving && event.pointerId === moving.id) {
     moving = null;
     markControls();
@@ -1303,6 +1397,12 @@ function linkedZoom() {
   return el('zoom-scope').value === 'all';
 }
 
+/* In Swipe a zoom works on the photo being moved, and on both while spots are
+   being tapped, since only one of them shows then. */
+function zoomList() {
+  return pins ? cells.filter(function (cell) { return cell.image; }) : activeCells();
+}
+
 function targets(index) {
   var one = typeof index === 'number' ? index : picked;
   if (linkedZoom()) return cells.filter(function (cell) { return cell.image; });
@@ -1316,7 +1416,7 @@ stage.addEventListener('wheel', function (event) {
   event.preventDefault();
   if (mode !== 'swipe') picked = hit.index;
   var factor = event.deltaY < 0 ? 1.06 : 1 / 1.06;
-  var list = mode === 'swipe' ? activeCells() : targets(hit.index);
+  var list = mode === 'swipe' ? zoomList() : targets(hit.index);
   list.forEach(function (cell) { zoomAt(cell, hit.rect, point.x, point.y, factor); });
   paint();
 }, { passive: false });
@@ -1340,7 +1440,7 @@ stage.addEventListener('pointermove', function (event) {
     var factor = span / pinch.span;
     var hit = mode === 'swipe' ? { index: 0, rect: grid.rects[0] } : cellAt(grid, mid.x, mid.y);
     if (hit) {
-      var pinched = mode === 'swipe' ? activeCells() : targets(hit.index);
+      var pinched = mode === 'swipe' ? zoomList() : targets(hit.index);
       pinched.forEach(function (cell) { zoomAt(cell, hit.rect, mid.x, mid.y, factor); });
       paint();
     }
@@ -1365,7 +1465,7 @@ function stepZoom(factor) {
 el('zoom-in').addEventListener('click', function () { stepZoom(1.1); });
 el('zoom-out').addEventListener('click', function () { stepZoom(1 / 1.1); });
 el('reset').addEventListener('click', function () {
-  activeCells().forEach(function (cell) { cell.zoom = 1; cell.fx = 0.5; cell.fy = 0.5; });
+  activeCells().forEach(function (cell) { cell.zoom = 1; cell.fx = 0.5; cell.fy = 0.5; cell.turn = 0; });
   paint();
 });
 el('free-move').addEventListener('change', function () {
@@ -1396,6 +1496,18 @@ el('photo-size').addEventListener('input', function () {
   el('photo-size-read').textContent = Math.round(want * 100) + '%';
   paint();
 });
+function turnText(degrees) {
+  var tenth = Math.round((degrees || 0) * 10) / 10;
+  return (tenth === 0 ? 0 : tenth).toFixed(1) + ' degrees';
+}
+el('photo-turn').addEventListener('input', function () {
+  var want = Number(el('photo-turn').value);
+  var rect = grid.rects[mode === 'swipe' ? 0 : Math.max(picked, 0)] || grid.rects[0];
+  if (!rect) return;
+  activeCells().forEach(function (cell) { turnTo(cell, rect, want); });
+  el('photo-turn-read').textContent = turnText(want);
+  paint();
+});
 el('label-text').addEventListener('input', function () {
   var one = namedCell();
   if (!one) return;
@@ -1407,7 +1519,7 @@ el('label-text').addEventListener('input', function () {
    the photo they were drawn on. */
 function swapCells(a, b) {
   if (!cells[a] || !cells[b]) return;
-  ['image', 'zoom', 'fx', 'fy', 'flip'].forEach(function (key) {
+  ['image', 'zoom', 'fx', 'fy', 'turn', 'flip'].forEach(function (key) {
     var keep = cells[a][key];
     cells[a][key] = cells[b][key];
     cells[b][key] = keep;
@@ -1418,6 +1530,7 @@ function swapCells(a, b) {
   });
 }
 el('swap').addEventListener('click', function () {
+  cancelPins();
   if (mode === 'swipe') {
     swapCells(0, 1);
     paint();
@@ -1429,6 +1542,7 @@ el('swap').addEventListener('click', function () {
   paint();
 });
 el('drop-photo').addEventListener('click', function () {
+  cancelPins();
   var one = namedCell();
   if (!one || !one.image) return;
   var gone = one.image;
@@ -1457,14 +1571,14 @@ function cellUnder(point) {
 }
 
 function pixelate(c, cell, cellRect, box, blocks) {
-  var at = placement(cell, cellRect);
   blocks = Math.max(3, Math.round(blocks || 14));
   var small = document.createElement('canvas');
   small.width = blocks;
   small.height = Math.max(1, Math.round(blocks * box.h / box.w));
   var tiny = small.getContext('2d');
-  tiny.setTransform(small.width / box.w, 0, 0, small.height / box.h, 0, 0);
-  tiny.drawImage(cell.image.bitmap, at.x - box.x, at.y - box.y, at.width, at.height);
+  var sx = small.width / box.w, sy = small.height / box.h;
+  tiny.setTransform(sx, 0, 0, sy, -box.x * sx, -box.y * sy);
+  drawPhoto(tiny, cell, cellRect);
   c.save();
   c.imageSmoothingEnabled = false;
   c.drawImage(small, box.x, box.y, box.w, box.h);
@@ -1644,6 +1758,7 @@ function showTools() {
     : doing === 'cover' ? 'Drag over what to cover'
     : doing === 'mark' ? 'Drag to draw a mark'
     : 'Drag to line the photo up';
+  if (pins) el('swipe-hint').textContent = 'Tap spot ' + (pins.step % 2 + 1);
 }
 
 /* The photos the arrows and Bigger and Smaller act on, and the cell they are
@@ -1670,7 +1785,7 @@ function nudge(dx, dy) {
   var stopped = false;
   list.forEach(function (cell) {
     var at = placement(cell, rect);
-    var wantX = cell.fx + dx / at.width, wantY = cell.fy + dy / at.height;
+    var wantX = cell.fx + (cell.flip ? -dx : dx) / at.width, wantY = cell.fy + dy / at.height;
     var fx = clampFocus(wantX, rect.width, at.width);
     var fy = clampFocus(wantY, rect.height, at.height);
     if (Math.abs(fx - wantX) > 1e-9 || Math.abs(fy - wantY) > 1e-9) stopped = true;
@@ -1731,10 +1846,495 @@ function pixel() { return 1 / view.k; }
 ['nudge-out', 'fine-smaller'].forEach(function (id) {
   hold(el(id), function (times) { nudgeZoom(1 / Math.pow(1.005, times)); });
 });
+
+/* each press turns the photo a tenth of a degree */
+function nudgeTurn(degrees) {
+  var rect = moveRect();
+  var list = moveList();
+  if (!rect || !list.length) return;
+  list.forEach(function (cell) { turnTo(cell, rect, (cell.turn || 0) + degrees); });
+  say('');
+  paint();
+}
+hold(el('fine-turn-left'), function (times) { nudgeTurn(-0.1 * times); });
+hold(el('fine-turn-right'), function (times) { nudgeTurn(0.1 * times); });
 el('split-centre').addEventListener('click', function () {
   swipePosition = 0.5;
   paint();
 });
+
+/* ---------- lining a photo up with the first one ---------- */
+
+/* Both photos are shrunk to 640 pixels on the long side, turned grey and
+   evened out for light. The program finds up to 500 small distinct spots on
+   each at three sizes, since the second photo may be taken closer or further
+   away. Each spot on the second photo is paired with the spot on the first that
+   looks most like it. */
+var MATCH_SIDE = 640;
+var MATCH_LEVELS = [1, 0.8, 0.64];
+var MATCH_SPOTS = 500;
+var MATCH_LEAST = 10;
+var U8 = 0;
+var spotPool = [];
+
+function poolOf(size) {
+  while (spotPool.length < size) spotPool.push(new jsfeat.keypoint_t(0, 0, 0, 0, -1));
+  return spotPool;
+}
+
+/* The direction of a spot, from where the brightness sits around it, so a
+   turned photo still gives the same spot the same look. */
+var ROUND = new Int32Array([15, 15, 15, 15, 14, 14, 14, 13, 13, 12, 11, 10, 9, 8, 6, 3, 0]);
+function spotAngle(img, px, py) {
+  var src = img.data, step = img.cols, centre = (py * step + px) | 0;
+  var m01 = 0, m10 = 0, u, v;
+  for (u = -15; u <= 15; ++u) m10 += u * src[centre + u];
+  for (v = 1; v <= 15; ++v) {
+    var sum = 0, d = ROUND[v];
+    for (u = -d; u <= d; ++u) {
+      var plus = src[centre + u + v * step], minus = src[centre + u - v * step];
+      sum += plus - minus;
+      m10 += u * (plus + minus);
+    }
+    m01 += v * sum;
+  }
+  return Math.atan2(m01, m10);
+}
+
+/* The spots of one photo as it shows, mirror included. k is how many match
+   pixels there are to one pixel of the photo. */
+function matchImage(cell) {
+  if (!U8) U8 = jsfeat.U8_t | jsfeat.C1_t;
+  var image = cell.image;
+  var k = Math.min(1, MATCH_SIDE / Math.max(image.width, image.height));
+  var w = Math.max(48, Math.round(image.width * k));
+  var h = Math.max(48, Math.round(image.height * k));
+  k = w / image.width;
+  var canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  var c = canvas.getContext('2d', { willReadFrequently: true });
+  c.imageSmoothingQuality = 'high';
+  if (cell.flip) { c.translate(w, 0); c.scale(-1, 1); }
+  c.drawImage(image.bitmap, 0, 0, w, h);
+  var base = new jsfeat.matrix_t(w, h, U8);
+  jsfeat.imgproc.grayscale(c.getImageData(0, 0, w, h).data, w, h, base);
+  jsfeat.imgproc.equalize_histogram(base, base);
+  jsfeat.yape06.laplacian_threshold = 10;
+  jsfeat.yape06.min_eigen_value_threshold = 10;
+  var pool = poolOf(w * h >> 1);
+  var spots = [];
+  var codes = [];
+  MATCH_LEVELS.forEach(function (level) {
+    var lw = Math.round(w * level), lh = Math.round(h * level);
+    if (lw < 48 || lh < 48) return;
+    var img = base;
+    if (level < 1) {
+      img = new jsfeat.matrix_t(lw, lh, U8);
+      jsfeat.imgproc.resample(base, img, lw, lh);
+    }
+    var smooth = new jsfeat.matrix_t(lw, lh, U8);
+    jsfeat.imgproc.gaussian_blur(img, smooth, 5, 0);
+    var count = jsfeat.yape06.detect(smooth, pool, 17);
+    var found = pool.slice(0, count).sort(function (a, b) { return b.score - a.score; });
+    /* an 8 by 8 grid with a cap per square, so the spots cover the photo
+       instead of crowding into its busiest corner */
+    var cap = Math.ceil(MATCH_SPOTS / 64) * 2;
+    var filled = new Int32Array(64);
+    var kept = [];
+    for (var i = 0; i < found.length && kept.length < MATCH_SPOTS; i++) {
+      var p = found[i];
+      var square = Math.min(7, Math.floor(p.x * 8 / lw)) + Math.min(7, Math.floor(p.y * 8 / lh)) * 8;
+      if (filled[square] >= cap) continue;
+      filled[square]++;
+      kept.push(new jsfeat.keypoint_t(p.x, p.y, p.score, 0, spotAngle(smooth, p.x, p.y)));
+    }
+    if (!kept.length) return;
+    var made = new jsfeat.matrix_t(32, kept.length, U8);
+    jsfeat.orb.describe(smooth, kept, kept.length, made);
+    var words = new Uint32Array(kept.length * 8);
+    new Uint8Array(words.buffer).set(made.data.subarray(0, kept.length * 32));
+    var back = w / lw;
+    kept.forEach(function (p, index) {
+      spots.push({ x: p.x * back, y: p.y * back });
+      codes.push(words.subarray(index * 8, index * 8 + 8));
+    });
+  });
+  return { k: k, w: w, h: h, spots: spots, codes: codes };
+}
+
+function bitCount(v) {
+  v = v - ((v >>> 1) & 0x55555555);
+  v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
+  return Math.imul((v + (v >>> 4)) & 0x0F0F0F0F, 0x01010101) >>> 24;
+}
+
+/* Pairs each spot of the moving photo with its closest look-alike on the first,
+   kept only when the next closest is clearly worse. */
+function pairSpots(from, to) {
+  var pairs = [];
+  for (var i = 0; i < from.codes.length; i++) {
+    var a = from.codes[i], best = 999, next = 999, at = -1;
+    for (var j = 0; j < to.codes.length; j++) {
+      var b = to.codes[j], d = 0;
+      for (var n = 0; n < 8 && d < next; n++) d += bitCount(a[n] ^ b[n]);
+      if (d < best) { next = best; best = d; at = j; }
+      else if (d < next) next = d;
+    }
+    if (at >= 0 && best <= 72 && best < next * 0.8) pairs.push({ p: from.spots[i], q: to.spots[at] });
+  }
+  return pairs;
+}
+
+/* A fit carries x and y of the moving photo onto the first:
+   x' = a x - b y + tx and y' = b x + a y + ty. */
+function fitTwo(p1, q1, p2, q2) {
+  var dx = p2.x - p1.x, dy = p2.y - p1.y;
+  var span = dx * dx + dy * dy;
+  if (span < 1e-6) return null;
+  var ex = q2.x - q1.x, ey = q2.y - q1.y;
+  var a = (ex * dx + ey * dy) / span, b = (ey * dx - ex * dy) / span;
+  return { a: a, b: b, tx: q1.x - (a * p1.x - b * p1.y), ty: q1.y - (b * p1.x + a * p1.y) };
+}
+
+function fitMany(pairs) {
+  var n = pairs.length, px = 0, py = 0, qx = 0, qy = 0;
+  pairs.forEach(function (m) { px += m.p.x; py += m.p.y; qx += m.q.x; qy += m.q.y; });
+  px /= n; py /= n; qx /= n; qy /= n;
+  var sxx = 0, sxy = 0, spp = 0;
+  pairs.forEach(function (m) {
+    var ax = m.p.x - px, ay = m.p.y - py, bx = m.q.x - qx, by = m.q.y - qy;
+    sxx += ax * bx + ay * by;
+    sxy += ax * by - ay * bx;
+    spp += ax * ax + ay * ay;
+  });
+  if (spp < 1e-6) return null;
+  var a = sxx / spp, b = sxy / spp;
+  return { a: a, b: b, tx: qx - (a * px - b * py), ty: qy - (b * px + a * py) };
+}
+
+function missOf(fit, m) {
+  return Math.hypot(fit.a * m.p.x - fit.b * m.p.y + fit.tx - m.q.x, fit.b * m.p.x + fit.a * m.p.y + fit.ty - m.q.y);
+}
+
+/* Tries 2000 fits from two random pairs each and keeps the one most pairs agree
+   with, then tightens it on those pairs. */
+function bestFit(pairs, reach) {
+  var seed = 12345;
+  var random = function () { seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; return seed / 4294967296; };
+  var best = null, bestScore = 0;
+  for (var round = 0; round < 2000; round++) {
+    var i = Math.floor(random() * pairs.length), j = Math.floor(random() * pairs.length);
+    if (i === j) continue;
+    var fit = fitTwo(pairs[i].p, pairs[i].q, pairs[j].p, pairs[j].q);
+    if (!fit) continue;
+    var size = Math.hypot(fit.a, fit.b);
+    if (size < 0.3 || size > 3.5 || Math.abs(Math.atan2(fit.b, fit.a)) > Math.PI / 4) continue;
+    var score = 0;
+    for (var n = 0; n < pairs.length; n++) if (missOf(fit, pairs[n]) < reach) score++;
+    if (score > bestScore) { bestScore = score; best = fit; }
+  }
+  if (!best) return null;
+  var agree = [];
+  for (var pass = 0; pass < 3; pass++) {
+    var limit = pass ? reach * 0.75 : reach;
+    agree = pairs.filter(function (m) { return missOf(best, m) < limit; });
+    if (agree.length < MATCH_LEAST) return null;
+    best = fitMany(agree) || best;
+  }
+  agree = pairs.filter(function (m) { return missOf(best, m) < reach * 0.75; });
+  if (agree.length < MATCH_LEAST) return null;
+  return { fit: best, agree: agree };
+}
+
+/* The agreeing spots have to cover a fair part of the photo. */
+function spread(found, to) {
+  var left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
+  found.agree.forEach(function (m) {
+    left = Math.min(left, m.q.x); right = Math.max(right, m.q.x);
+    top = Math.min(top, m.q.y); bottom = Math.max(bottom, m.q.y);
+  });
+  return (right - left) * (bottom - top) >= to.w * to.h * 0.04;
+}
+
+/* How far a fit's spots sit from the middle of the first photo, as the median
+   of their distances. */
+function middleOf(found, to) {
+  var cx = to.w / 2, cy = to.h / 2;
+  var far = found.agree.map(function (m) { return Math.hypot(m.q.x - cx, m.q.y - cy); }).sort(function (a, b) { return a - b; });
+  return far[far.length >> 1];
+}
+
+/* A person can sit differently in the room between visits, so the face and the
+   wall behind it move by different amounts. When the pairs left over after the
+   first fit make a second fit of their own, the one nearer the middle of the
+   photo wins, since that is where the face or the treated area usually is. */
+function findFit(from, to) {
+  var pairs = pairSpots(from, to);
+  if (pairs.length < MATCH_LEAST) return null;
+  var reach = 8 * Math.max(to.w, to.h) / MATCH_SIDE;
+  var first = bestFit(pairs, reach);
+  if (!first) return null;
+  var rest = pairs.filter(function (m) { return missOf(first.fit, m) > reach * 1.5; });
+  var second = rest.length >= MATCH_LEAST ? bestFit(rest, reach) : null;
+  var pick = first;
+  if (second && spread(second, to) && second.agree.length >= Math.max(MATCH_LEAST, first.agree.length * 0.25)
+    && middleOf(second, to) < middleOf(first, to)) pick = second;
+  if (!spread(pick, to)) return null;
+  pick.fit.count = pick.agree.length;
+  return pick.fit;
+}
+
+/* Moves, sizes and turns the photo in cell so that every spot the fit names
+   lands on the same spot of the first photo. The fit works in pixels of the two
+   photos as they show. */
+function placeBy(ref, refRect, cell, rect, fit) {
+  var s0 = Math.max(refRect.width / ref.image.width, refRect.height / ref.image.height) * ref.zoom;
+  var t0 = (ref.turn || 0) * Math.PI / 180;
+  var c0 = imageToCanvas(ref, refRect, 0.5, 0.5);
+  var size = Math.hypot(fit.a, fit.b);
+  var s1 = s0 * size;
+  var t1 = t0 + Math.atan2(fit.b, fit.a);
+  var degrees = t1 * 180 / Math.PI;
+  var cover = Math.max(rect.width / cell.image.width, rect.height / cell.image.height);
+  var zoom = s1 / cover;
+  if (zoom < SMALLEST || zoom > 8 || Math.abs(degrees) > 45) return false;
+  var u = spin((fit.tx - ref.image.width / 2) * s0, (fit.ty - ref.image.height / 2) * s0, t0);
+  var v = spin(cell.image.width / 2 * s1, cell.image.height / 2 * s1, t1);
+  cell.zoom = zoom;
+  cell.turn = degrees;
+  pinAt(cell, rect, 0.5, 0.5, {
+    x: c0.x - refRect.x + rect.x + u.x + v.x,
+    y: c0.y - refRect.y + rect.y + u.y + v.y
+  });
+  return true;
+}
+
+/* A fit found on the shrunk copies, turned into pixels of the photos. */
+function inPixels(fit, from, to) {
+  var size = from.k / to.k;
+  return { a: fit.a * size, b: fit.b * size, tx: fit.tx / to.k, ty: fit.ty / to.k, count: fit.count };
+}
+
+function lineRect(index) {
+  return mode === 'swipe' ? grid.rects[0] : grid.rects[index];
+}
+
+function photoName(index) {
+  var cell = cells[index];
+  return cell && cell.label ? cell.label : 'Photo ' + (index + 1);
+}
+
+/* A lined up photo is turned and may be smaller than its cell, which only
+   shows with Move past the edges on. */
+function allowEdges() {
+  if (freeMove) return false;
+  freeMove = true;
+  el('free-move').checked = true;
+  el('photo-size').min = String(SMALLEST * 100);
+  return true;
+}
+
+var lining = false;
+
+function lineUp(list) {
+  if (lining) return;
+  var ref = cells[0];
+  list = list.filter(function (index) { return index > 0 && cells[index] && cells[index].image; });
+  if (!ref || !ref.image || !list.length) return;
+  if (!window.jsfeat) {
+    message('The line up part has not finished loading. Try again in a moment.');
+    return;
+  }
+  lining = true;
+  lineButtons();
+  /* a moment for the button to show Lining up before the work holds the page */
+  setTimeout(function () {
+    var placed = [], missed = [], spots = 0, opened = false;
+    try {
+      var to = matchImage(ref);
+      list.forEach(function (index) {
+        var cell = cells[index];
+        var from = matchImage(cell);
+        var fit = findFit(from, to);
+        if (fit && placeBy(ref, lineRect(0), cell, lineRect(index), inPixels(fit, from, to))) {
+          placed.push(index);
+          spots = fit.count;
+        } else missed.push(index);
+      });
+    } catch (error) {
+      message(error.message);
+    }
+    if (placed.length) opened = allowEdges();
+    lining = false;
+    say('');
+    paint();
+    var edges = opened ? ' Move past the edges is now on.' : '';
+    if (placed.length === 1 && !missed.length) message('Lined up on ' + spots + ' matching spots.' + edges, true);
+    else if (placed.length) message('Lined up ' + placed.length + ' photos on ' + photoName(0) + '.' + edges, true);
+    if (missed.length) {
+      message(missed.length === 1 && list.length === 1
+        ? 'No match found between the two photos. Use Two-point line up.'
+        : 'No match found for ' + missed.map(photoName).join(' and ') + '. Use Two-point line up for those.');
+    }
+  }, 30);
+}
+
+/* Lines up a pair by itself the first time both photos are in. */
+var linedPair = '';
+function autoLine() {
+  if (cellCount() !== 2 || pins) return;
+  var a = cells[0] && cells[0].image, b = cells[1] && cells[1].image;
+  if (!a || !b) return;
+  var key = [a.id, b.id].sort().join('|');
+  if (key === linedPair) return;
+  linedPair = key;
+  lineUp([1]);
+}
+
+function lineTargets() {
+  if (mode === 'swipe') return [1];
+  var list = [];
+  cells.forEach(function (cell, index) { if (index > 0 && cell.image) list.push(index); });
+  return list;
+}
+
+el('line-auto').addEventListener('click', function () {
+  cancelPins();
+  lineUp(lineTargets());
+});
+
+/* ---------- lining up by two spots tapped on each photo ---------- */
+
+var pins = null;
+
+function pinTarget() {
+  if (mode === 'swipe') return cells[1] && cells[1].image ? 1 : -1;
+  if (picked > 0 && cells[picked] && cells[picked].image) return picked;
+  for (var i = 1; i < cells.length; i++) if (cells[i] && cells[i].image) return i;
+  return -1;
+}
+
+var PIN_SAY = [
+  ': tap a spot you can find on both photos, like a pupil or a mole.',
+  ': tap a second spot, as far from the first as you can.',
+  ': tap the first spot again.',
+  ': tap the second spot again.'
+];
+
+function pinSay() {
+  var index = pins.step < 2 ? 0 : pins.target;
+  say(photoName(index) + PIN_SAY[pins.step]);
+  el('swipe-hint').textContent = 'Tap spot ' + (pins.step % 2 + 1);
+}
+
+function startPins() {
+  var target = pinTarget();
+  if (!cells[0] || !cells[0].image || target < 1) return;
+  pins = { target: target, step: 0, spots: [], split: swipePosition, down: null };
+  if (mode === 'swipe') swipePosition = 1;
+  pinSay();
+  lineButtons();
+  paint();
+}
+
+function cancelPins() {
+  if (!pins) return;
+  if (mode === 'swipe') swipePosition = pins.split;
+  pins = null;
+  say('');
+  showTools();
+  lineButtons();
+  paint();
+}
+
+el('line-pins').addEventListener('click', function () {
+  if (pins) cancelPins();
+  else startPins();
+});
+
+function pinTap(point) {
+  var index = pins.step < 2 ? 0 : pins.target;
+  var rect = lineRect(index);
+  var cell = cells[index];
+  if (!rect || !cell || !cell.image) { cancelPins(); return; }
+  var spot = canvasToImage(cell, rect, point);
+  var inside = point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height;
+  if (!inside || spot.u < 0 || spot.u > 1 || spot.v < 0 || spot.v > 1) {
+    say(photoName(index) + ': tap on the photo itself.');
+    return;
+  }
+  if (pins.step % 2 === 1) {
+    var first = imageToCanvas(cell, rect, pins.spots[pins.step - 1].u, pins.spots[pins.step - 1].v);
+    if (Math.hypot(first.x - point.x, first.y - point.y) < rect.width * 0.05) {
+      say(photoName(index) + ': tap a second spot further from the first.');
+      return;
+    }
+  }
+  pins.spots.push(spot);
+  pins.step++;
+  if (pins.step === 2 && mode === 'swipe') swipePosition = 0;
+  if (pins.step < 4) { pinSay(); paint(); return; }
+  finishPins();
+}
+
+/* The four taps in pixels of each photo as it shows, then the fit that carries
+   the second pair onto the first. */
+function finishPins() {
+  var ref = cells[0], cell = cells[pins.target];
+  var shown = function (c, spot) {
+    return { x: (c.flip ? 1 - spot.u : spot.u) * c.image.width, y: spot.v * c.image.height };
+  };
+  var s = pins.spots;
+  var fit = fitTwo(shown(cell, s[2]), shown(ref, s[0]), shown(cell, s[3]), shown(ref, s[1]));
+  var target = pins.target;
+  if (mode === 'swipe') swipePosition = pins.split;
+  pins = null;
+  showTools();
+  lineButtons();
+  if (fit && placeBy(ref, lineRect(0), cell, lineRect(target), fit)) {
+    var opened = allowEdges();
+    say('Lined up on the two spots.' + (opened ? ' Move past the edges is now on.' : ''));
+  } else {
+    say('Those spots need more than 45 degrees of turn or a size outside 20% to 800%. Press Two-point line up and tap them in the same order on both photos.');
+  }
+  paint();
+}
+
+/* the taps so far, numbered, on the preview only */
+function drawPins(c) {
+  if (!pins) return;
+  pins.spots.forEach(function (spot, i) {
+    var index = i < 2 ? 0 : pins.target;
+    if (mode === 'swipe' && (i < 2) !== (pins.step < 2)) return;
+    var cell = cells[index], rect = lineRect(index);
+    if (!cell || !cell.image || !rect) return;
+    var at = imageToCanvas(cell, rect, spot.u, spot.v);
+    var r = 11 / view.k;
+    c.save();
+    c.beginPath();
+    c.arc(at.x, at.y, r, 0, Math.PI * 2);
+    c.fillStyle = 'rgba(16,28,43,.82)';
+    c.fill();
+    c.lineWidth = 2 / view.k;
+    c.strokeStyle = '#E0B45A';
+    c.stroke();
+    c.fillStyle = '#ffffff';
+    c.font = '600 ' + (13 / view.k) + 'px system-ui, sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText(String(i % 2 + 1), at.x, at.y + 0.5 / view.k);
+    c.restore();
+  });
+}
+
+function lineButtons() {
+  var ready = cells[0] && cells[0].image && lineTargets().some(function (index) { return cells[index] && cells[index].image; });
+  el('line-auto').disabled = lining || !ready || Boolean(pins);
+  el('line-auto').textContent = lining ? 'Lining up' : 'Auto line up';
+  el('line-pins').disabled = lining || (!pins && pinTarget() < 1);
+  el('line-pins').textContent = pins ? 'Cancel' : 'Two-point line up';
+}
 
 /* ---------- full screen ---------- */
 
@@ -1807,7 +2407,7 @@ function fineControls() {
   });
   var moving = swipe ? ['first', 'second', 'both'].indexOf(doing) >= 0 : doing === 'move';
   var act = moveList();
-  var size = act.length ? Math.round(act[0].zoom * 1000) / 10 + '%' : '';
+  var size = act.length ? Math.round(act[0].zoom * 1000) / 10 + '%' + (act[0].turn ? ', ' + turnText(act[0].turn) : '') : '';
   var shown = fullCell();
   if (!swipe) {
     el('fine-read').textContent = shown >= 0
@@ -1882,15 +2482,11 @@ var marking = null;
 /* A spot on the picture, written down in the photo's own coordinates so it
    travels with the photo when it is moved or zoomed. */
 function toImage(cell, rect, point) {
-  var at = placement(cell, rect);
-  var x = cell.flip ? (rect.x * 2 + rect.width) - point.x : point.x;
-  return { u: (x - at.x) / at.width, v: (point.y - at.y) / at.height };
+  return canvasToImage(cell, rect, point);
 }
 
 function toCanvas(cell, rect, u, v) {
-  var at = placement(cell, rect);
-  var x = at.x + u * at.width;
-  return { x: cell.flip ? (rect.x * 2 + rect.width) - x : x, y: at.y + v * at.height };
+  return imageToCanvas(cell, rect, u, v);
 }
 
 function markRect(index, width) {
@@ -2169,6 +2765,7 @@ function dragFor(name) {
 }
 
 function pickTool(name) {
+  if (name !== 'line' && name !== 'steps') cancelPins();
   tool = name;
   TOOLS.forEach(function (key) {
     el('tool-' + key).classList.toggle('on', key === name);
