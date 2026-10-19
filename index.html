@@ -525,7 +525,10 @@ body.full .hint { display: none !important; }
             <option value="one">This photo only</option>
           </select>
         </div>
-        <p class="note">Drag over the eyes, a name or an address.</p>
+        <div class="actions">
+          <button class="btn btn-primary" type="button" id="cover-eyes">Cover the eyes</button>
+        </div>
+        <p class="note">Cover the eyes finds the eyes on every photo and covers them with the cover picked above. Or drag over the eyes, a name or an address.</p>
         <div class="actions">
           <button class="btn" type="button" id="cover-undo">Undo</button>
           <button class="btn" type="button" id="cover-clear">Clear</button>
@@ -625,7 +628,7 @@ body.full .hint { display: none !important; }
           <li>View: See-through lays the second photo over the first at half strength and Differences shows only where they differ. Both are for checking the line up and never show in the saved picture.</li>
           <li>Fill the frame zooms the photos together until no background shows. Centre both puts the photos back in the middle at their own size. Reset and line up does the same and then runs Auto line up again. Undo or Ctrl+Z takes back the last move, size or turn.</li>
           <li>Labels: a label and a date for each photo. The date comes from the photo when it holds one, and you can change it. Credit puts a line like "Cygnus Aesthetics" along the top or bottom of the picture, and Watermark lays words, a symbol or your logo over every photo. Only the labels differ from photo to photo. With Labels open, tap a label, the credit or the watermark to pick it, drag it to put it anywhere, and use its round handle to tilt it and its square corner to size it.</li>
-          <li>Cover: drag over the eyes, a name or an address. A cover lands on the same spot of every photo, or only on its own with This photo only. Drag a cover to move it. The picked cover has a round handle to tilt it and a square corner to size it.</li>
+          <li>Cover: Cover the eyes finds the eyes on every photo and covers them with the cover picked, a bar, a blur, an oval or a block. Press it after lining up, since a cover stays where it was put when a photo moves. Or drag over the eyes, a name or an address. A cover lands on the same spot of every photo, or only on its own with This photo only. Drag a cover to move it. The picked cover has a round handle to tilt it and a square corner to size it.</li>
           <li>Mark: drag to draw an arrow, circle, line or box. With Shows on set to Both photos it appears on every photo at the same spot. Drag a mark to move it, or an end to reshape it.</li>
           <li>Video: Record the swipe runs the divider across by itself. Record while I drag follows what you do until you press Stop.</li>
           <li>Full screen: one photo close up, with arrows that move a pixel per tap and buttons that turn it a tenth of a degree.</li>
@@ -1070,6 +1073,178 @@ function drawSwipe(ctx, settings, cells, width, position, view) {
   });
   return { width: width, height: height, cut: cut };
 }
+
+/* ---------- finding the eyes ---------- */
+
+/* MediaPipe's face finder marks both eyes on each face. It is loaded the
+   first time Cover the eyes is pressed, from the app's own copy, so it works
+   with no connection once the app is installed. */
+var finder = null;
+var finderAnswer = null;
+
+function loadFinder() {
+  if (finder) return finder;
+  finder = new Promise(function (done, fail) {
+    var script = document.createElement('script');
+    script.src = './vendor/mediapipe/face_detection.js';
+    script.onload = function () {
+      try {
+        var found = new window.FaceDetection({ locateFile: function (file) { return './vendor/mediapipe/' + file; } });
+        found.onResults(function (results) {
+          if (finderAnswer) { var answer = finderAnswer; finderAnswer = null; answer(results.detections || []); }
+        });
+        found.setOptions({ model: 'short', minDetectionConfidence: 0.5 });
+        found.initialize().then(function () { done(found); }, fail);
+      } catch (error) { fail(error); }
+    };
+    script.onerror = function () { fail(new Error('missing')); };
+    document.head.appendChild(script);
+  });
+  finder.catch(function () { finder = null; });
+  return finder;
+}
+
+function findFaces(found, canvas, model) {
+  found.setOptions({ model: model, minDetectionConfidence: 0.5 });
+  return new Promise(function (done) {
+    finderAnswer = done;
+    found.send({ image: canvas }).catch(function () { finderAnswer = null; done([]); });
+  });
+}
+
+/* The photo drawn a quarter turn at a time, up to 1280 pixels long, so a face
+   on a photo taken on its side is still found. Eyes come back as spots on the
+   photo as it was opened, from 0 to 1 across. */
+function photoTurned(image, quarter) {
+  var k = Math.min(1, 1280 / Math.max(image.width, image.height));
+  var w = Math.round(image.width * k), h = Math.round(image.height * k);
+  var canvas = document.createElement('canvas');
+  canvas.width = quarter % 2 ? h : w;
+  canvas.height = quarter % 2 ? w : h;
+  var c = canvas.getContext('2d');
+  if (quarter === 1) { c.translate(h, 0); c.rotate(Math.PI / 2); }
+  else if (quarter === 2) { c.translate(w, h); c.rotate(Math.PI); }
+  else if (quarter === 3) { c.translate(0, w); c.rotate(-Math.PI / 2); }
+  c.drawImage(image.bitmap, 0, 0, w, h);
+  return canvas;
+}
+
+function backFrom(quarter, x, y) {
+  if (quarter === 1) return { u: y, v: 1 - x };
+  if (quarter === 2) return { u: 1 - x, v: 1 - y };
+  if (quarter === 3) return { u: 1 - y, v: x };
+  return { u: x, v: y };
+}
+
+/* The finder's own sureness about a face, from 0 to 1. */
+function scoreOf(face) {
+  var keys = Object.keys(face);
+  for (var i = 0; i < keys.length; i++) {
+    var value = face[keys[i]];
+    if (Array.isArray(value) && value[0] && typeof value[0] === 'object' && keys[i] !== 'landmarks') {
+      var inner = Object.keys(value[0]).filter(function (k) { return k !== 'index' && typeof value[0][k] === 'number'; });
+      if (inner.length) return value[0][inner[0]];
+    }
+  }
+  return 0.75;
+}
+
+/* A face the right way up has its eyes near level and its nose below them. */
+function upright(face, canvas) {
+  var l = face.landmarks, w = canvas.width, h = canvas.height;
+  var one = l[0].x <= l[1].x ? l[0] : l[1], two = one === l[0] ? l[1] : l[0];
+  var angle = Math.atan2((two.y - one.y) * h, (two.x - one.x) * w) * 180 / Math.PI;
+  return Math.abs(angle) <= 35 && l[2].y * h > (one.y + two.y) / 2 * h;
+}
+
+/* Every quarter turn is tried, since the finder also sees faces on their side
+   but places their eyes badly. The turn it is surest about wins, and a face it
+   is less than 70% sure of, like a pattern in a coffee cup, is left alone. */
+function eyesOf(found, image) {
+  var tries = [[0, 'short'], [1, 'short'], [2, 'short'], [3, 'short'], [0, 'full']];
+  var best = null;
+  var step = function (n) {
+    if (n >= tries.length || (n === 4 && best)) return Promise.resolve();
+    var quarter = tries[n][0];
+    var canvas = photoTurned(image, quarter);
+    return findFaces(found, canvas, tries[n][1]).then(function (faces) {
+      var good = faces.filter(function (face) { return scoreOf(face) >= 0.6 && upright(face, canvas); });
+      var top = good.reduce(function (m, face) { return Math.max(m, scoreOf(face)); }, 0);
+      if (top >= 0.7 && (!best || top > best.top)) best = { top: top, quarter: quarter, faces: good };
+      return step(n + 1);
+    });
+  };
+  return step(0).then(function () {
+    if (!best) return [];
+    return best.faces.map(function (face) {
+      var one = face.landmarks[0], two = face.landmarks[1];
+      return { a: backFrom(best.quarter, one.x, one.y), b: backFrom(best.quarter, two.x, two.y) };
+    });
+  });
+}
+
+/* A bar runs along the line of the eyes. A blur, an oval or a block is a
+   little taller, turned to the same line. */
+function eyeCover(kind, index, rect, a, b) {
+  var d = Math.hypot(b.x - a.x, b.y - a.y);
+  var angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+  if (angle > 90) angle -= 180;
+  if (angle <= -90) angle += 180;
+  var w = d * (kind === 'bar' ? 2.1 : 2.25), h = d * (kind === 'bar' ? 0.6 : 0.85);
+  var cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+  return {
+    kind: kind, cell: index, every: false,
+    x: (cx - w / 2 - rect.x) / rect.width, y: (cy - h / 2 - rect.y) / rect.height,
+    w: w / rect.width, h: h / rect.height, angle: angle,
+    strength: Number(el('cover-strength').value), colour: el('cover-colour').value
+  };
+}
+
+var findingEyes = false;
+
+el('cover-eyes').addEventListener('click', function () {
+  if (findingEyes) return;
+  var spots = photoSpots(stageWidth(), -1);
+  if (!spots.length) return;
+  findingEyes = true;
+  var button = el('cover-eyes');
+  button.disabled = true;
+  button.textContent = 'Finding the eyes';
+  var kind = coverTool();
+  var covered = 0, missed = [];
+  loadFinder().then(function (found) {
+    var next = function (n) {
+      if (n >= spots.length) return Promise.resolve();
+      var spot = spots[n], cell = cells[spot.index];
+      return eyesOf(found, cell.image).then(function (faces) {
+        if (!faces.length) missed.push(spot.index);
+        faces.forEach(function (face) {
+          var a = imageToCanvas(cell, spot.rect, face.a.u, face.a.v);
+          var b = imageToCanvas(cell, spot.rect, face.b.u, face.b.v);
+          covers.push(eyeCover(kind, spot.index, spot.rect, a, b));
+        });
+        if (faces.length) covered++;
+        return next(n + 1);
+      });
+    };
+    return next(0);
+  }).then(function () {
+    coverPick = covers.length - 1;
+    if (covered) message('Covered the eyes on ' + covered + (covered === 1 ? ' photo.' : ' photos.'), true);
+    if (missed.length) {
+      message('No face found on ' + missed.map(photoName).join(' and ') + '. Drag over the eyes on '
+        + (missed.length === 1 ? 'that one.' : 'those.'));
+    }
+  }, function () {
+    message('This browser cannot run the eye finder. Drag over the eyes instead.');
+  }).then(function () {
+    findingEyes = false;
+    button.disabled = false;
+    button.textContent = 'Cover the eyes';
+    coverControls();
+    paint();
+  });
+});
 
 /* ---------- moving labels, the credit, the watermark and covers ---------- */
 

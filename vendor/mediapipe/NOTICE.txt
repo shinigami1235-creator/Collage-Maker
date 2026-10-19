@@ -1,0 +1,2 @@
+MediaPipe Face Detection 0.4.1646425229 by Google, from the npm package @mediapipe/face_detection.
+Licensed under the Apache License, Version 2.0: https://www.apache.org/licenses/LICENSE-2.0

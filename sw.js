@@ -1,6 +1,6 @@
 /* Bump CACHE_VERSION on every deploy, since that is what tells browsers a new
    version exists. */
-const CACHE_VERSION = 'v20';
+const CACHE_VERSION = 'v21';
 const CACHE = `collage-maker-${CACHE_VERSION}`;
 
 const FILES = [
@@ -13,6 +13,14 @@ const FILES = [
   './icons/apple-touch-icon.png',
   './vendor/pdf-lib.min.js',
   './vendor/jsfeat.min.js',
+  './vendor/mediapipe/face_detection.js',
+  './vendor/mediapipe/face_detection_solution_simd_wasm_bin.js',
+  './vendor/mediapipe/face_detection_solution_simd_wasm_bin.wasm',
+  './vendor/mediapipe/face_detection_solution_simd_wasm_bin.data',
+  './vendor/mediapipe/face_detection_short.binarypb',
+  './vendor/mediapipe/face_detection_short_range.tflite',
+  './vendor/mediapipe/face_detection_full.binarypb',
+  './vendor/mediapipe/face_detection_full_range_sparse.tflite',
 ];
 
 /* cache: 'reload' goes past the browser's own copy to the server. GitHub Pages
@@ -56,7 +64,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  /* Icons and the two libraries change only with a new version, so the cache
+  /* Icons and the libraries change only with a new version, so the cache
      answers first and the network fills any gap. */
   event.respondWith(
     caches.match(request).then((hit) => {
