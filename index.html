@@ -413,6 +413,7 @@ body.full .hint { display: none !important; }
 
       <section class="panel" id="panel-labels">
         <h3>Labels</h3>
+        <p class="note">Drag a label, the credit or the watermark on the picture to move it.</p>
         <label class="switch"><input type="checkbox" id="labels" checked> Show labels</label>
         <div class="row">
           <div class="field">
@@ -448,6 +449,7 @@ body.full .hint { display: none !important; }
             <option value="top-right">Top right</option>
             <option value="bottom-left">Bottom left</option>
             <option value="bottom-right">Bottom right</option>
+            <option value="free">Where you dragged it</option>
           </select>
         </div>
 
@@ -474,6 +476,7 @@ body.full .hint { display: none !important; }
             <option value="top-right">Top right</option>
             <option value="bottom-left">Bottom left</option>
             <option value="bottom-right">Bottom right</option>
+            <option value="free">Where you dragged it</option>
           </select>
         </div>
         <div class="field">
@@ -607,8 +610,8 @@ body.full .hint { display: none !important; }
           <li>Auto line up matches small spots across the photos and moves, sizes and turns each photo onto the first, even one taken on its side. It runs by itself when the second photo of a pair goes in. Line up on an area uses only the spots inside a box you drag around the face or the treated area. Two-point line up has you tap the same two spots on each photo instead, like both pupils.</li>
           <li>View: See-through lays the second photo over the first at half strength and Differences shows only where they differ. Both are for checking the line up and never show in the saved picture.</li>
           <li>Fill the frame zooms the photos together until no background shows. Centre both puts the photos back in the middle at their own size. Reset and line up does the same and then runs Auto line up again. Undo or Ctrl+Z takes back the last move, size or turn.</li>
-          <li>Labels: a label and a date for each photo. The date comes from the photo when it holds one, and you can change it. Credit puts a line like "Cygnus Aesthetics" along the top or bottom of the picture, and Watermark lays words, a symbol or your logo over every photo. Only the labels differ from photo to photo.</li>
-          <li>Cover: drag over the eyes, a name or an address. A cover lands on the same spot of every photo, or only on its own with This photo only.</li>
+          <li>Labels: a label and a date for each photo. The date comes from the photo when it holds one, and you can change it. Credit puts a line like "Cygnus Aesthetics" along the top or bottom of the picture, and Watermark lays words, a symbol or your logo over every photo. Only the labels differ from photo to photo. With Labels open, drag a label, the credit or the watermark on the picture to put it anywhere.</li>
+          <li>Cover: drag over the eyes, a name or an address. A cover lands on the same spot of every photo, or only on its own with This photo only. Drag a cover to move it, or its bottom right corner to size it.</li>
           <li>Mark: drag to draw an arrow, circle, line or box. With Shows on set to Both photos it appears on every photo at the same spot. Drag a mark to move it, or an end to reshape it.</li>
           <li>Video: Record the swipe runs the divider across by itself. Record while I drag follows what you do until you press Stop.</li>
           <li>Full screen: one photo close up, with arrows that move a pixel per tap and buttons that turn it a tenth of a degree.</li>
@@ -930,18 +933,22 @@ var labelBoxes = [];
 
 /* A label is sized to its cell as well as to the picture, so it still fits a
    cell of a nine-photo grid. */
-function labelBox(ctx, rect, text, width, align) {
+/* at, when a label has been dragged, is where its top left corner sits as a
+   part of the cell, held so the whole label stays inside the cell. */
+function labelBox(ctx, rect, text, width, align, at) {
   var size = Math.max(11, Math.round(Math.min(width / 40, rect.width / 18)));
   var padX = Math.round(size * 0.7);
   var padY = Math.round(size * 0.45);
   ctx.font = '600 ' + size + 'px ' + '"IBM Plex Sans", system-ui, sans-serif';
   var boxWidth = ctx.measureText(text).width + padX * 2;
   var boxHeight = size + padY * 2;
-  return {
-    x: align === 'right' ? rect.x + rect.width - boxWidth - padX : rect.x + padX,
-    y: rect.y + rect.height - boxHeight - padX,
-    w: boxWidth, h: boxHeight, size: size, padX: padX, padY: padY
-  };
+  var x = align === 'right' ? rect.x + rect.width - boxWidth - padX : rect.x + padX;
+  var y = rect.y + rect.height - boxHeight - padX;
+  if (at) {
+    x = Math.min(rect.x + rect.width - boxWidth, Math.max(rect.x, rect.x + at.x * rect.width));
+    y = Math.min(rect.y + rect.height - boxHeight, Math.max(rect.y, rect.y + at.y * rect.height));
+  }
+  return { x: x, y: y, w: boxWidth, h: boxHeight, size: size, padX: padX, padY: padY };
 }
 
 function paintLabel(ctx, box, text, alpha) {
@@ -956,9 +963,11 @@ function paintLabel(ctx, box, text, alpha) {
   ctx.restore();
 }
 
-function drawLabel(ctx, rect, text, width, align) {
-  var box = labelBox(ctx, rect, text, width, align);
+function drawLabel(ctx, rect, text, width, align, index) {
+  var box = labelBox(ctx, rect, text, width, align, cells[index] && cells[index].labelAt);
   paintLabel(ctx, box, text, 1);
+  box.index = index;
+  box.rect = rect;
   labelBoxes.push(box);
 }
 
@@ -980,7 +989,7 @@ function drawGrid(ctx, settings, cells, width) {
     if (cell && cell.image) {
       drawPhoto(ctx, cell, rect);
       var words = settings.labels ? labelText(index) : '';
-      if (words) drawLabel(ctx, rect, words, width, 'left');
+      if (words) drawLabel(ctx, rect, words, width, 'left', index);
     } else {
       ctx.fillStyle = emptyShade(settings.background);
       ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
@@ -1031,13 +1040,91 @@ function drawSwipe(ctx, settings, cells, width, position, view) {
   [0, 1].forEach(function (index) {
     var words = settings.labels && cells[index] && cells[index].image ? labelText(index) : '';
     if (!words) return;
-    var box = labelBox(ctx, rect, words, width, index === 0 ? 'left' : 'right');
+    var box = labelBox(ctx, rect, words, width, index === 0 ? 'left' : 'right', cells[index].labelAt);
+    box.index = index;
+    box.rect = rect;
     var shown = index === 0 ? (cut - box.x) / box.w : (box.x + box.w - cut) / box.w;
     shown = Math.min(1, Math.max(0, shown));
     labelBoxes.push(box);
     if (shown > 0) paintLabel(ctx, box, words, shown);
   });
   return { width: width, height: height, cut: cut };
+}
+
+/* ---------- moving labels, the credit, the watermark and covers ---------- */
+
+function inBox(point, box, pad) {
+  pad = pad || 0;
+  return point.x >= box.x - pad && point.x <= box.x + box.w + pad && point.y >= box.y - pad && point.y <= box.y + box.h + pad;
+}
+
+/* What sits under a press in the Labels tool, from the last preview: a label
+   first, then the credit, then the watermark. A watermark repeated across the
+   photo covers it all, so it cannot be picked up. */
+function brandAt(point) {
+  var pad = 6 / view.k;
+  for (var i = lastBoxes.labels.length - 1; i >= 0; i--) {
+    var label = lastBoxes.labels[i];
+    if (inBox(point, label, pad)) return { kind: 'label', box: label };
+  }
+  if (lastBoxes.credit && inBox(point, lastBoxes.credit, pad)) return { kind: 'credit', box: lastBoxes.credit };
+  if (el('wm-place').value !== 'tiled') {
+    for (var n = 0; n < lastBoxes.wm.length; n++) {
+      if (inBox(point, lastBoxes.wm[n], pad)) return { kind: 'wm', box: lastBoxes.wm[n] };
+    }
+  }
+  return null;
+}
+
+/* The thing keeps the same offset from the finger it had when it was picked
+   up. A label is kept as a part of its cell, the credit as a part of the
+   picture and the watermark as a part of each photo. */
+function moveBrand(hold, point) {
+  var box = hold.item.box;
+  var left = box.x + point.x - hold.x, top = box.y + point.y - hold.y;
+  if (hold.item.kind === 'label') {
+    var rect = box.rect;
+    var cell = cells[box.index];
+    if (cell) cell.labelAt = { x: (left - rect.x) / rect.width, y: (top - rect.y) / rect.height };
+  } else if (hold.item.kind === 'credit') {
+    creditAt = { x: left / box.width, y: top / box.height };
+    el('credit-place').value = 'free';
+  } else {
+    var area = box.area;
+    wmAt = { x: (left + box.w / 2 - area.x) / area.width, y: (top + box.h / 2 - area.y) / area.height };
+    el('wm-place').value = 'free';
+  }
+}
+
+/* A press on a cover moves it, and a press on its bottom right corner sizes
+   it. */
+function coverGrab(point) {
+  var reach = 14 / view.k;
+  for (var i = covers.length - 1; i >= 0; i--) {
+    var places = coverPlaces(covers[i], stageWidth());
+    for (var n = 0; n < places.length; n++) {
+      var box = coverBox(covers[i], places[n].rect);
+      if (!inBox(point, box, reach)) continue;
+      var corner = Math.hypot(point.x - (box.x + box.w), point.y - (box.y + box.h)) <= reach * 1.4;
+      var c = covers[i];
+      return { index: i, rect: places[n].rect, size: corner, start: { x: c.x, y: c.y, w: c.w, h: c.h } };
+    }
+  }
+  return null;
+}
+
+function moveCover(hold, point) {
+  var cover = covers[hold.hold.index];
+  if (!cover) return;
+  var rect = hold.hold.rect, start = hold.hold.start;
+  var dx = (point.x - hold.x) / rect.width, dy = (point.y - hold.y) / rect.height;
+  if (hold.hold.size) {
+    cover.w = Math.max(0.02, start.w + dx);
+    cover.h = Math.max(0.01, start.h + dy);
+  } else {
+    cover.x = start.x + dx;
+    cover.y = start.y + dy;
+  }
 }
 
 /* Where something set on the photos is drawn at a given picture width: on
@@ -1214,6 +1301,10 @@ function stageHeight() {
 var view = { x: 0, y: 0, k: 1, cssWidth: 1 };
 var frameTall = 0;
 
+/* The boxes from the last preview, since a save or a video frame draws at
+   another size and would overwrite them. */
+var lastBoxes = { labels: [], credit: null, wm: [] };
+
 function paint() {
   fitCells();
   var dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -1263,6 +1354,7 @@ function paint() {
       }
     }
   }
+  lastBoxes = { labels: labelBoxes.slice(), credit: creditBox, wm: wmBoxes.slice() };
   report();
 }
 
@@ -1519,12 +1611,19 @@ stage.addEventListener('pointerdown', function (event) {
     marking = { id: event.pointerId, x: point.x, y: point.y, made: false };
     return;
   }
+  if (el('drag-does').value === 'label') {
+    var item = brandAt(point);
+    if (item) drag = { kind: 'brand', id: event.pointerId, item: item, x: point.x, y: point.y };
+    return;
+  }
   if (el('drag-does').value === 'cover') {
-    var already = coverAt(point);
-    if (already >= 0) {
-      coverPick = already;
+    var hold = coverGrab(point);
+    if (hold) {
+      coverPick = hold.index;
       coverControls();
+      drag = { kind: 'cover', id: event.pointerId, hold: hold, x: point.x, y: point.y };
       paint();
+      return;
     }
     covering = { id: event.pointerId, x: point.x, y: point.y, box: null };
     return;
@@ -1659,6 +1758,8 @@ stage.addEventListener('pointermove', function (event) {
   if (!drag || event.pointerId !== drag.id) return;
   event.preventDefault();
   var point = stagePoint(event);
+  if (drag.kind === 'brand') { moveBrand(drag, point); paint(); return; }
+  if (drag.kind === 'cover') { moveCover(drag, point); paint(); return; }
   if (drag.kind === 'align') {
     var adx = point.x - drag.x;
     var ady = point.y - drag.y;
@@ -1730,7 +1831,10 @@ function endDrag(event) {
     coverControls();
     paint();
   }
-  if (drag && event.pointerId === drag.id) drag = null;
+  if (drag && event.pointerId === drag.id) {
+    if (drag.kind === 'brand' && drag.item.kind !== 'label') { keepSettings(); brandReads(); }
+    drag = null;
+  }
 }
 stage.addEventListener('pointerup', endDrag);
 stage.addEventListener('pointercancel', endDrag);
@@ -2072,6 +2176,7 @@ function swipeTargets() {
 /* The list of things a drag can do, which depends on the tab. */
 var DRAG_GRID = [
   ['move', 'Moves the photos'],
+  ['label', 'Moves the labels and the watermark'],
   ['cover', 'Covers something up'],
   ['mark', 'Draws a mark']
 ];
@@ -2080,6 +2185,7 @@ var DRAG_SWIPE = [
   ['first', 'Moves the first photo'],
   ['second', 'Moves the second photo'],
   ['both', 'Moves both photos'],
+  ['label', 'Moves the labels and the watermark'],
   ['cover', 'Covers something up'],
   ['mark', 'Draws a mark']
 ];
@@ -2104,13 +2210,14 @@ function showTools() {
   var swipe = mode === 'swipe';
   el('moves').classList.toggle('hidden', !swipe);
   el('zoom-field').classList.toggle('hidden', swipe);
-  el('swipe-tools').classList.toggle('hidden', doing === 'cover' || doing === 'mark' || (swipe && doing === 'move'));
+  el('swipe-tools').classList.toggle('hidden', doing === 'cover' || doing === 'mark' || doing === 'label' || (swipe && doing === 'move'));
   el('split-tools').classList.toggle('hidden', !swipe);
   ['move', 'first', 'second', 'both'].forEach(function (key) {
     el('moves-' + key).classList.toggle('on', swipe && doing === key);
   });
   el('swipe-hint').textContent = doing === 'move' ? 'Drag left and right'
-    : doing === 'cover' ? 'Drag over what to cover'
+    : doing === 'label' ? 'Drag a label or the watermark'
+    : doing === 'cover' ? 'Drag over what to cover, or drag a cover to move it'
     : doing === 'mark' ? 'Drag to draw a mark'
     : 'Drag a photo or the divider';
   if (pins) el('swipe-hint').textContent = 'Tap spot ' + (pins.step % 2 + 1);
@@ -3102,7 +3209,8 @@ function fineControls() {
       : '';
   }
   var text;
-  if (doing === 'cover') text = 'Drag over what to cover.';
+  if (doing === 'label') text = 'Drag a label, the credit or the watermark to move it.';
+  else if (doing === 'cover') text = 'Drag over what to cover, or drag a cover to move it.';
   else if (doing === 'mark') text = 'Drag to draw a mark, or drag a mark to move it.';
   else if (swipe && doing === 'move') text = 'Drag to slide the divider.';
   else if (swipe) text = (doing === 'both' ? 'Both photos' : ORDINAL[doing === 'first' ? 0 : 1] + ' photo') + ', ' + size;
@@ -3645,7 +3753,15 @@ function labelRows() {
 
 /* The credit line sits in a box like the labels, anywhere along the top or the
    bottom of the picture. */
+/* Where the credit was dragged to, as a part of the picture, and the box it
+   took the last time it was drawn. */
+var creditAt = { x: 0.35, y: 0.88 };
+var creditBox = null;
+var wmAt = { x: 0.5, y: 0.5 };
+var wmBoxes = [];
+
 function drawCredit(c, width, height) {
+  creditBox = null;
   var text = el('credit-text').value.trim();
   if (!text) return;
   var place = el('credit-place').value.split('-');
@@ -3654,8 +3770,15 @@ function drawCredit(c, width, height) {
   c.save();
   c.font = '600 ' + size + 'px "IBM Plex Sans", system-ui, sans-serif';
   var boxWidth = c.measureText(text).width + padX * 2, boxHeight = size + padY * 2;
-  var x = place[1] === 'left' ? padX : place[1] === 'right' ? width - boxWidth - padX : (width - boxWidth) / 2;
-  var y = clearOfLabels({ x: x, y: place[0] === 'top' ? padX : height - boxHeight - padX, w: boxWidth, h: boxHeight }, place[0] === 'top', padX / 2);
+  var x, y;
+  if (place[0] === 'free') {
+    x = Math.min(width - boxWidth, Math.max(0, creditAt.x * width));
+    y = Math.min(height - boxHeight, Math.max(0, creditAt.y * height));
+  } else {
+    x = place[1] === 'left' ? padX : place[1] === 'right' ? width - boxWidth - padX : (width - boxWidth) / 2;
+    y = clearOfLabels({ x: x, y: place[0] === 'top' ? padX : height - boxHeight - padX, w: boxWidth, h: boxHeight }, place[0] === 'top', padX / 2);
+  }
+  creditBox = { x: x, y: y, w: boxWidth, h: boxHeight, width: width, height: height };
   c.fillStyle = 'rgba(16, 28, 43, .72)';
   c.fillRect(x, y, boxWidth, boxHeight);
   c.fillStyle = '#ffffff';
@@ -3764,6 +3887,7 @@ function symbolButtons() {
    own, at the same spot and size within its cell, while in Swipe the two photos
    share the frame and so share one watermark. */
 function drawWatermark(c, width, height) {
+  wmBoxes = [];
   var text = el('wm-text').value.trim();
   if (!text && wmSymbol === 'none' && !wmLogo) return;
   var areas = mode === 'swipe'
@@ -3808,14 +3932,24 @@ function stampArea(c, area, text) {
     for (var row = 0, y = -reach; y <= reach; y += stepY, row++) {
       for (var x = -reach + (row % 2) * stepX / 2; x <= reach; x += stepX) stamp(x, y);
     }
-  } else if (place === 'middle') {
-    stamp(area.x + area.width / 2, area.y + area.height / 2);
   } else {
-    var side = place.split('-');
-    var left = side[1] === 'left' ? area.x + margin : area.x + area.width - margin - total;
-    var top = clearOfLabels({ x: left, y: side[0] === 'top' ? area.y + margin : area.y + area.height - margin - tall, w: total, h: tall },
-      side[0] === 'top', unit * 0.3);
-    stamp(left + total / 2, top + tall / 2);
+    var cx, cy;
+    if (place === 'middle') {
+      cx = area.x + area.width / 2;
+      cy = area.y + area.height / 2;
+    } else if (place === 'free') {
+      cx = area.x + wmAt.x * area.width;
+      cy = area.y + wmAt.y * area.height;
+    } else {
+      var side = place.split('-');
+      var left = side[1] === 'left' ? area.x + margin : area.x + area.width - margin - total;
+      var top = clearOfLabels({ x: left, y: side[0] === 'top' ? area.y + margin : area.y + area.height - margin - tall, w: total, h: tall },
+        side[0] === 'top', unit * 0.3);
+      cx = left + total / 2;
+      cy = top + tall / 2;
+    }
+    stamp(cx, cy);
+    wmBoxes.push({ x: cx - total / 2, y: cy - tall / 2, w: total, h: tall, cx: cx, cy: cy, area: area });
   }
   c.restore();
 }
@@ -3877,6 +4011,7 @@ var TOOLS = ['photos', 'line', 'labels', 'cover', 'mark', 'video', 'steps'];
 var tool = 'photos';
 
 function dragFor(name) {
+  if (name === 'labels') return 'label';
   if (name === 'cover') return 'cover';
   if (name === 'mark') return 'mark';
   if (name === 'line' && mode === 'swipe') return lineMoves;
@@ -4214,7 +4349,7 @@ var keeping = false;
 
 function keepSettings() {
   if (keeping) return;
-  var out = { mode: mode, symbol: wmSymbol, logo: wmLogoData.length < 1500000 ? wmLogoData : '', logoName: wmLogoName };
+  var out = { mode: mode, symbol: wmSymbol, logo: wmLogoData.length < 1500000 ? wmLogoData : '', logoName: wmLogoName, creditAt: creditAt, wmAt: wmAt };
   KEPT.forEach(function (id) {
     var box = el(id);
     out[id] = box.type === 'checkbox' ? box.checked : box.value;
@@ -4239,6 +4374,8 @@ function loadSettings() {
   el('photo-size').min = freeMove ? String(SMALLEST * 100) : '100';
   if (kept.symbol && SYMBOLS.some(function (pair) { return pair[0] === kept.symbol; })) wmSymbol = kept.symbol;
   if (kept.logo) useLogo(kept.logo, kept.logoName || 'Logo');
+  if (kept.creditAt && typeof kept.creditAt.x === 'number') creditAt = kept.creditAt;
+  if (kept.wmAt && typeof kept.wmAt.x === 'number') wmAt = kept.wmAt;
   keeping = false;
   return kept;
 }
