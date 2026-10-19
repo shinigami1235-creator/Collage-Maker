@@ -31,6 +31,9 @@ installed the app keeps serving the old build until that string changes.
     vendor/pdf-lib.min.js      used by the PDF export
     vendor/jsfeat.min.js       finds and pairs the spots for Auto line up
 
+Settings are kept in the browser under `collage-maker-settings`. Photos,
+labels and dates are never kept.
+
 ## Checking a deploy
 
 Open the live URL, then confirm `manifest.webmanifest`, `sw.js` and each file

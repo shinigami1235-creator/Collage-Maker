@@ -90,6 +90,8 @@ body {
 /* the choice of which photo Line up moves, as one row of buttons */
 .seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 12px; }
 .seg .btn { padding: 0 4px; }
+.seg3 { grid-template-columns: repeat(3, 1fr); margin-bottom: 0; }
+.seg3 .btn { font-size: 13px; white-space: nowrap; }
 .seg .btn.on, .seg .btn.on:hover:not(:disabled) { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
 
 /* the settings needed less often, folded under each tool */
@@ -152,6 +154,16 @@ details[open] summary { margin-bottom: 8px; }
 .drop.over { border-color: var(--focus); background: #F2F7FB; }
 .drop p { color: var(--muted); margin: 0 0 14px; }
 .hidden { display: none !important; }
+.sub { font: 600 13px/18px var(--font); color: var(--muted); margin: 16px 0 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.label-row { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+.label-row .head { font: 600 13px/18px var(--font); color: var(--text); margin-bottom: 6px; }
+.label-row .row { gap: 8px; }
+.label-row .field { margin-bottom: 4px; }
+.symbols { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.symbols .btn { padding: 0; display: flex; align-items: center; justify-content: center; }
+.symbols .btn.on { border-color: var(--primary); box-shadow: inset 0 0 0 2px var(--primary); }
+.symbols canvas { width: 22px; height: 22px; }
+input[type=date] { min-height: 40px; padding: 0 8px; width: 100%; font: 500 14px/20px var(--font); border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--text); }
 .nudge { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .nudge .btn { padding: 0 6px; }
 
@@ -201,7 +213,7 @@ body.full .hint { display: none !important; }
 }
 
 @media (pointer: coarse) {
-  .btn, select, input[type=text], input[type=number] { min-height: 44px; font-size: 16px; }
+  .btn, select, input[type=text], input[type=number], input[type=date] { min-height: 44px; font-size: 16px; }
   .tool { min-height: 44px; }
   .btn-install { min-height: 36px; font-size: 14px; }
   .tab-mode { min-height: 44px; font-size: 15px; padding: 0 16px; }
@@ -221,7 +233,7 @@ body.full .hint { display: none !important; }
   .tools { order: 2; flex: 0 0 auto; flex-direction: row; gap: 4px; padding: 0 14px;
     overflow-x: auto; scrollbar-width: none; }
   .tools::-webkit-scrollbar { display: none; }
-  /* all five tools have to show at once on a phone, so the tabs share the width
+  /* all seven tools have to show at once on a phone, so the tabs share the width
      and only scroll on the very narrowest screens */
   .tool { flex: 1 0 auto; text-align: center; padding: 0 7px; border-radius: 8px 8px 0 0; border-bottom: none;
     background: #E9EDF1; color: var(--muted); font-size: 15px; }
@@ -234,10 +246,14 @@ body.full .hint { display: none !important; }
   .save-bar label[for="size"] { display: none; }
 }
 
-/* the narrowest phones still in use: tighter tabs so all five tools still show */
+/* phones: tighter tabs so all seven tools still show */
+@media (max-width: 480px) {
+  .tools { gap: 2px; padding: 0 6px; }
+  .tool { padding: 0 4px; font-size: 13.5px; }
+}
 @media (max-width: 360px) {
-  .tools { gap: 3px; padding: 0 8px; }
-  .tool { padding: 0 5px; font-size: 14px; }
+  .tools { gap: 2px; padding: 0 4px; }
+  .tool { padding: 0 3px; font-size: 12px; }
 }
 
 @media (max-height: 700px) and (max-width: 999px) {
@@ -272,6 +288,7 @@ body.full .hint { display: none !important; }
     <nav class="tools" id="tools" aria-label="Tools">
       <button class="tool on" type="button" id="tool-photos">Photos</button>
       <button class="tool" type="button" id="tool-line">Line up</button>
+      <button class="tool" type="button" id="tool-labels">Labels</button>
       <button class="tool" type="button" id="tool-cover">Cover</button>
       <button class="tool" type="button" id="tool-mark">Mark</button>
       <button class="tool" type="button" id="tool-video">Video</button>
@@ -317,7 +334,6 @@ body.full .hint { display: none !important; }
               <input type="color" id="background" value="#ffffff">
             </div>
           </div>
-          <label class="switch"><input type="checkbox" id="labels" checked> Labels</label>
           <div class="actions">
             <button class="btn" type="button" id="clear">Start over</button>
           </div>
@@ -334,7 +350,20 @@ body.full .hint { display: none !important; }
         </div>
         <div class="actions">
           <button class="btn btn-primary" type="button" id="line-auto">Auto line up</button>
+          <button class="btn" type="button" id="line-area">Line up on an area</button>
           <button class="btn" type="button" id="line-pins">Two-point line up</button>
+        </div>
+        <div class="actions">
+          <button class="btn" type="button" id="line-undo">Undo</button>
+          <button class="btn" type="button" id="line-fill">Fill the frame</button>
+        </div>
+        <div class="field" id="view-field">
+          <label>View</label>
+          <div class="seg seg3" id="view" role="group" aria-label="View">
+            <button class="btn on" type="button" data-value="split">Split</button>
+            <button class="btn" type="button" data-value="see">See-through</button>
+            <button class="btn" type="button" data-value="diff">Differences</button>
+          </div>
         </div>
         <div class="field" id="zoom-field">
           <label for="zoom-scope">Zoom works on</label>
@@ -350,7 +379,7 @@ body.full .hint { display: none !important; }
         </div>
         <div class="field">
           <label for="photo-turn">Turn <span class="count" id="photo-turn-read">0.0 degrees</span></label>
-          <input type="range" id="photo-turn" min="-45" max="45" step="0.1" value="0">
+          <input type="range" id="photo-turn" min="-180" max="180" step="0.1" value="0">
         </div>
         <label class="switch"><input type="checkbox" id="free-move" checked> Move past the edges</label>
         <p class="note" id="nudge-note"></p>
@@ -372,15 +401,90 @@ body.full .hint { display: none !important; }
             <button class="btn" type="button" id="zoom-in">Zoom in</button>
             <button class="btn" type="button" id="reset">Reset view</button>
           </div>
-          <div class="field">
-            <label for="label-text">Label</label>
-            <input type="text" id="label-text" maxlength="40" placeholder="Before">
-          </div>
           <label class="switch"><input type="checkbox" id="flip-cell"> Mirror this photo</label>
           <div class="actions">
             <button class="btn" type="button" id="drop-photo">Remove</button>
           </div>
         </details>
+      </section>
+
+      <section class="panel" id="panel-labels">
+        <h3>Labels</h3>
+        <label class="switch"><input type="checkbox" id="labels" checked> Show labels</label>
+        <div id="label-rows"></div>
+        <div class="row">
+          <div class="field">
+            <label for="date-place">Date</label>
+            <select id="date-place">
+              <option value="off" selected>Off</option>
+              <option value="before">Before the label</option>
+              <option value="after">After the label</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="date-style">Date shows</label>
+            <select id="date-style">
+              <option value="day" selected>Day</option>
+              <option value="month">Month</option>
+              <option value="since">Time since photo 1</option>
+            </select>
+          </div>
+        </div>
+
+        <h4 class="sub">Credit</h4>
+        <div class="field">
+          <label for="credit-text">Credit</label>
+          <input type="text" id="credit-text" maxlength="60" placeholder="Example: Cygnus Aesthetics">
+        </div>
+        <div class="field">
+          <label for="credit-place">Credit sits</label>
+          <select id="credit-place">
+            <option value="bottom-middle" selected>Bottom middle</option>
+            <option value="top-middle">Top middle</option>
+            <option value="top-left">Top left</option>
+            <option value="top-right">Top right</option>
+            <option value="bottom-left">Bottom left</option>
+            <option value="bottom-right">Bottom right</option>
+          </select>
+        </div>
+
+        <h4 class="sub">Watermark</h4>
+        <div class="field">
+          <label for="wm-text">Watermark text</label>
+          <input type="text" id="wm-text" maxlength="60" placeholder="Example: Dr. Gid">
+        </div>
+        <div class="field">
+          <label>Symbol</label>
+          <div class="symbols" id="wm-symbols" role="group" aria-label="Symbol"></div>
+        </div>
+        <div class="actions">
+          <button class="btn" type="button" id="wm-logo-add">Add a logo</button>
+          <button class="btn hidden" type="button" id="wm-logo-drop">Remove the logo</button>
+          <span class="count" id="wm-logo-name"></span>
+        </div>
+        <div class="field">
+          <label for="wm-place">Watermark sits</label>
+          <select id="wm-place">
+            <option value="middle" selected>Middle</option>
+            <option value="tiled">Repeated across</option>
+            <option value="top-left">Top left</option>
+            <option value="top-right">Top right</option>
+            <option value="bottom-left">Bottom left</option>
+            <option value="bottom-right">Bottom right</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="wm-size">Size <span class="count" id="wm-size-read">6%</span></label>
+          <input type="range" id="wm-size" min="2" max="25" step="1" value="6">
+        </div>
+        <div class="field">
+          <label for="wm-strength">Strength <span class="count" id="wm-strength-read">35%</span></label>
+          <input type="range" id="wm-strength" min="10" max="100" step="5" value="35">
+        </div>
+        <div class="field">
+          <label for="wm-colour">Watermark colour</label>
+          <input type="color" id="wm-colour" value="#ffffff">
+        </div>
       </section>
 
       <section class="panel" id="panel-cover">
@@ -477,23 +581,29 @@ body.full .hint { display: none !important; }
           <button class="btn" type="button" id="tape-manual">Record while I drag</button>
         </div>
         <p class="note" id="tape-note"></p>
+        <div class="actions">
+          <button class="btn hidden" type="button" id="tape-share">Share the video</button>
+        </div>
         <p class="note">The video holds the picture on its own, none of the buttons around it. Instagram wants 3 seconds or more.</p>
       </section>
 
       <section class="panel" id="panel-steps">
         <h3>Steps</h3>
         <ol class="steps">
-          <li>Add the photos. They fill the cells in the order you picked them. Swap trades two over, and Before and After stay on their own side.</li>
+          <li>Add the photos, or paste one with Ctrl+V. They fill the cells in the order you picked them. Swap trades two over, and Before and After stay on their own side.</li>
           <li>Pick a tool. It decides what dragging on the picture does and shows only the controls for that job.</li>
           <li>Photos: drag a photo inside its cell to move it, and scroll or pinch to zoom.</li>
           <li>Line up: in Swipe, drag a photo to move it or drag the divider to slide it. The photo you touch becomes the one picked under Moves, and the arrows, Size and Turn work on it. Both moves the two together. In Grid, Zoom works on All photos zooms them together to the same spot.</li>
-          <li>Auto line up matches small spots across the photos and moves each photo onto the first. It runs by itself when the second photo of a pair goes in. Two-point line up has you tap the same two spots on each photo instead, like both pupils.</li>
+          <li>Auto line up matches small spots across the photos and moves, sizes and turns each photo onto the first, even one taken on its side. It runs by itself when the second photo of a pair goes in. Line up on an area uses only the spots inside a box you drag around the face or the treated area. Two-point line up has you tap the same two spots on each photo instead, like both pupils.</li>
+          <li>View: See-through lays the second photo over the first at half strength and Differences shows only where they differ. Both are for checking the line up and never show in the saved picture.</li>
+          <li>Fill the frame zooms the photos together until no background shows. Undo or Ctrl+Z takes back the last move, size or turn.</li>
+          <li>Labels: a label and a date for each photo. The date comes from the photo when it holds one, and you can change it. Credit puts a line like "Cygnus Aesthetics" along the top or bottom, and Watermark lays words, a symbol or your logo over the picture.</li>
           <li>Cover: drag over the eyes, a name or an address.</li>
           <li>Mark: drag to draw an arrow, circle, line or box. Drag a mark to move it, or an end to reshape it.</li>
           <li>Video: Record the swipe runs the divider across by itself. Record while I drag follows what you do until you press Stop.</li>
           <li>Full screen: one photo close up, with arrows that move a pixel per tap and buttons that turn it a tenth of a degree.</li>
-          <li>More under each tool holds the settings you need less often.</li>
-          <li>Press Save.</li>
+          <li>More under each tool holds the settings you need less often. The app keeps your settings for next time, while the photos, labels and dates are not kept.</li>
+          <li>Press Save, or Share on a phone to send the picture straight to another app.</li>
         </ol>
       </section>
     </div>
@@ -512,6 +622,11 @@ body.full .hint { display: none !important; }
         <button class="btn" type="button" data-value="move">Divider</button>
       </div>
       <button class="btn btn-primary" type="button" id="full-done">Done</button>
+    </div>
+    <div class="fine-row" id="fine-tools">
+      <button class="btn grow" type="button" id="fine-undo">Undo</button>
+      <button class="btn grow" type="button" id="fine-view">Split</button>
+      <button class="btn grow" type="button" id="fine-fill">Fill the frame</button>
     </div>
     <div class="fine-row" id="fine-scope-row">
       <span class="fine-say grow" id="fine-scope-say"></span>
@@ -543,6 +658,7 @@ body.full .hint { display: none !important; }
       <option value="pdf">PDF</option>
     </select>
     <span class="grow"></span>
+    <button class="btn hidden" type="button" id="share">Share</button>
     <button class="btn btn-primary" type="button" id="save">Save</button>
   </div>
 </div>
@@ -553,6 +669,7 @@ body.full .hint { display: none !important; }
 </div>
 
 <input type="file" id="picker" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple hidden>
+<input type="file" id="logo-picker" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" hidden>
 
 <script src="./vendor/pdf-lib.min.js"></script>
 <script src="./vendor/jsfeat.min.js"></script>
@@ -638,9 +755,11 @@ var LAYOUTS = {
   '4x4': { cols: 4, rows: 4, name: 'Sixteen' }
 };
 var SHAPES = {
-  square: { ratio: 1, name: 'Square' },
-  portrait: { ratio: 3 / 4, name: 'Portrait' },
-  landscape: { ratio: 4 / 3, name: 'Landscape' },
+  square: { ratio: 1, name: 'Square 1:1' },
+  portrait: { ratio: 3 / 4, name: 'Portrait 3:4' },
+  landscape: { ratio: 4 / 3, name: 'Landscape 4:3' },
+  post: { ratio: 4 / 5, name: 'Post 4:5' },
+  story: { ratio: 9 / 16, name: 'Story 9:16' },
   photo: { ratio: null, name: 'Match photo 1' }
 };
 
@@ -677,11 +796,29 @@ function layoutOf(settings, width) {
 var freeMove = true;
 var SMALLEST = 0.2;
 
-function clampFocus(value, cellSize, drawSize) {
+/* boxSize is how wide the photo stands on the picture once turned, so a photo
+   turned on its side can still go as far as one standing straight. */
+function clampFocus(value, cellSize, drawSize, boxSize) {
   var half = (cellSize / 2) / drawSize;
-  if (freeMove) return Math.min(1 + half * 0.6, Math.max(-half * 0.6, value));
+  if (freeMove) {
+    var reach = ((boxSize || drawSize) / 2 + cellSize * 0.3) / drawSize;
+    return Math.min(0.5 + reach, Math.max(0.5 - reach, value));
+  }
   if (half >= 0.5) return 0.5;
   return Math.min(1 - half, Math.max(half, value));
+}
+
+/* The focus a photo would have at fx, fy, held inside the limits. */
+function clampCell(cell, rect, fx, fy) {
+  var image = cell.image;
+  var scale = Math.max(rect.width / image.width, rect.height / image.height) * cell.zoom;
+  var w = image.width * scale, h = image.height * scale;
+  var angle = (cell.turn || 0) * Math.PI / 180;
+  var c = Math.abs(Math.cos(angle)), s = Math.abs(Math.sin(angle));
+  return {
+    fx: clampFocus(fx, rect.width, w, c * w + s * h),
+    fy: clampFocus(fy, rect.height, h, s * w + c * h)
+  };
 }
 
 function placement(cell, rect) {
@@ -690,8 +827,9 @@ function placement(cell, rect) {
   var scale = cover * cell.zoom;
   var drawWidth = image.width * scale;
   var drawHeight = image.height * scale;
-  var fx = clampFocus(cell.fx, rect.width, drawWidth);
-  var fy = clampFocus(cell.fy, rect.height, drawHeight);
+  var held = clampCell(cell, rect, cell.fx, cell.fy);
+  var fx = held.fx;
+  var fy = held.fy;
   return {
     x: rect.x + rect.width / 2 - fx * drawWidth,
     y: rect.y + rect.height / 2 - fy * drawHeight,
@@ -736,15 +874,22 @@ function pinAt(cell, rect, u, v, point) {
   var w = image.width * scale, h = image.height * scale;
   var x = cell.flip ? rect.x * 2 + rect.width - point.x : point.x;
   var d = spin((u - 0.5) * w, (v - 0.5) * h, turnOf(cell));
-  cell.fx = clampFocus(0.5 - (x - d.x - rect.x - rect.width / 2) / w, rect.width, w);
-  cell.fy = clampFocus(0.5 - (point.y - d.y - rect.y - rect.height / 2) / h, rect.height, h);
+  var held = clampCell(cell, rect, 0.5 - (x - d.x - rect.x - rect.width / 2) / w, 0.5 - (point.y - d.y - rect.y - rect.height / 2) / h);
+  cell.fx = held.fx;
+  cell.fy = held.fy;
+}
+
+/* An angle put back between -180 and 180 degrees. */
+function wrapTurn(degrees) {
+  var d = ((degrees + 180) % 360 + 360) % 360 - 180;
+  return d === -180 ? 180 : d;
 }
 
 /* Turns the photo about the middle of its cell. */
 function turnTo(cell, rect, degrees) {
   var middle = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
   var spot = canvasToImage(cell, rect, middle);
-  cell.turn = Math.max(-45, Math.min(45, degrees));
+  cell.turn = wrapTurn(degrees);
   pinAt(cell, rect, spot.u, spot.v, middle);
 }
 
@@ -798,7 +943,8 @@ function drawGrid(ctx, settings, cells, width) {
     ctx.clip();
     if (cell && cell.image) {
       drawPhoto(ctx, cell, rect);
-      if (settings.labels && cell.label) drawLabel(ctx, rect, cell.label, width, 'left');
+      var words = settings.labels ? labelText(index) : '';
+      if (words) drawLabel(ctx, rect, words, width, 'left');
     } else {
       ctx.fillStyle = emptyShade(settings.background);
       ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
@@ -808,12 +954,26 @@ function drawGrid(ctx, settings, cells, width) {
   return grid;
 }
 
-function drawSwipe(ctx, settings, cells, width, position) {
+/* view is for the preview only: See-through lays the second photo over the
+   first at half strength and Differences shows only where the two differ. */
+function drawSwipe(ctx, settings, cells, width, position, view) {
   var height = Math.round(width / (settings.ratio || 1));
   ctx.fillStyle = settings.background;
   ctx.fillRect(0, 0, width, height);
   var rect = { x: 0, y: 0, width: width, height: height };
   var cut = Math.round(width * position);
+  if ((view === 'see' || view === 'diff') && cells[0] && cells[0].image && cells[1] && cells[1].image) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, width, height);
+    ctx.clip();
+    drawPhoto(ctx, cells[0], rect);
+    if (view === 'see') ctx.globalAlpha = 0.5;
+    else ctx.globalCompositeOperation = 'difference';
+    drawPhoto(ctx, cells[1], rect);
+    ctx.restore();
+    return { width: width, height: height, cut: cut };
+  }
   [0, 1].forEach(function (index) {
     var cell = cells[index];
     if (!cell || !cell.image) return;
@@ -823,7 +983,8 @@ function drawSwipe(ctx, settings, cells, width, position) {
     else ctx.rect(cut, 0, width - cut, height);
     ctx.clip();
     drawPhoto(ctx, cell, rect);
-    if (settings.labels && cell.label) drawLabel(ctx, rect, cell.label, width, index === 0 ? 'left' : 'right');
+    var words = settings.labels ? labelText(index) : '';
+    if (words) drawLabel(ctx, rect, words, width, index === 0 ? 'left' : 'right');
     ctx.restore();
   });
   ctx.fillStyle = '#ffffff';
@@ -1006,16 +1167,20 @@ function paint() {
   stage.style.height = cssH + 'px';
   ctx.setTransform(dpr * k, 0, 0, dpr * k, -area.x * dpr * k, -area.y * dpr * k);
   if (mode === 'swipe') {
-    drawSwipe(ctx, config, cells, width, swipePosition);
+    drawSwipe(ctx, config, cells, width, swipePosition, pins || areaPick ? 'split' : viewMode);
     grid = { rects: [{ x: 0, y: 0, width: width, height: height }], width: width, height: height };
     drawCovers(ctx, width, height);
     drawMarks(ctx, width, height, false);
+    drawBrand(ctx, width, height);
     drawPins(ctx);
+    drawArea(ctx);
   } else {
     grid = drawGrid(ctx, config, cells, width);
     drawCovers(ctx, width, grid.height);
     drawMarks(ctx, width, grid.height, false);
+    drawBrand(ctx, width, grid.height);
     drawPins(ctx);
+    drawArea(ctx);
     if (close < 0) {
       markZoom(ctx, grid);
       if (picked >= 0 && grid.rects[picked]) {
@@ -1069,12 +1234,10 @@ function report() {
       ? 'Cell ' + (picked + 1) + ' of ' + cellCount() + ', ' + Math.round(cells[picked].zoom * 100) + '%'
       : filled + (filled === 1 ? ' photo placed' : ' photos placed');
   }
-  el('label-text').value = one ? one.label : '';
   ['zoom-in', 'zoom-out', 'reset', 'photo-size'].forEach(function (id) {
     el(id).disabled = act.length === 0;
   });
   el('swap').disabled = mode === 'swipe' ? filled < 2 : !one;
-  el('label-text').disabled = !one;
   el('drop-photo').disabled = !one;
   if (act.length && document.activeElement !== el('photo-size')) {
     el('photo-size').value = String(Math.round(Math.min(400, Math.max(freeMove ? SMALLEST * 100 : 100, act[0].zoom * 100))));
@@ -1093,6 +1256,7 @@ function report() {
 
 function refresh() {
   place();
+  labelRows();
   var any = photos.length > 0;
   el('empty').classList.toggle('hidden', any);
   el('workspace').classList.toggle('hidden', !any);
@@ -1115,17 +1279,23 @@ function addFiles(files) {
     if (--pending > 0) return;
     slots.forEach(function (photo) { if (photo) photos.push(photo); });
     cancelPins();
+    cancelArea();
+    forgetUndo();
     refresh();
   };
   list.forEach(function (file, index) {
-    createImageBitmap(file, { imageOrientation: 'from-image' }).then(function (bitmap) {
+    Promise.all([createImageBitmap(file, { imageOrientation: 'from-image' }), readDate(file)]).then(function (got) {
+      var bitmap = got[0], taken = got[1];
+      var saved = file.lastModified ? new Date(file.lastModified) : null;
       slots[index] = {
         id: 'p' + (nextId++),
         name: file.name,
         stem: file.name.replace(/\.[^.]+$/, ''),
         bitmap: bitmap,
         width: bitmap.width,
-        height: bitmap.height
+        height: bitmap.height,
+        date: taken || saved,
+        dateFrom: taken ? 'photo' : saved ? 'file' : ''
       };
       finish();
     }).catch(function () {
@@ -1155,6 +1325,8 @@ el('picker').addEventListener('change', function () {
 el('clear').addEventListener('click', function () {
   photos.forEach(function (photo) { photo.bitmap.close && photo.bitmap.close(); });
   cancelPins();
+  cancelArea();
+  forgetUndo();
   photos = [];
   cells = [];
   picked = -1;
@@ -1164,8 +1336,10 @@ el('clear').addEventListener('click', function () {
 
 ['layout', 'shape', 'gap', 'background', 'labels'].forEach(function (id) {
   el(id).addEventListener('change', function () {
+    if (id === 'layout') forgetUndo();
     picked = -1;
     place();
+    labelRows();
     paint();
   });
 });
@@ -1174,8 +1348,11 @@ el('format').addEventListener('change', report);
 
 function showMode(next) {
   cancelPins();
+  cancelArea();
+  forgetUndo();
   mode = next;
   place();
+  labelRows();
   el('tab-grid').classList.toggle('on', next === 'grid');
   el('tab-swipe').classList.toggle('on', next === 'swipe');
   buildDrag();
@@ -1186,8 +1363,8 @@ function showMode(next) {
   paint();
   autoLine();
 }
-el('tab-grid').addEventListener('click', function () { showMode('grid'); });
-el('tab-swipe').addEventListener('click', function () { showMode('swipe'); });
+el('tab-grid').addEventListener('click', function () { showMode('grid'); keepSettings(); });
+el('tab-swipe').addEventListener('click', function () { showMode('swipe'); keepSettings(); });
 
 /* Pointer work */
 
@@ -1207,6 +1384,17 @@ stage.addEventListener('pointerdown', function (event) {
   var point = stagePoint(event);
   /* while tapping spots, a tap counts on lifting the finger, so a pinch to zoom
      in for a closer look does not drop a spot */
+  if (areaPick) {
+    var first = lineRect(0);
+    if (areaPick.down) return;
+    if (point.x < first.x || point.x > first.x + first.width || point.y < first.y || point.y > first.y + first.height) {
+      say(photoName(0) + ': drag the box on this photo.');
+      return;
+    }
+    areaPick.down = { id: event.pointerId, x: point.x, y: point.y };
+    areaPick.box = null;
+    return;
+  }
   if (pins) {
     if (pins.down) pins.down.multi = true;
     else pins.down = { id: event.pointerId, x: event.clientX, y: event.clientY, multi: false };
@@ -1241,6 +1429,15 @@ stage.addEventListener('pointerdown', function (event) {
   }
   if (mode === 'swipe') {
     var doing = el('drag-does').value;
+    /* in See-through and Differences the photos lie on top of each other, so a
+       drag moves the photo picked under Moves */
+    var overlaid = viewMode !== 'split';
+    remember();
+    if (doing === 'move' && overlaid) {
+      lineMoves = 'second';
+      setDoing('second');
+      doing = 'second';
+    }
     if (doing === 'move') {
       swipePosition = Math.min(1, Math.max(0, point.x / stageWidth()));
       drag = { kind: 'swipe', id: event.pointerId, offset: 0 };
@@ -1250,11 +1447,11 @@ stage.addEventListener('pointerdown', function (event) {
     /* While lining up, a press on the divider slides it and a press on a photo
        moves that photo, so there is no need to switch under Moves first. Both
        still moves the two together. */
-    if (nearDivider(point)) {
+    if (!overlaid && nearDivider(point)) {
       drag = { kind: 'swipe', id: event.pointerId, offset: point.x / stageWidth() - swipePosition };
       return;
     }
-    if (doing !== 'both') {
+    if (!overlaid && doing !== 'both') {
       var side = point.x < stageWidth() * swipePosition ? 'first' : 'second';
       var sideCell = cells[side === 'first' ? 0 : 1];
       if (side !== doing && sideCell && sideCell.image) {
@@ -1272,6 +1469,7 @@ stage.addEventListener('pointerdown', function (event) {
   var hit = cellAt(grid, point.x, point.y);
   if (!hit) return;
   picked = hit.index;
+  remember();
   drag = cells[hit.index].image
     ? { kind: 'pan', id: event.pointerId, x: point.x, y: point.y, rect: hit.rect }
     : null;
@@ -1288,7 +1486,7 @@ function nearDivider(point) {
 /* Over the divider the pointer shows that it slides sideways. */
 stage.addEventListener('pointermove', function (event) {
   if (event.pointerType !== 'mouse' || drag) return;
-  var lining = mode === 'swipe' && !pins && ['first', 'second', 'both'].indexOf(el('drag-does').value) >= 0;
+  var lining = mode === 'swipe' && !pins && !areaPick && viewMode === 'split' && ['first', 'second', 'both'].indexOf(el('drag-does').value) >= 0;
   stage.style.cursor = lining && nearDivider(stagePoint(event)) ? 'ew-resize' : '';
 });
 
@@ -1319,6 +1517,12 @@ function ensureRoom(list, rect) {
 }
 
 stage.addEventListener('pointermove', function (event) {
+  if (areaPick && areaPick.down && event.pointerId === areaPick.down.id) {
+    event.preventDefault();
+    areaPick.box = areaBox(areaPick.down, stagePoint(event));
+    paint();
+    return;
+  }
   if (moving && event.pointerId === moving.id) {
     event.preventDefault();
     dragMark(stagePoint(event));
@@ -1359,8 +1563,9 @@ stage.addEventListener('pointermove', function (event) {
     drag.y = point.y;
     swipeTargets().forEach(function (cell) {
       var at = placement(cell, drag.rect);
-      cell.fx = clampFocus(cell.fx - (cell.flip ? -adx : adx) / at.width, drag.rect.width, at.width);
-      cell.fy = clampFocus(cell.fy - ady / at.height, drag.rect.height, at.height);
+      var held = clampCell(cell, drag.rect, cell.fx - (cell.flip ? -adx : adx) / at.width, cell.fy - ady / at.height);
+      cell.fx = held.fx;
+      cell.fy = held.fy;
     });
     paint();
     return;
@@ -1376,13 +1581,20 @@ stage.addEventListener('pointermove', function (event) {
   drag.y = point.y;
   targets().forEach(function (cell) {
     var at = placement(cell, drag.rect);
-    cell.fx = clampFocus(cell.fx - (cell.flip ? -dx : dx) / at.width, drag.rect.width, at.width);
-    cell.fy = clampFocus(cell.fy - dy / at.height, drag.rect.height, at.height);
+    var held = clampCell(cell, drag.rect, cell.fx - (cell.flip ? -dx : dx) / at.width, cell.fy - dy / at.height);
+    cell.fx = held.fx;
+    cell.fy = held.fy;
   });
   paint();
 });
 
 function endDrag(event) {
+  if (areaPick && areaPick.down && event.pointerId === areaPick.down.id) {
+    areaPick.down = null;
+    if (event.type === 'pointerup' && areaPick.box) finishArea();
+    else { areaPick.box = null; paint(); }
+    return;
+  }
   if (pins && pins.down && event.pointerId === pins.down.id) {
     var down = pins.down;
     pins.down = null;
@@ -1430,7 +1642,7 @@ function linkedZoom() {
 /* In Swipe a zoom works on the photo being moved, and on both while spots are
    being tapped, since only one of them shows then. */
 function zoomList() {
-  return pins ? cells.filter(function (cell) { return cell.image; }) : activeCells();
+  return pins || areaPick ? cells.filter(function (cell) { return cell.image; }) : activeCells();
 }
 
 function targets(index) {
@@ -1445,6 +1657,7 @@ stage.addEventListener('wheel', function (event) {
   if (!hit) return;
   event.preventDefault();
   if (mode !== 'swipe') picked = hit.index;
+  remember('wheel');
   var factor = event.deltaY < 0 ? 1.06 : 1 / 1.06;
   var list = mode === 'swipe' ? zoomList() : targets(hit.index);
   list.forEach(function (cell) { zoomAt(cell, hit.rect, point.x, point.y, factor); });
@@ -1470,6 +1683,7 @@ stage.addEventListener('pointermove', function (event) {
     var factor = span / pinch.span;
     var hit = mode === 'swipe' ? { index: 0, rect: grid.rects[0] } : cellAt(grid, mid.x, mid.y);
     if (hit) {
+      remember('pinch');
       var pinched = mode === 'swipe' ? zoomList() : targets(hit.index);
       pinched.forEach(function (cell) { zoomAt(cell, hit.rect, mid.x, mid.y, factor); });
       paint();
@@ -1487,6 +1701,7 @@ stage.addEventListener('pointermove', function (event) {
 function stepZoom(factor) {
   var rect = (grid.rects[picked] || grid.rects[0]);
   if (!rect) return;
+  remember('zoom-step');
   activeCells().forEach(function (cell) {
     zoomAt(cell, rect, rect.x + rect.width / 2, rect.y + rect.height / 2, factor);
   });
@@ -1495,6 +1710,7 @@ function stepZoom(factor) {
 el('zoom-in').addEventListener('click', function () { stepZoom(1.1); });
 el('zoom-out').addEventListener('click', function () { stepZoom(1 / 1.1); });
 el('reset').addEventListener('click', function () {
+  remember();
   activeCells().forEach(function (cell) { cell.zoom = 1; cell.fx = 0.5; cell.fy = 0.5; cell.turn = 0; });
   paint();
 });
@@ -1503,20 +1719,22 @@ el('free-move').addEventListener('change', function () {
   el('photo-size').min = freeMove ? String(SMALLEST * 100) : '100';
   /* turned off, every photo goes back to filling its cell */
   if (!freeMove) {
+    remember();
     cells.forEach(function (cell, index) {
       if (!cell || !cell.image) return;
       var rect = grid.rects[mode === 'swipe' ? 0 : index] || grid.rects[0];
       if (!rect) return;
       cell.zoom = Math.max(1, cell.zoom);
-      var at = placement(cell, rect);
-      cell.fx = clampFocus(cell.fx, rect.width, at.width);
-      cell.fy = clampFocus(cell.fy, rect.height, at.height);
+      var held = clampCell(cell, rect, cell.fx, cell.fy);
+      cell.fx = held.fx;
+      cell.fy = held.fy;
     });
   }
   say('');
   paint();
 });
 el('photo-size').addEventListener('input', function () {
+  remember('size-slider');
   var want = Number(el('photo-size').value) / 100;
   var rect = grid.rects[mode === 'swipe' ? 0 : Math.max(picked, 0)] || grid.rects[0];
   if (!rect) return;
@@ -1531,17 +1749,12 @@ function turnText(degrees) {
   return (tenth === 0 ? 0 : tenth).toFixed(1) + ' degrees';
 }
 el('photo-turn').addEventListener('input', function () {
+  remember('turn-slider');
   var want = Number(el('photo-turn').value);
   var rect = grid.rects[mode === 'swipe' ? 0 : Math.max(picked, 0)] || grid.rects[0];
   if (!rect) return;
   activeCells().forEach(function (cell) { turnTo(cell, rect, want); });
   el('photo-turn-read').textContent = turnText(want);
-  paint();
-});
-el('label-text').addEventListener('input', function () {
-  var one = namedCell();
-  if (!one) return;
-  one.label = el('label-text').value;
   paint();
 });
 /* Swap trades the photos and leaves the labels where they are, since Before and
@@ -1561,18 +1774,24 @@ function swapCells(a, b) {
 }
 el('swap').addEventListener('click', function () {
   cancelPins();
+  cancelArea();
+  remember();
   if (mode === 'swipe') {
     swapCells(0, 1);
+    labelRows();
     paint();
     return;
   }
   if (picked < 0) return;
   var next = (picked + 1) % cellCount();
   swapCells(picked, next);
+  labelRows();
   paint();
 });
 el('drop-photo').addEventListener('click', function () {
   cancelPins();
+  cancelArea();
+  forgetUndo();
   var one = namedCell();
   if (!one || !one.image) return;
   var gone = one.image;
@@ -1789,6 +2008,7 @@ function showTools() {
     : doing === 'mark' ? 'Drag to draw a mark'
     : 'Drag a photo or the divider';
   if (pins) el('swipe-hint').textContent = 'Tap spot ' + (pins.step % 2 + 1);
+  if (areaPick) el('swipe-hint').textContent = 'Drag a box';
 }
 
 /* The photos the arrows and Bigger and Smaller act on, and the cell they are
@@ -1811,13 +2031,15 @@ function nudge(dx, dy) {
   var rect = moveRect();
   var list = moveList();
   if (!rect || !list.length) return;
+  remember('nudge');
   var gave = ensureRoom(list, rect);
   var stopped = false;
   list.forEach(function (cell) {
     var at = placement(cell, rect);
     var wantX = cell.fx + (cell.flip ? -dx : dx) / at.width, wantY = cell.fy + dy / at.height;
-    var fx = clampFocus(wantX, rect.width, at.width);
-    var fy = clampFocus(wantY, rect.height, at.height);
+    var held = clampCell(cell, rect, wantX, wantY);
+    var fx = held.fx;
+    var fy = held.fy;
     if (Math.abs(fx - wantX) > 1e-9 || Math.abs(fy - wantY) > 1e-9) stopped = true;
     cell.fx = fx;
     cell.fy = fy;
@@ -1830,6 +2052,7 @@ function nudgeZoom(factor) {
   var rect = moveRect();
   var list = moveList();
   if (!rect || !list.length) return;
+  remember('size');
   list.forEach(function (cell) {
     zoomAt(cell, rect, rect.x + rect.width / 2, rect.y + rect.height / 2, factor);
   });
@@ -1882,6 +2105,7 @@ function nudgeTurn(degrees) {
   var rect = moveRect();
   var list = moveList();
   if (!rect || !list.length) return;
+  remember('turn');
   list.forEach(function (cell) { turnTo(cell, rect, (cell.turn || 0) + degrees); });
   say('');
   paint();
@@ -1889,6 +2113,7 @@ function nudgeTurn(degrees) {
 hold(el('fine-turn-left'), function (times) { nudgeTurn(-0.1 * times); });
 hold(el('fine-turn-right'), function (times) { nudgeTurn(0.1 * times); });
 el('split-centre').addEventListener('click', function () {
+  remember();
   swipePosition = 0.5;
   paint();
 });
@@ -1985,8 +2210,9 @@ function matchImage(cell) {
     var words = new Uint32Array(kept.length * 8);
     new Uint8Array(words.buffer).set(made.data.subarray(0, kept.length * 32));
     var back = w / lw;
+    /* a spot found at pixel x sits at the middle of that pixel, x + 0.5 */
     kept.forEach(function (p, index) {
-      spots.push({ x: p.x * back, y: p.y * back });
+      spots.push({ x: (p.x + 0.5) * back, y: (p.y + 0.5) * back });
       codes.push(words.subarray(index * 8, index * 8 + 8));
     });
   });
@@ -2059,7 +2285,7 @@ function bestFit(pairs, reach) {
     var fit = fitTwo(pairs[i].p, pairs[i].q, pairs[j].p, pairs[j].q);
     if (!fit) continue;
     var size = Math.hypot(fit.a, fit.b);
-    if (size < 0.3 || size > 3.5 || Math.abs(Math.atan2(fit.b, fit.a)) > Math.PI / 4) continue;
+    if (size < 0.3 || size > 3.5) continue;
     var score = 0;
     for (var n = 0; n < pairs.length; n++) if (missOf(fit, pairs[n]) < reach) score++;
     if (score > bestScore) { bestScore = score; best = fit; }
@@ -2077,7 +2303,7 @@ function bestFit(pairs, reach) {
   return { fit: best, agree: agree };
 }
 
-/* The agreeing spots have to cover a fair part of the photo. */
+/* The agreeing spots have to cover a fair part of the photo, or of the area. */
 function spread(found, to) {
   var left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
   found.agree.forEach(function (m) {
@@ -2099,18 +2325,27 @@ function middleOf(found, to) {
    wall behind it move by different amounts. When the pairs left over after the
    first fit make a second fit of their own, the one nearer the middle of the
    photo wins, since that is where the face or the treated area usually is. */
-function findFit(from, to) {
+/* box, when given, is the area drawn on the first photo in match pixels, and
+   only spots inside it count. */
+function findFit(from, to, box) {
   var pairs = pairSpots(from, to);
+  if (box) {
+    pairs = pairs.filter(function (m) {
+      return m.q.x >= box.x && m.q.x <= box.x + box.w && m.q.y >= box.y && m.q.y <= box.y + box.h;
+    });
+  }
   if (pairs.length < MATCH_LEAST) return null;
   var reach = 8 * Math.max(to.w, to.h) / MATCH_SIDE;
   var first = bestFit(pairs, reach);
   if (!first) return null;
-  var rest = pairs.filter(function (m) { return missOf(first.fit, m) > reach * 1.5; });
-  var second = rest.length >= MATCH_LEAST ? bestFit(rest, reach) : null;
   var pick = first;
-  if (second && spread(second, to) && second.agree.length >= Math.max(MATCH_LEAST, first.agree.length * 0.25)
-    && middleOf(second, to) < middleOf(first, to)) pick = second;
-  if (!spread(pick, to)) return null;
+  if (!box) {
+    var rest = pairs.filter(function (m) { return missOf(first.fit, m) > reach * 1.5; });
+    var second = rest.length >= MATCH_LEAST ? bestFit(rest, reach) : null;
+    if (second && spread(second, to) && second.agree.length >= Math.max(MATCH_LEAST, first.agree.length * 0.25)
+      && middleOf(second, to) < middleOf(first, to)) pick = second;
+  }
+  if (!spread(pick, box || { w: to.w, h: to.h })) return null;
   pick.fit.count = pick.agree.length;
   return pick.fit;
 }
@@ -2125,10 +2360,10 @@ function placeBy(ref, refRect, cell, rect, fit) {
   var size = Math.hypot(fit.a, fit.b);
   var s1 = s0 * size;
   var t1 = t0 + Math.atan2(fit.b, fit.a);
-  var degrees = t1 * 180 / Math.PI;
+  var degrees = wrapTurn(t1 * 180 / Math.PI);
   var cover = Math.max(rect.width / cell.image.width, rect.height / cell.image.height);
   var zoom = s1 / cover;
-  if (zoom < SMALLEST || zoom > 8 || Math.abs(degrees) > 45) return false;
+  if (zoom < SMALLEST || zoom > 8) return false;
   var u = spin((fit.tx - ref.image.width / 2) * s0, (fit.ty - ref.image.height / 2) * s0, t0);
   var v = spin(cell.image.width / 2 * s1, cell.image.height / 2 * s1, t1);
   cell.zoom = zoom;
@@ -2167,7 +2402,7 @@ function allowEdges() {
 
 var lining = false;
 
-function lineUp(list) {
+function lineUp(list, area) {
   if (lining) return;
   var ref = cells[0];
   list = list.filter(function (index) { return index > 0 && cells[index] && cells[index].image; });
@@ -2183,10 +2418,16 @@ function lineUp(list) {
     var placed = [], missed = [], spots = 0, opened = false;
     try {
       var to = matchImage(ref);
+      var box = null;
+      if (area) {
+        var left = ref.flip ? 1 - area.u1 : area.u0, right = ref.flip ? 1 - area.u0 : area.u1;
+        box = { x: left * to.w, y: area.v0 * to.h, w: (right - left) * to.w, h: (area.v1 - area.v0) * to.h };
+      }
+      remember();
       list.forEach(function (index) {
         var cell = cells[index];
         var from = matchImage(cell);
-        var fit = findFit(from, to);
+        var fit = findFit(from, to, box);
         if (fit && placeBy(ref, lineRect(0), cell, lineRect(index), inPixels(fit, from, to))) {
           placed.push(index);
           spots = fit.count;
@@ -2200,11 +2441,12 @@ function lineUp(list) {
     say('');
     paint();
     var edges = opened ? ' Move past the edges is now on.' : '';
-    if (placed.length === 1 && !missed.length) message('Lined up on ' + spots + ' matching spots.' + edges, true);
+    var inside = area ? ' inside the area' : '';
+    if (placed.length === 1 && !missed.length) message('Lined up on ' + spots + ' matching spots' + inside + '.' + edges, true);
     else if (placed.length) message('Lined up ' + placed.length + ' photos on ' + photoName(0) + '.' + edges, true);
     if (missed.length) {
       message(missed.length === 1 && list.length === 1
-        ? 'No match found between the two photos. Use Two-point line up.'
+        ? (area ? 'No match found inside the area. Draw a bigger area or use Two-point line up.' : 'No match found between the two photos. Use Two-point line up.')
         : 'No match found for ' + missed.map(photoName).join(' and ') + '. Use Two-point line up for those.');
     }
   }, 30);
@@ -2213,7 +2455,7 @@ function lineUp(list) {
 /* Lines up a pair by itself the first time both photos are in. */
 var linedPair = '';
 function autoLine() {
-  if (cellCount() !== 2 || pins) return;
+  if (cellCount() !== 2 || pins || areaPick) return;
   var a = cells[0] && cells[0].image, b = cells[1] && cells[1].image;
   if (!a || !b) return;
   var key = [a.id, b.id].sort().join('|');
@@ -2231,6 +2473,7 @@ function lineTargets() {
 
 el('line-auto').addEventListener('click', function () {
   cancelPins();
+  cancelArea();
   lineUp(lineTargets());
 });
 
@@ -2259,6 +2502,7 @@ function pinSay() {
 }
 
 function startPins() {
+  cancelArea();
   var target = pinTarget();
   if (!cells[0] || !cells[0].image || target < 1) return;
   pins = { target: target, step: 0, spots: [], split: swipePosition, down: null };
@@ -2322,11 +2566,12 @@ function finishPins() {
   pins = null;
   showTools();
   lineButtons();
+  remember();
   if (fit && placeBy(ref, lineRect(0), cell, lineRect(target), fit)) {
     var opened = allowEdges();
     say('Lined up on the two spots.' + (opened ? ' Move past the edges is now on.' : ''));
   } else {
-    say('Those spots need more than 45 degrees of turn or a size outside 20% to 800%. Press Two-point line up and tap them in the same order on both photos.');
+    say('Those spots need a size outside 20% to 800%. Press Two-point line up and tap them in the same order on both photos.');
   }
   paint();
 }
@@ -2360,11 +2605,268 @@ function drawPins(c) {
 
 function lineButtons() {
   var ready = cells[0] && cells[0].image && lineTargets().some(function (index) { return cells[index] && cells[index].image; });
-  el('line-auto').disabled = lining || !ready || Boolean(pins);
+  el('line-auto').disabled = lining || !ready || Boolean(pins) || Boolean(areaPick);
   el('line-auto').textContent = lining ? 'Lining up' : 'Auto line up';
-  el('line-pins').disabled = lining || (!pins && pinTarget() < 1);
+  el('line-pins').disabled = lining || Boolean(areaPick) || (!pins && pinTarget() < 1);
   el('line-pins').textContent = pins ? 'Cancel' : 'Two-point line up';
+  el('line-area').disabled = lining || Boolean(pins) || (!areaPick && !ready);
+  el('line-area').textContent = areaPick ? 'Cancel' : 'Line up on an area';
+  el('line-fill').disabled = !cells.some(function (cell) { return cell.image; });
+  var swipe = mode === 'swipe';
+  el('view-field').classList.toggle('hidden', !swipe);
+  [].forEach.call(el('view').querySelectorAll('.btn'), function (button) {
+    button.classList.toggle('on', button.dataset.value === viewMode);
+  });
+  el('fine-view').classList.toggle('hidden', !swipe);
+  el('fine-view').textContent = VIEW_NAMES[viewMode];
+  undoButtons();
 }
+
+/* ---------- area to line up on ---------- */
+
+var areaPick = null;
+
+function startArea() {
+  cancelPins();
+  if (!cells[0] || !cells[0].image) return;
+  areaPick = { split: swipePosition, down: null, box: null };
+  if (mode === 'swipe') swipePosition = 1;
+  say(photoName(0) + ': drag a box around the face or the treated area.');
+  el('swipe-hint').textContent = 'Drag a box';
+  lineButtons();
+  paint();
+}
+
+function cancelArea() {
+  if (!areaPick) return;
+  if (mode === 'swipe') swipePosition = areaPick.split;
+  areaPick = null;
+  say('');
+  showTools();
+  lineButtons();
+  paint();
+}
+
+el('line-area').addEventListener('click', function () {
+  if (areaPick) cancelArea();
+  else startArea();
+});
+
+/* The box being drawn, held inside the first photo's cell. */
+function areaBox(from, to) {
+  var rect = lineRect(0);
+  var clamp = function (v, lo, hi) { return Math.min(hi, Math.max(lo, v)); };
+  var x0 = clamp(Math.min(from.x, to.x), rect.x, rect.x + rect.width), x1 = clamp(Math.max(from.x, to.x), rect.x, rect.x + rect.width);
+  var y0 = clamp(Math.min(from.y, to.y), rect.y, rect.y + rect.height), y1 = clamp(Math.max(from.y, to.y), rect.y, rect.y + rect.height);
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+/* The box as a stretch of the first photo, so it holds however the photo is
+   moved or turned. */
+function finishArea() {
+  var box = areaPick.box;
+  var rect = lineRect(0);
+  var ref = cells[0];
+  if (mode === 'swipe') swipePosition = areaPick.split;
+  areaPick = null;
+  showTools();
+  lineButtons();
+  if (!box || box.w < rect.width * 0.05 || box.h < rect.height * 0.05) {
+    say('The area is too small. Press Line up on an area and drag a bigger box.');
+    paint();
+    return;
+  }
+  var corners = [[box.x, box.y], [box.x + box.w, box.y], [box.x, box.y + box.h], [box.x + box.w, box.y + box.h]].map(function (p) {
+    return canvasToImage(ref, rect, { x: p[0], y: p[1] });
+  });
+  var clip = function (v) { return Math.min(1, Math.max(0, v)); };
+  var area = {
+    u0: clip(Math.min.apply(null, corners.map(function (c) { return c.u; }))),
+    u1: clip(Math.max.apply(null, corners.map(function (c) { return c.u; }))),
+    v0: clip(Math.min.apply(null, corners.map(function (c) { return c.v; }))),
+    v1: clip(Math.max.apply(null, corners.map(function (c) { return c.v; })))
+  };
+  say('');
+  paint();
+  lineUp(lineTargets(), area);
+}
+
+function drawArea(c) {
+  if (!areaPick || !areaPick.box) return;
+  var box = areaPick.box;
+  c.save();
+  c.fillStyle = 'rgba(224,180,90,.16)';
+  c.fillRect(box.x, box.y, box.w, box.h);
+  c.setLineDash([8 / view.k, 6 / view.k]);
+  c.lineWidth = 2 / view.k;
+  c.strokeStyle = '#E0B45A';
+  c.strokeRect(box.x, box.y, box.w, box.h);
+  c.restore();
+}
+
+/* ---------- the view while lining up ---------- */
+
+var viewMode = 'split';
+var VIEW_NAMES = { split: 'Split', see: 'See-through', diff: 'Differences' };
+
+function setView(next) {
+  viewMode = VIEW_NAMES[next] ? next : 'split';
+  lineButtons();
+  paint();
+}
+[].forEach.call(el('view').querySelectorAll('.btn'), function (button) {
+  button.addEventListener('click', function () { setView(button.dataset.value); });
+});
+el('fine-view').addEventListener('click', function () {
+  setView(viewMode === 'split' ? 'see' : viewMode === 'see' ? 'diff' : 'split');
+});
+
+/* ---------- fill the frame ---------- */
+
+/* Zooms every photo by the same amount about the same spot, just enough that no
+   background shows in the frame, then centres that spot. The photos stay lined
+   up with each other since they all move the same way. */
+function fillFrame() {
+  var list = [];
+  cells.forEach(function (cell, index) {
+    if (cell.image && (mode !== 'swipe' || index < 2)) list.push(index);
+  });
+  if (!list.length) return;
+  var rect0 = lineRect(list[0]);
+  var covered = function (k, cx, cy) {
+    var hw = rect0.width / 2 / k, hh = rect0.height / 2 / k;
+    for (var n = 0; n < list.length; n++) {
+      var rect = lineRect(list[n]), cell = cells[list[n]];
+      for (var c = 0; c < 4; c++) {
+        var spot = canvasToImage(cell, rect, { x: rect.x + cx + (c % 2 ? hw : -hw), y: rect.y + cy + (c < 2 ? -hh : hh) });
+        if (spot.u < 0 || spot.u > 1 || spot.v < 0 || spot.v > 1) return false;
+      }
+    }
+    return true;
+  };
+  /* the spot nearest the middle that leaves the frame covered at this zoom */
+  var centreFor = function (k) {
+    var best = null, far = Infinity;
+    for (var gx = 0; gx <= 24; gx++) {
+      for (var gy = 0; gy <= 24; gy++) {
+        var cx = rect0.width * gx / 24, cy = rect0.height * gy / 24;
+        var d = Math.hypot(cx - rect0.width / 2, cy - rect0.height / 2);
+        if (d < far && covered(k, cx, cy)) { far = d; best = { x: cx, y: cy }; }
+      }
+    }
+    return best;
+  };
+  if (covered(1, rect0.width / 2, rect0.height / 2)) {
+    say('The photos already fill the frame.');
+    return;
+  }
+  var low = 1, high = 8;
+  if (!centreFor(high)) {
+    say('The photos overlap too little to fill the frame.');
+    return;
+  }
+  for (var step = 0; step < 24; step++) {
+    var mid = (low + high) / 2;
+    if (centreFor(mid)) high = mid; else low = mid;
+  }
+  var k = high * 1.004;
+  var centre = centreFor(high);
+  if (list.some(function (index) { return cells[index].zoom * k > 8; })) {
+    say('Filling the frame needs a size past 800%.');
+    return;
+  }
+  remember();
+  list.forEach(function (index) {
+    var rect = lineRect(index), cell = cells[index];
+    var spot = canvasToImage(cell, rect, { x: rect.x + centre.x, y: rect.y + centre.y });
+    cell.zoom *= k;
+    pinAt(cell, rect, spot.u, spot.v, { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
+  });
+  allowEdges();
+  say((list.length === 2 ? 'Both photos' : 'The photos') + ' zoomed in ' + Math.round((k - 1) * 100) + '% to fill the frame.');
+  paint();
+}
+el('line-fill').addEventListener('click', fillFrame);
+el('fine-fill').addEventListener('click', fillFrame);
+
+/* ---------- undo for moving, sizing and turning photos ---------- */
+
+var undoList = [];
+var undoLast = { key: '', at: 0 };
+
+function snapshot() {
+  return {
+    split: swipePosition,
+    cells: cells.map(function (cell) {
+      return { image: cell.image, zoom: cell.zoom, fx: cell.fx, fy: cell.fy, turn: cell.turn || 0, flip: cell.flip };
+    })
+  };
+}
+
+function sameAs(a, b) {
+  if (!a || !b || a.cells.length !== b.cells.length || a.split !== b.split) return false;
+  for (var i = 0; i < a.cells.length; i++) {
+    var x = a.cells[i], y = b.cells[i];
+    if (x.image !== y.image || x.zoom !== y.zoom || x.fx !== y.fx || x.fy !== y.fy || x.turn !== y.turn || x.flip !== y.flip) return false;
+  }
+  return true;
+}
+
+/* Called just before a change. A key groups a run of small changes, like
+   holding an arrow or scrolling to zoom, into one undo. */
+function remember(key) {
+  var now = Date.now();
+  if (key && key === undoLast.key && now - undoLast.at < 900) { undoLast.at = now; return; }
+  undoLast = { key: key || '', at: now };
+  var snap = snapshot();
+  if (sameAs(undoList[undoList.length - 1], snap)) return;
+  undoList.push(snap);
+  if (undoList.length > 60) undoList.shift();
+  undoButtons();
+}
+
+function forgetUndo() {
+  undoList = [];
+  undoLast = { key: '', at: 0 };
+  undoButtons();
+}
+
+function undo() {
+  var now = snapshot();
+  var snap = undoList.pop();
+  while (snap && sameAs(snap, now)) snap = undoList.pop();
+  if (!snap || snap.cells.length !== cells.length) { undoButtons(); return; }
+  snap.cells.forEach(function (saved, index) {
+    var cell = cells[index];
+    ['image', 'zoom', 'fx', 'fy', 'turn', 'flip'].forEach(function (key) { cell[key] = saved[key]; });
+  });
+  swipePosition = snap.split;
+  undoLast = { key: '', at: 0 };
+  say('');
+  labelRows();
+  paint();
+}
+
+function undoButtons() {
+  var none = !undoList.length;
+  el('line-undo').disabled = none;
+  el('fine-undo').disabled = none;
+}
+
+el('line-undo').addEventListener('click', undo);
+el('fine-undo').addEventListener('click', undo);
+
+/* Ctrl+Z undoes the last move of a photo, or the last cover or mark while
+   those tools are open. A text box keeps its own undo. */
+document.addEventListener('keydown', function (event) {
+  if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey || (event.key !== 'z' && event.key !== 'Z')) return;
+  var tag = event.target && event.target.tagName;
+  if (tag === 'INPUT' && /^(text|date|number)$/.test(event.target.type) || tag === 'TEXTAREA') return;
+  event.preventDefault();
+  if (tool === 'mark') el('mark-undo').click();
+  else if (tool === 'cover') el('cover-undo').click();
+  else undo();
+});
 
 /* ---------- full screen ---------- */
 
@@ -2775,6 +3277,7 @@ function flipTarget() {
 }
 
 el('flip-cell').addEventListener('change', function () {
+  remember();
   flipTarget().forEach(function (cell) { cell.flip = el('flip-cell').checked; });
   paint();
 });
@@ -2782,9 +3285,368 @@ el('flip-cell').addEventListener('change', function () {
 
 
 
+/* ---------- labels, dates, the credit line and the watermark ---------- */
+
+/* The day a photo was taken, read from the camera's own record inside a JPG.
+   Photos sent through a chat app often lose it, which is why every date can be
+   set by hand. */
+function readDate(file) {
+  if (!/jpe?g$/i.test(file.type) && !/\.jpe?g$/i.test(file.name)) return Promise.resolve(null);
+  return file.slice(0, 262144).arrayBuffer().then(exifDate).catch(function () { return null; });
+}
+
+function exifDate(buffer) {
+  var view = new DataView(buffer);
+  if (view.byteLength < 12 || view.getUint16(0) !== 0xFFD8) return null;
+  var at = 2;
+  while (at + 10 < view.byteLength) {
+    var marker = view.getUint16(at);
+    if ((marker & 0xFF00) !== 0xFF00 || marker === 0xFFDA) return null;
+    if (marker === 0xFFE1 && view.getUint32(at + 4) === 0x45786966) return tiffDate(view, at + 10);
+    at += 2 + view.getUint16(at + 2);
+  }
+  return null;
+}
+
+function tiffDate(view, start) {
+  var little = view.getUint16(start) === 0x4949;
+  var u16 = function (o) { return view.getUint16(start + o, little); };
+  var u32 = function (o) { return view.getUint32(start + o, little); };
+  var find = function (ifd, tag) {
+    var count = u16(ifd);
+    for (var i = 0; i < count; i++) if (u16(ifd + 2 + i * 12) === tag) return ifd + 2 + i * 12;
+    return 0;
+  };
+  var text = function (entry) {
+    var count = u32(entry + 4), from = count > 4 ? u32(entry + 8) : entry + 8, out = '';
+    for (var i = 0; i < count - 1 && i < 32; i++) out += String.fromCharCode(view.getUint8(start + from + i));
+    return out;
+  };
+  var parse = function (value) {
+    var m = /^(\d{4}):(\d{2}):(\d{2})(?: (\d{2}):(\d{2}))?/.exec(value || '');
+    if (!m || Number(m[1]) < 1990) return null;
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4] || 12), Number(m[5] || 0));
+  };
+  try {
+    var first = u32(4);
+    var pointer = find(first, 0x8769);
+    if (pointer) {
+      var sub = u32(pointer + 8);
+      var entry = find(sub, 0x9003) || find(sub, 0x9004);
+      if (entry) { var found = parse(text(entry)); if (found) return found; }
+    }
+    var plain = find(first, 0x0132);
+    return plain ? parse(text(plain)) : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function dayText(date) { return date.getDate() + ' ' + MONTHS[date.getMonth()] + ' ' + date.getFullYear(); }
+
+function sinceText(days) {
+  if (days === 0) return 'Same day';
+  if (days === 1) return '1 day later';
+  if (days < 14) return days + ' days later';
+  if (days < 60) return Math.round(days / 7) + ' weeks later';
+  var months = Math.round(days / 30.44);
+  if (days < 730) return months === 1 ? '1 month later' : months + ' months later';
+  return Math.round(days / 365.25) + ' years later';
+}
+
+function dateText(index) {
+  var cell = cells[index];
+  var date = cell && cell.image && cell.image.date;
+  if (!date) return '';
+  var style = el('date-style').value;
+  if (style === 'month') return MONTHS[date.getMonth()] + ' ' + date.getFullYear();
+  if (style === 'since' && index > 0) {
+    var first = cells[0] && cells[0].image && cells[0].image.date;
+    if (first) {
+      var day = function (d) { return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()); };
+      var days = Math.round((day(date) - day(first)) / 86400000);
+      if (days >= 0) return sinceText(days);
+    }
+  }
+  return dayText(date);
+}
+
+/* What the label of a photo reads, with its date before or after the words. */
+function labelText(index) {
+  var cell = cells[index];
+  if (!cell || !cell.image) return '';
+  var words = cell.label || '';
+  var place = el('date-place').value;
+  var date = place === 'off' ? '' : dateText(index);
+  if (!date) return words;
+  if (!words) return date;
+  return place === 'before' ? date + ' \u00b7 ' + words : words + ' \u00b7 ' + date;
+}
+
+function dateValue(date) {
+  if (!date) return '';
+  var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
+}
+
+function dateNote(photo) {
+  if (!photo.date) return 'No date.';
+  if (photo.dateFrom === 'photo') return 'The date comes from the photo.';
+  if (photo.dateFrom === 'file') return 'This is the day the file was saved, since the photo holds no date.';
+  return 'Set by you.';
+}
+
+/* A label and a date for each photo, in the order of the cells. */
+function labelRows() {
+  var box = el('label-rows');
+  box.textContent = '';
+  cells.forEach(function (cell, index) {
+    if (!cell.image) return;
+    var photo = cell.image;
+    var row = document.createElement('div');
+    row.className = 'label-row';
+    row.innerHTML = '<div class="head"></div><div class="row">'
+      + '<div class="field"><label></label><input type="text" maxlength="40"></div>'
+      + '<div class="field"><label></label><input type="date"></div></div><p class="note"></p>';
+    row.querySelector('.head').textContent = 'Photo ' + (index + 1);
+    var labels = row.querySelectorAll('label');
+    var words = row.querySelector('input[type=text]');
+    var day = row.querySelector('input[type=date]');
+    var note = row.querySelector('.note');
+    words.id = 'label-' + index;
+    day.id = 'date-' + index;
+    labels[0].htmlFor = words.id;
+    labels[0].textContent = 'Label';
+    labels[1].htmlFor = day.id;
+    labels[1].textContent = 'Taken';
+    words.value = cell.label || '';
+    words.placeholder = index === 0 ? 'Before' : 'After';
+    day.value = dateValue(photo.date);
+    note.textContent = dateNote(photo);
+    words.addEventListener('input', function () {
+      cell.label = words.value;
+      paint();
+    });
+    day.addEventListener('change', function () {
+      var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day.value);
+      photo.date = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12) : null;
+      photo.dateFrom = 'set';
+      note.textContent = dateNote(photo);
+      paint();
+    });
+    box.appendChild(row);
+  });
+  var first = cells[0] && cells[0].image && cells[0].image.date;
+  var sample = first || new Date();
+  el('date-style').options[0].textContent = dayText(sample);
+  el('date-style').options[1].textContent = MONTHS[sample.getMonth()] + ' ' + sample.getFullYear();
+}
+
+['date-place', 'date-style'].forEach(function (id) { el(id).addEventListener('change', paint); });
+
+/* The credit line sits in a box like the labels, anywhere along the top or the
+   bottom of the picture. */
+function drawCredit(c, width, height) {
+  var text = el('credit-text').value.trim();
+  if (!text) return;
+  var place = el('credit-place').value.split('-');
+  var size = Math.max(11, Math.round(width / 40));
+  var padX = Math.round(size * 0.7), padY = Math.round(size * 0.45);
+  c.save();
+  c.font = '600 ' + size + 'px "IBM Plex Sans", system-ui, sans-serif';
+  var boxWidth = c.measureText(text).width + padX * 2, boxHeight = size + padY * 2;
+  var x = place[1] === 'left' ? padX : place[1] === 'right' ? width - boxWidth - padX : (width - boxWidth) / 2;
+  var y = place[0] === 'top' ? padX : height - boxHeight - padX;
+  c.fillStyle = 'rgba(16, 28, 43, .72)';
+  c.fillRect(x, y, boxWidth, boxHeight);
+  c.fillStyle = '#ffffff';
+  c.textBaseline = 'top';
+  c.fillText(text, x + padX, y + padY);
+  c.restore();
+}
+
+/* The symbols drawn in code, so they look the same on every phone. */
+var SYMBOLS = [
+  ['none', 'None'], ['sparkle', 'Sparkle'], ['star', 'Star'], ['heart', 'Heart'],
+  ['diamond', 'Diamond'], ['cross', 'Cross'], ['leaf', 'Leaf']
+];
+var wmSymbol = 'none';
+var wmLogo = null;
+var wmLogoName = '';
+var wmLogoData = '';
+
+function drawSymbol(c, kind, cx, cy, size) {
+  var r = size / 2;
+  c.beginPath();
+  if (kind === 'sparkle') {
+    c.moveTo(cx, cy - r);
+    c.quadraticCurveTo(cx + r * 0.12, cy - r * 0.12, cx + r, cy);
+    c.quadraticCurveTo(cx + r * 0.12, cy + r * 0.12, cx, cy + r);
+    c.quadraticCurveTo(cx - r * 0.12, cy + r * 0.12, cx - r, cy);
+    c.quadraticCurveTo(cx - r * 0.12, cy - r * 0.12, cx, cy - r);
+  } else if (kind === 'star') {
+    for (var i = 0; i < 10; i++) {
+      var a = -Math.PI / 2 + i * Math.PI / 5, d = i % 2 ? r * 0.42 : r;
+      if (i) c.lineTo(cx + d * Math.cos(a), cy + d * Math.sin(a) + r * 0.08);
+      else c.moveTo(cx + d * Math.cos(a), cy + d * Math.sin(a) + r * 0.08);
+    }
+    c.closePath();
+  } else if (kind === 'heart') {
+    c.moveTo(cx, cy + r * 0.85);
+    c.bezierCurveTo(cx - r * 1.25, cy + r * 0.05, cx - r * 0.75, cy - r * 1.05, cx, cy - r * 0.35);
+    c.bezierCurveTo(cx + r * 0.75, cy - r * 1.05, cx + r * 1.25, cy + r * 0.05, cx, cy + r * 0.85);
+  } else if (kind === 'diamond') {
+    c.moveTo(cx, cy - r);
+    c.lineTo(cx + r * 0.7, cy);
+    c.lineTo(cx, cy + r);
+    c.lineTo(cx - r * 0.7, cy);
+    c.closePath();
+  } else if (kind === 'cross') {
+    var t = r * 0.34;
+    c.moveTo(cx - t, cy - r); c.lineTo(cx + t, cy - r); c.lineTo(cx + t, cy - t); c.lineTo(cx + r, cy - t);
+    c.lineTo(cx + r, cy + t); c.lineTo(cx + t, cy + t); c.lineTo(cx + t, cy + r); c.lineTo(cx - t, cy + r);
+    c.lineTo(cx - t, cy + t); c.lineTo(cx - r, cy + t); c.lineTo(cx - r, cy - t); c.lineTo(cx - t, cy - t);
+    c.closePath();
+  } else if (kind === 'leaf') {
+    c.moveTo(cx - r * 0.8, cy + r * 0.8);
+    c.bezierCurveTo(cx - r * 0.9, cy - r * 0.4, cx + r * 0.2, cy - r, cx + r * 0.85, cy - r * 0.85);
+    c.bezierCurveTo(cx + r, cy - r * 0.2, cx + r * 0.4, cy + r * 0.9, cx - r * 0.8, cy + r * 0.8);
+  }
+  c.fill();
+}
+
+function symbolButtons() {
+  var box = el('wm-symbols');
+  box.textContent = '';
+  SYMBOLS.forEach(function (pair) {
+    var button = document.createElement('button');
+    button.className = 'btn' + (pair[0] === wmSymbol ? ' on' : '');
+    button.type = 'button';
+    button.setAttribute('aria-label', pair[1]);
+    button.title = pair[1];
+    if (pair[0] === 'none') button.textContent = 'None';
+    else {
+      var icon = document.createElement('canvas');
+      icon.width = 44;
+      icon.height = 44;
+      var ic = icon.getContext('2d');
+      ic.fillStyle = '#1B222C';
+      drawSymbol(ic, pair[0], 22, 22, 34);
+      button.appendChild(icon);
+    }
+    button.addEventListener('click', function () {
+      wmSymbol = pair[0];
+      symbolButtons();
+      keepSettings();
+      paint();
+    });
+    box.appendChild(button);
+  });
+}
+
+/* The watermark: a logo, a symbol and words in one row, drawn on the saved
+   picture and the video as well as the preview. */
+function drawWatermark(c, width, height) {
+  var text = el('wm-text').value.trim();
+  if (!text && wmSymbol === 'none' && !wmLogo) return;
+  var unit = Math.max(6, width * Number(el('wm-size').value) / 100);
+  c.save();
+  c.globalAlpha = Number(el('wm-strength').value) / 100;
+  c.fillStyle = el('wm-colour').value;
+  c.font = '600 ' + unit + 'px "IBM Plex Sans", system-ui, sans-serif';
+  c.textBaseline = 'middle';
+  c.textAlign = 'left';
+  c.shadowColor = 'rgba(0,0,0,.3)';
+  c.shadowBlur = unit * 0.2;
+  var gap = unit * 0.35;
+  var logoH = unit * 1.6, logoW = wmLogo ? logoH * wmLogo.width / wmLogo.height : 0;
+  var symbolW = wmSymbol !== 'none' ? unit * 1.15 : 0;
+  var textW = text ? c.measureText(text).width : 0;
+  var parts = [logoW, symbolW, textW].filter(function (w) { return w > 0; });
+  var total = parts.reduce(function (a, b) { return a + b; }, 0) + gap * (parts.length - 1);
+  var tall = Math.max(wmLogo ? logoH : 0, unit * 1.15);
+  var stamp = function (cx, cy) {
+    var x = cx - total / 2;
+    if (wmLogo) { c.drawImage(wmLogo, x, cy - logoH / 2, logoW, logoH); x += logoW + gap; }
+    if (symbolW) { drawSymbol(c, wmSymbol, x + symbolW / 2, cy, symbolW); x += symbolW + gap; }
+    if (text) c.fillText(text, x, cy);
+  };
+  var place = el('wm-place').value;
+  var margin = unit * 0.9;
+  if (place === 'tiled') {
+    c.translate(width / 2, height / 2);
+    c.rotate(-Math.PI / 6);
+    var reach = Math.hypot(width, height) / 2 + total;
+    var stepX = total + unit * 3, stepY = tall + unit * 2.6;
+    for (var row = 0, y = -reach; y <= reach; y += stepY, row++) {
+      for (var x = -reach + (row % 2) * stepX / 2; x <= reach; x += stepX) stamp(x, y);
+    }
+  } else if (place === 'middle') {
+    stamp(width / 2, height / 2);
+  } else {
+    var side = place.split('-');
+    stamp(side[1] === 'left' ? margin + total / 2 : width - margin - total / 2,
+      side[0] === 'top' ? margin + tall / 2 : height - margin - tall / 2);
+  }
+  c.restore();
+}
+
+function drawBrand(c, width, height) {
+  drawWatermark(c, width, height);
+  drawCredit(c, width, height);
+}
+
+function brandReads() {
+  el('wm-size-read').textContent = el('wm-size').value + '%';
+  el('wm-strength-read').textContent = el('wm-strength').value + '%';
+  el('wm-logo-drop').classList.toggle('hidden', !wmLogo);
+  el('wm-logo-add').textContent = wmLogo ? 'Change the logo' : 'Add a logo';
+  el('wm-logo-name').textContent = wmLogo ? wmLogoName : '';
+}
+
+['credit-text', 'credit-place', 'wm-text', 'wm-place', 'wm-size', 'wm-strength', 'wm-colour'].forEach(function (id) {
+  el(id).addEventListener('input', function () { brandReads(); paint(); });
+  el(id).addEventListener('change', function () { brandReads(); paint(); });
+});
+
+function useLogo(data, name) {
+  var image = new Image();
+  image.onload = function () {
+    wmLogo = image;
+    wmLogoName = name;
+    wmLogoData = data;
+    brandReads();
+    keepSettings();
+    paint();
+  };
+  image.onerror = function () { message(name + ' could not be opened.'); };
+  image.src = data;
+}
+
+el('wm-logo-add').addEventListener('click', function () { el('logo-picker').click(); });
+el('logo-picker').addEventListener('change', function () {
+  var file = el('logo-picker').files[0];
+  el('logo-picker').value = '';
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function () { useLogo(reader.result, file.name); };
+  reader.onerror = function () { message(file.name + ' could not be opened.'); };
+  reader.readAsDataURL(file);
+});
+el('wm-logo-drop').addEventListener('click', function () {
+  wmLogo = null;
+  wmLogoName = '';
+  wmLogoData = '';
+  brandReads();
+  keepSettings();
+  paint();
+});
+
 /* ---------- tools: the one picked shows its controls and sets the drag ---------- */
 
-var TOOLS = ['photos', 'line', 'cover', 'mark', 'video', 'steps'];
+var TOOLS = ['photos', 'line', 'labels', 'cover', 'mark', 'video', 'steps'];
 var tool = 'photos';
 
 function dragFor(name) {
@@ -2795,7 +3657,7 @@ function dragFor(name) {
 }
 
 function pickTool(name) {
-  if (name !== 'line' && name !== 'steps') cancelPins();
+  if (name !== 'line' && name !== 'steps') { cancelPins(); cancelArea(); }
   tool = name;
   TOOLS.forEach(function (key) {
     el('tool-' + key).classList.toggle('on', key === name);
@@ -2830,6 +3692,7 @@ function renderInto(canvas, width) {
     drawSwipe(out, config, cells, width, swipePosition);
     drawCovers(out, canvas.width, canvas.height);
     drawMarks(out, canvas.width, canvas.height, true);
+    drawBrand(out, canvas.width, canvas.height);
   } else {
     var box = layoutOf(config, width);
     canvas.width = box.width;
@@ -2837,6 +3700,7 @@ function renderInto(canvas, width) {
     drawGrid(out, config, cells, width);
     drawCovers(out, canvas.width, canvas.height);
     drawMarks(out, canvas.width, canvas.height, true);
+    drawBrand(out, canvas.width, canvas.height);
   }
   return canvas;
 }
@@ -2962,7 +3826,10 @@ function keepTape(chunks, type, wide, high) {
   var blob = new Blob(chunks, { type: type.split(';')[0] });
   var first = cells.filter(function (cell) { return cell.image; })[0];
   var stem = (first ? first.image.stem : 'collage').slice(0, 40);
-  save(blob, stem + '-collage.' + (mp4 ? 'mp4' : 'webm'));
+  var name = stem + '-collage.' + (mp4 ? 'mp4' : 'webm');
+  save(blob, name);
+  lastTape = { blob: blob, name: name };
+  el('tape-share').classList.toggle('hidden', !canShareType(blob.type, name));
   var size = wide + ' by ' + high + ', ' + readable(blob.size);
   if (!mp4) {
     tapeSay('Saved as WebM, ' + size
@@ -3002,10 +3869,11 @@ function save(blob, name) {
   setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
 }
 
-el('save').addEventListener('click', function () {
-  var button = el('save');
+/* Builds the picture as a file in the format picked, then hands it on. */
+function makeFile(button, busy, then) {
+  var idle = button.textContent;
   button.disabled = true;
-  button.textContent = 'Saving';
+  button.textContent = busy;
   var width = Number(el('size').value);
   var format = el('format').value;
   var canvas = render(width);
@@ -3013,7 +3881,7 @@ el('save').addEventListener('click', function () {
   var stem = (first ? first.image.stem : 'collage').slice(0, 40);
 
   var done = function () {
-    button.textContent = 'Save';
+    button.textContent = idle;
     button.disabled = photos.length === 0;
   };
 
@@ -3033,7 +3901,7 @@ el('save').addEventListener('click', function () {
           });
         });
       }).then(function (bytes) {
-        save(new Blob([bytes], { type: 'application/pdf' }), stem + '-collage.pdf');
+        then(new Blob([bytes], { type: 'application/pdf' }), stem + '-collage.pdf');
         el('out-size').textContent = canvas.width + ' by ' + canvas.height + ', ' + readable(bytes.length);
         done();
       }).catch(function (error) {
@@ -3046,17 +3914,122 @@ el('save').addEventListener('click', function () {
 
   canvas.toBlob(function (blob) {
     var ext = format === 'image/png' ? 'png' : 'jpg';
-    save(blob, stem + '-collage.' + ext);
+    then(blob, stem + '-collage.' + ext);
     el('out-size').textContent = canvas.width + ' by ' + canvas.height + ', ' + readable(blob.size);
     done();
   }, format, 0.92);
+}
+
+el('save').addEventListener('click', function () { makeFile(el('save'), 'Saving', save); });
+
+/* ---------- sharing straight to another app ---------- */
+
+/* Phones can hand a file straight to Instagram, Messenger or Photos. A browser
+   that cannot share files does not show the buttons. */
+function canShareType(type, name) {
+  try {
+    return Boolean(navigator.canShare && navigator.share && navigator.canShare({ files: [new File([''], name, { type: type })] }));
+  } catch (error) {
+    return false;
+  }
+}
+
+function shareFile(blob, name) {
+  var file = new File([blob], name, { type: blob.type });
+  if (!navigator.canShare || !navigator.canShare({ files: [file] })) {
+    save(blob, name);
+    message('This browser cannot share that file and saved it instead.');
+    return;
+  }
+  navigator.share({ files: [file] }).catch(function (error) {
+    if (error && error.name !== 'AbortError') message('Sharing stopped. ' + error.message);
+  });
+}
+
+var canSharePictures = canShareType('image/jpeg', 'collage.jpg');
+el('share').classList.toggle('hidden', !canSharePictures);
+el('share').addEventListener('click', function () { makeFile(el('share'), 'Sharing', shareFile); });
+
+var lastTape = null;
+el('tape-share').addEventListener('click', function () {
+  if (lastTape) shareFile(lastTape.blob, lastTape.name);
+});
+
+/* ---------- pasting a photo ---------- */
+
+/* Ctrl+V adds a photo copied from a chat or a folder. */
+document.addEventListener('paste', function (event) {
+  var data = event.clipboardData;
+  if (!data) return;
+  var files = [];
+  [].forEach.call(data.files || [], function (file) { files.push(file); });
+  if (!files.length && data.items) {
+    [].forEach.call(data.items, function (item) {
+      if (item.kind === 'file') { var file = item.getAsFile(); if (file) files.push(file); }
+    });
+  }
+  files = files.filter(looksLikeImage);
+  if (!files.length) return;
+  event.preventDefault();
+  addFiles(files);
+});
+
+/* ---------- settings kept between visits ---------- */
+
+/* The choices are kept in this browser so the app opens the way it was left.
+   Photos, labels and dates are never kept. */
+var KEPT = ['layout', 'shape', 'gap', 'background', 'labels', 'size', 'format', 'zoom-scope', 'free-move',
+  'cover-kind', 'cover-colour', 'cover-strength', 'mark-kind', 'mark-colour', 'mark-width', 'mark-show',
+  'tape-seconds', 'date-place', 'date-style', 'credit-text', 'credit-place',
+  'wm-text', 'wm-place', 'wm-size', 'wm-strength', 'wm-colour'];
+var KEPT_NAME = 'collage-maker-settings';
+var keeping = false;
+
+function keepSettings() {
+  if (keeping) return;
+  var out = { mode: mode, symbol: wmSymbol, logo: wmLogoData.length < 1500000 ? wmLogoData : '', logoName: wmLogoName };
+  KEPT.forEach(function (id) {
+    var box = el(id);
+    out[id] = box.type === 'checkbox' ? box.checked : box.value;
+  });
+  try { localStorage.setItem(KEPT_NAME, JSON.stringify(out)); } catch (error) { /* private windows keep nothing */ }
+}
+
+function loadSettings() {
+  var kept = null;
+  try { kept = JSON.parse(localStorage.getItem(KEPT_NAME) || 'null'); } catch (error) { kept = null; }
+  if (!kept) return null;
+  keeping = true;
+  KEPT.forEach(function (id) {
+    if (!(id in kept)) return;
+    var box = el(id);
+    if (box.type === 'checkbox') box.checked = Boolean(kept[id]);
+    else if (box.tagName === 'SELECT') {
+      if ([].some.call(box.options, function (o) { return o.value === String(kept[id]); })) box.value = String(kept[id]);
+    } else box.value = kept[id];
+  });
+  freeMove = el('free-move').checked;
+  el('photo-size').min = freeMove ? String(SMALLEST * 100) : '100';
+  if (kept.symbol && SYMBOLS.some(function (pair) { return pair[0] === kept.symbol; })) wmSymbol = kept.symbol;
+  if (kept.logo) useLogo(kept.logo, kept.logoName || 'Logo');
+  keeping = false;
+  return kept;
+}
+
+KEPT.forEach(function (id) {
+  el(id).addEventListener('change', keepSettings);
+  if (el(id).type === 'text' || el(id).type === 'range') el(id).addEventListener('input', keepSettings);
 });
 
 window.addEventListener('resize', function () { if (photos.length) paint(); });
 
+var keptAtStart = loadSettings();
+symbolButtons();
+brandReads();
 fitCells();
 buildDrag();
 pickTool('photos');
+if (keptAtStart && keptAtStart.mode === 'swipe') showMode('swipe');
 report();
 </script>
 </body>
