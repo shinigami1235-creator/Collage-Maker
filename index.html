@@ -121,6 +121,7 @@ body {
 .btn:disabled { opacity: .4; cursor: default; }
 .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
 .btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
+.btn-danger, .btn-danger:hover:not(:disabled) { background: var(--danger-tint); border-color: var(--danger); color: var(--danger); }
 .btn-install { background: var(--gold); border-color: var(--gold); color: var(--navy); font-weight: 600; min-height: 32px; font-size: 13px; }
 
 select, input[type=text], input[type=number] {
@@ -309,6 +310,7 @@ body.full .hint { display: none !important; }
         <div class="actions">
           <button class="btn btn-primary" type="button" id="add">Add photos</button>
           <button class="btn" type="button" id="swap">Swap</button>
+          <button class="btn" type="button" id="clear">New set</button>
         </div>
         <div class="field" id="layout-field">
           <label for="layout">Layout</label>
@@ -334,9 +336,6 @@ body.full .hint { display: none !important; }
               <input type="color" id="background" value="#ffffff">
             </div>
           </div>
-          <div class="actions">
-            <button class="btn" type="button" id="clear">Start over</button>
-          </div>
         </details>
       </section>
 
@@ -352,6 +351,10 @@ body.full .hint { display: none !important; }
           <button class="btn btn-primary" type="button" id="line-auto">Auto line up</button>
           <button class="btn" type="button" id="line-area">Line up on an area</button>
           <button class="btn" type="button" id="line-pins">Two-point line up</button>
+        </div>
+        <div class="actions">
+          <button class="btn" type="button" id="line-reline">Reset and line up</button>
+          <button class="btn" type="button" id="line-centre">Centre both</button>
         </div>
         <div class="actions">
           <button class="btn" type="button" id="line-undo">Undo</button>
@@ -590,13 +593,13 @@ body.full .hint { display: none !important; }
       <section class="panel" id="panel-steps">
         <h3>Steps</h3>
         <ol class="steps">
-          <li>Add the photos, or paste one with Ctrl+V. They fill the cells in the order you picked them. Swap trades two over, and Before and After stay on their own side.</li>
+          <li>Add the photos, or paste one with Ctrl+V. They fill the cells in the order you picked them. Swap trades two over, and Before and After stay on their own side. New set clears the photos with their covers, marks and labels, and needs a second press.</li>
           <li>Pick a tool. It decides what dragging on the picture does and shows only the controls for that job.</li>
           <li>Photos: drag a photo inside its cell to move it, and scroll or pinch to zoom.</li>
           <li>Line up: in Swipe, drag a photo to move it or drag the divider to slide it. The photo you touch becomes the one picked under Moves, and the arrows, Size and Turn work on it. Both moves the two together. In Grid, Zoom works on All photos zooms them together to the same spot.</li>
           <li>Auto line up matches small spots across the photos and moves, sizes and turns each photo onto the first, even one taken on its side. It runs by itself when the second photo of a pair goes in. Line up on an area uses only the spots inside a box you drag around the face or the treated area. Two-point line up has you tap the same two spots on each photo instead, like both pupils.</li>
           <li>View: See-through lays the second photo over the first at half strength and Differences shows only where they differ. Both are for checking the line up and never show in the saved picture.</li>
-          <li>Fill the frame zooms the photos together until no background shows. Undo or Ctrl+Z takes back the last move, size or turn.</li>
+          <li>Fill the frame zooms the photos together until no background shows. Centre both puts the photos back in the middle at their own size. Reset and line up does the same and then runs Auto line up again. Undo or Ctrl+Z takes back the last move, size or turn.</li>
           <li>Labels: a label and a date for each photo. The date comes from the photo when it holds one, and you can change it. Credit puts a line like "Cygnus Aesthetics" along the top or bottom, and Watermark lays words, a symbol or your logo over the picture.</li>
           <li>Cover: drag over the eyes, a name or an address.</li>
           <li>Mark: drag to draw an arrow, circle, line or box. Drag a mark to move it, or an end to reshape it.</li>
@@ -627,6 +630,10 @@ body.full .hint { display: none !important; }
       <button class="btn grow" type="button" id="fine-undo">Undo</button>
       <button class="btn grow" type="button" id="fine-view">Split</button>
       <button class="btn grow" type="button" id="fine-fill">Fill the frame</button>
+    </div>
+    <div class="fine-row">
+      <button class="btn grow" type="button" id="fine-reline">Reset and line up</button>
+      <button class="btn grow" type="button" id="fine-centre">Centre both</button>
     </div>
     <div class="fine-row" id="fine-scope-row">
       <span class="fine-say grow" id="fine-scope-say"></span>
@@ -1322,15 +1329,45 @@ el('picker').addEventListener('change', function () {
   zone.addEventListener('drop', function (event) { addFiles(event.dataTransfer.files); });
 });
 
+/* New set clears the photos with everything drawn on them, and keeps the
+   settings, the credit and the watermark for the next set. The first press
+   asks for a second one, since the photos cannot be brought back. */
+var clearArmed = 0;
+function disarmClear() {
+  clearTimeout(clearArmed);
+  clearArmed = 0;
+  el('clear').textContent = 'New set';
+  el('clear').classList.remove('btn-danger');
+}
 el('clear').addEventListener('click', function () {
+  if (!clearArmed) {
+    el('clear').textContent = 'Press again to clear';
+    el('clear').classList.add('btn-danger');
+    clearArmed = setTimeout(disarmClear, 4000);
+    return;
+  }
+  disarmClear();
   photos.forEach(function (photo) { photo.bitmap.close && photo.bitmap.close(); });
   cancelPins();
   cancelArea();
   forgetUndo();
   photos = [];
   cells = [];
+  covers = [];
+  coverPick = -1;
+  marks = [];
+  markPick = -1;
   picked = -1;
   linedPair = '';
+  swipePosition = 0.5;
+  viewMode = 'split';
+  lastTape = null;
+  el('tape-share').classList.add('hidden');
+  tapeSay('');
+  say('');
+  coverControls();
+  markControls();
+  el('messages').textContent = '';
   refresh();
 });
 
@@ -2612,6 +2649,14 @@ function lineButtons() {
   el('line-area').disabled = lining || Boolean(pins) || (!areaPick && !ready);
   el('line-area').textContent = areaPick ? 'Cancel' : 'Line up on an area';
   el('line-fill').disabled = !cells.some(function (cell) { return cell.image; });
+  var many = mode !== 'swipe' && centreList().length > 2;
+  ['line-centre', 'fine-centre'].forEach(function (id) {
+    el(id).disabled = !centreList().length || Boolean(pins) || Boolean(areaPick);
+    el(id).textContent = many ? 'Centre all' : 'Centre both';
+  });
+  ['line-reline', 'fine-reline'].forEach(function (id) {
+    el(id).disabled = lining || !ready || Boolean(pins) || Boolean(areaPick);
+  });
   var swipe = mode === 'swipe';
   el('view-field').classList.toggle('hidden', !swipe);
   [].forEach.call(el('view').querySelectorAll('.btn'), function (button) {
@@ -2787,6 +2832,47 @@ function fillFrame() {
   paint();
 }
 el('line-fill').addEventListener('click', fillFrame);
+
+/* ---------- putting the photos back in the middle ---------- */
+
+/* The photos the two buttons below work on: the pair in Swipe, every photo in
+   a grid. */
+function centreList() {
+  return cells.filter(function (cell, index) { return cell.image && (mode !== 'swipe' || index < 2); });
+}
+
+function centreAll() {
+  centreList().forEach(function (cell) { cell.zoom = 1; cell.fx = 0.5; cell.fy = 0.5; cell.turn = 0; });
+  swipePosition = 0.5;
+}
+
+function centreBoth() {
+  if (!centreList().length) return;
+  cancelPins();
+  cancelArea();
+  remember();
+  centreAll();
+  say('');
+  paint();
+}
+
+/* For when the photos have been dragged far out of place: both go back to the
+   middle and Auto line up runs again from there. */
+function relineUp() {
+  if (!centreList().length || lining) return;
+  cancelPins();
+  cancelArea();
+  remember();
+  centreAll();
+  say('');
+  paint();
+  lineUp(lineTargets());
+}
+
+el('line-centre').addEventListener('click', centreBoth);
+el('fine-centre').addEventListener('click', centreBoth);
+el('line-reline').addEventListener('click', relineUp);
+el('fine-reline').addEventListener('click', relineUp);
 el('fine-fill').addEventListener('click', fillFrame);
 
 /* ---------- undo for moving, sizing and turning photos ---------- */
