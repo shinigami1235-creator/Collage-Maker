@@ -1,6 +1,6 @@
-# Collage maker
+# Proofline
 
-A photo comparison and collage app that runs in the browser. Installable, and it
+Proofline, powered by Cygnus Solutions, is a before and after photo app that runs in the browser. Installable, and it
 works with no connection once installed.
 
 ## Deploying to GitHub Pages

@@ -1,7 +1,7 @@
 {
-  "name": "Collage maker",
-  "short_name": "Collage",
-  "description": "Put photos side by side or in a grid, zoom them to the same spot, and save the lot as one picture.",
+  "name": "Proofline",
+  "short_name": "Proofline",
+  "description": "Before and after photos, lined up. Powered by Cygnus Solutions.",
   "id": "cygnus-collage-maker",
   "start_url": "./index.html",
   "scope": "./",

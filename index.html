@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Collage maker</title>
+<title>Proofline</title>
 <meta name="description" content="Put photos side by side or in a grid, zoom them to the same spot, and save the lot as one picture.">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#101C2B">
 <link rel="icon" href="./icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Collage">
+<meta name="apple-mobile-web-app-title" content="Proofline">
 <style>
 :root {
   --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -171,6 +171,24 @@ input[type=date] { min-height: 40px; padding: 0 8px; width: 100%; font: 500 14px
 
 /* Full screen editing: the picture takes the whole screen and a strip of fine
    controls sits under it. In a grid it shows one photo at a time, close up. */
+.cam { position: fixed; inset: 0; z-index: 50; background: #05080d; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.cam.hidden { display: none; }
+.cam video { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.cam canvas { display: block; max-width: 100vw; touch-action: none; }
+.cam-top, .cam-bottom { position: absolute; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; }
+.cam-top { top: 0; padding-top: max(12px, env(safe-area-inset-top)); }
+.cam-bottom { bottom: 0; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+.cam-btn { font: 600 14px/18px var(--font); min-height: 44px; padding: 0 14px; border: none; border-radius: 999px; background: rgba(16,28,43,.78); color: #fff; cursor: pointer; }
+.cam-btn.hidden { visibility: hidden; }
+.cam-shoot { width: 72px; height: 72px; border-radius: 50%; border: 4px solid #fff; background: #E0B45A; cursor: pointer; flex: none; }
+.cam-shoot:disabled { opacity: .5; }
+.cam-light { font: 600 13px/18px var(--font); padding: 6px 12px; border-radius: 999px; background: rgba(16,28,43,.78); }
+.cam-light:empty { visibility: hidden; }
+.cam-light.off { color: #F2C14E; }
+.cam-zoom { display: flex; align-items: center; gap: 8px; font: 600 13px/18px var(--font); background: rgba(16,28,43,.78); border-radius: 999px; padding: 6px 12px; }
+.cam-zoom.hidden { visibility: hidden; }
+.cam-note { position: absolute; left: 16px; right: 16px; top: 50%; text-align: center; font: 15px/22px var(--font); margin: 0; }
+.cam-note:empty { display: none; }
 .full-open {
   position: absolute; top: 8px; right: 8px; z-index: 2;
   font: 600 13px/18px var(--font); min-height: 36px; padding: 0 12px;
@@ -268,7 +286,7 @@ body.full .hint { display: none !important; }
 
 <div class="frame">
   <div class="top">
-    <span class="name">Collage <span>maker</span></span>
+    <span class="name">Proof<span>line</span></span>
     <div class="tabs-top">
       <button class="tab-mode on" type="button" id="tab-grid">Grid</button>
       <button class="tab-mode" type="button" id="tab-swipe">Swipe</button>
@@ -310,6 +328,7 @@ body.full .hint { display: none !important; }
         <h3>Photos</h3>
         <div class="actions">
           <button class="btn btn-primary" type="button" id="add">Add photos</button>
+          <button class="btn" type="button" id="cam-open">Take a photo</button>
           <button class="btn" type="button" id="swap">Swap</button>
           <button class="btn" type="button" id="clear">New set</button>
         </div>
@@ -697,7 +716,9 @@ body.full .hint { display: none !important; }
           <li>Full screen: one photo close up, with arrows that move a pixel per tap and buttons that turn it a tenth of a degree.</li>
           <li>More under each tool holds the settings you need less often. The app keeps your settings for next time, while the photos, labels and dates are not kept.</li>
           <li>Press Save, or Share on a phone to send the picture straight to another app.</li>
+          <li>Take a photo opens the camera with the first photo laid faintly over it, for shooting the next photo from the same spot. Guide switches between faint, strong, an outline of the first photo's edges and off. The light reading says when the room is brighter or darker than in the first photo. The photo goes into the next empty cell, or the picked one, and lines up by itself.</li>
         </ol>
+        <p class="note">Proofline is powered by Cygnus Solutions.</p>
       </section>
     </div>
   </div>
@@ -763,6 +784,23 @@ body.full .hint { display: none !important; }
 <div class="drop hidden" id="empty" style="position:fixed; inset:auto 14px 80px; z-index:5">
   <p>No photo yet.</p>
   <button class="btn btn-primary" type="button" id="choose">Add photos</button>
+  <button class="btn" type="button" id="cam-open-empty">Take a photo</button>
+</div>
+
+<div class="cam hidden" id="cam" role="dialog" aria-label="Camera">
+  <video id="cam-video" playsinline muted></video>
+  <canvas id="cam-view"></canvas>
+  <div class="cam-top">
+    <button class="cam-btn" type="button" id="cam-close">Close</button>
+    <span class="cam-light" id="cam-light"></span>
+    <button class="cam-btn" type="button" id="cam-flip">Flip</button>
+  </div>
+  <div class="cam-bottom">
+    <button class="cam-btn" type="button" id="cam-guide">Guide: Faint</button>
+    <button class="cam-shoot" type="button" id="cam-shoot" aria-label="Take the photo"></button>
+    <label class="cam-zoom hidden" id="cam-zoom-wrap">Zoom <input type="range" id="cam-zoom" min="1" max="1" step="0.1" value="1"></label>
+  </div>
+  <p class="cam-note" id="cam-note"></p>
 </div>
 
 <input type="file" id="picker" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple hidden>
@@ -771,7 +809,7 @@ body.full .hint { display: none !important; }
 <script src="./vendor/pdf-lib.min.js"></script>
 <script src="./vendor/jsfeat.min.js"></script>
 <script>
-/* Collage maker. Everything runs here, so the app works with no connection
+/* Proofline, powered by Cygnus Solutions. Everything runs here, so the app works with no connection
    once it is installed. */
 
 var el = function (id) { return document.getElementById(id); };
@@ -5212,6 +5250,262 @@ document.addEventListener('keydown', function (event) {
   bgStep(bgAhead, bgPast);
 });
 
+/* ---------- the guided camera ---------- */
+
+/* The camera shows the first photo laid over the live picture, cropped to
+   the first photo's shape, so the next shot is taken from the same spot and
+   lines up without help. A front camera shows and saves the mirror image,
+   the way the screen shows it. */
+var cam = { stream: null, facing: 'environment', front: false, guide: 0, raf: 0, timer: 0, outline: null, ref: null, refLight: null, target: -1, track: null };
+var CAM_GUIDES = [['faint', 'Faint'], ['strong', 'Strong'], ['outline', 'Outline'], ['off', 'Off']];
+
+function camTarget() {
+  fitCells();
+  if (picked > 0 && cells[picked]) return picked;
+  for (var i = 0; i < cells.length; i++) if (!cells[i].image) return i;
+  return cells.length > 1 ? cells.length - 1 : 0;
+}
+
+function camOutline(image) {
+  var map = edgeMap(image);
+  var canvas = document.createElement('canvas');
+  canvas.width = map.w;
+  canvas.height = map.h;
+  var c = canvas.getContext('2d');
+  var data = c.createImageData(map.w, map.h);
+  for (var i = 0; i < map.mag.length; i++) {
+    if (map.mag[i] < 60) continue;
+    data.data[i * 4] = 224; data.data[i * 4 + 1] = 180; data.data[i * 4 + 2] = 90;
+    data.data[i * 4 + 3] = Math.min(255, map.mag[i]);
+  }
+  c.putImageData(data, 0, 0);
+  return canvas;
+}
+
+/* the average brightness of the middle of a picture, from 0 to 255 */
+function middleLight(source, w, h) {
+  var canvas = document.createElement('canvas');
+  canvas.width = 48;
+  canvas.height = 48;
+  var c = canvas.getContext('2d', { willReadFrequently: true });
+  c.drawImage(source, w * 0.25, h * 0.25, w * 0.5, h * 0.5, 0, 0, 48, 48);
+  var d = c.getImageData(0, 0, 48, 48).data, sum = 0;
+  for (var i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  return sum / (d.length / 4);
+}
+
+function camShape() {
+  return cam.ref ? cam.ref.width / cam.ref.height : 3 / 4;
+}
+
+function camCrop(w, h) {
+  var ratio = camShape(), sw = w, sh = h;
+  if (w / h > ratio) sw = h * ratio;
+  else sh = w / ratio;
+  return { x: (w - sw) / 2, y: (h - sh) / 2, w: sw, h: sh };
+}
+
+function camError(error) {
+  var name = error && error.name;
+  if (name === 'NotAllowedError' || name === 'PermissionDeniedError') return 'The camera is blocked. Allow camera access for this site in the browser settings, then press Take a photo again.';
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') return 'This device has no camera.';
+  if (name === 'NotReadableError' || name === 'TrackStartError') return 'Another app is using the camera.';
+  return 'The camera could not start (' + (name || 'unknown error') + ').';
+}
+
+function camDraw() {
+  cam.raf = requestAnimationFrame(camDraw);
+  var video = el('cam-video'), view = el('cam-view');
+  var vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) return;
+  var ratio = camShape();
+  var roomW = window.innerWidth, roomH = Math.max(200, window.innerHeight - 180);
+  var cssW = Math.min(roomW, roomH * ratio), cssH = cssW / ratio;
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var bw = Math.round(cssW * dpr), bh = Math.round(cssH * dpr);
+  if (view.width !== bw || view.height !== bh) {
+    view.width = bw;
+    view.height = bh;
+    view.style.width = Math.round(cssW) + 'px';
+    view.style.height = Math.round(cssH) + 'px';
+  }
+  var c = view.getContext('2d');
+  var crop = camCrop(vw, vh);
+  c.save();
+  if (cam.front) { c.translate(bw, 0); c.scale(-1, 1); }
+  c.drawImage(video, crop.x, crop.y, crop.w, crop.h, 0, 0, bw, bh);
+  c.restore();
+  var guide = CAM_GUIDES[cam.guide][0];
+  if (cam.ref && guide !== 'off') {
+    c.save();
+    if (guide === 'outline') {
+      c.globalAlpha = 0.95;
+      c.drawImage(cam.outline, 0, 0, bw, bh);
+    } else {
+      c.globalAlpha = guide === 'faint' ? 0.35 : 0.6;
+      c.drawImage(cam.ref.bitmap, 0, 0, bw, bh);
+    }
+    c.restore();
+  }
+}
+
+function camMeter() {
+  var video = el('cam-video');
+  if (!cam.stream || !video.videoWidth || cam.refLight === null) { el('cam-light').textContent = ''; return; }
+  var crop = camCrop(video.videoWidth, video.videoHeight);
+  var canvas = document.createElement('canvas');
+  canvas.width = Math.max(8, Math.round(crop.w / 8));
+  canvas.height = Math.max(8, Math.round(crop.h / 8));
+  canvas.getContext('2d').drawImage(video, crop.x, crop.y, crop.w, crop.h, 0, 0, canvas.width, canvas.height);
+  var now = middleLight(canvas, canvas.width, canvas.height);
+  var off = (now - cam.refLight) / Math.max(30, cam.refLight);
+  var box = el('cam-light');
+  box.textContent = off > 0.12 ? 'Brighter than ' + photoName(0) : off < -0.12 ? 'Darker than ' + photoName(0) : 'Light matches ' + photoName(0);
+  box.classList.toggle('off', Math.abs(off) > 0.12);
+}
+
+function camStop() {
+  if (cam.stream) cam.stream.getTracks().forEach(function (track) { track.stop(); });
+  cam.stream = null;
+  cam.track = null;
+  cancelAnimationFrame(cam.raf);
+  clearInterval(cam.timer);
+  cam.raf = 0;
+  cam.timer = 0;
+}
+
+function camStart() {
+  camStop();
+  el('cam-note').textContent = 'Starting the camera.';
+  el('cam-shoot').disabled = true;
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: cam.facing }, width: { ideal: 4000 }, height: { ideal: 3000 } },
+    audio: false
+  }).then(function (stream) {
+    cam.stream = stream;
+    cam.track = stream.getVideoTracks()[0];
+    var video = el('cam-video');
+    video.srcObject = stream;
+    return video.play().then(function () {
+      var got = (cam.track.getSettings && cam.track.getSettings()) || {};
+      cam.front = got.facingMode === 'user';
+      var can = (cam.track.getCapabilities && cam.track.getCapabilities()) || {};
+      var zoom = el('cam-zoom');
+      el('cam-zoom-wrap').classList.toggle('hidden', !can.zoom || !(can.zoom.max > can.zoom.min));
+      if (can.zoom) {
+        zoom.min = String(can.zoom.min);
+        zoom.max = String(can.zoom.max);
+        zoom.step = String(can.zoom.step || 0.1);
+        zoom.value = String(got.zoom || can.zoom.min);
+      }
+      el('cam-note').textContent = '';
+      el('cam-shoot').disabled = false;
+      cam.raf = requestAnimationFrame(camDraw);
+      cam.timer = setInterval(camMeter, 600);
+    });
+  }).catch(function (error) {
+    el('cam-note').textContent = camError(error);
+  });
+}
+
+function camOpen() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    message("This browser cannot open the camera. Take the photo with the phone's camera and add it with Add photos.");
+    return;
+  }
+  cancelPins();
+  cancelArea();
+  cancelLasso();
+  cancelBrush();
+  cam.target = camTarget();
+  var first = cells[0] && cells[0].image;
+  cam.ref = first && cam.target !== 0 ? first : null;
+  cam.outline = cam.ref ? camOutline(cam.ref) : null;
+  cam.refLight = cam.ref ? middleLight(cam.ref.bitmap, cam.ref.width, cam.ref.height) : null;
+  el('cam-guide').classList.toggle('hidden', !cam.ref);
+  el('cam-guide').textContent = 'Guide: ' + CAM_GUIDES[cam.guide][1];
+  el('cam-light').textContent = '';
+  el('cam').classList.remove('hidden');
+  camStart();
+}
+
+function camClose() {
+  camStop();
+  el('cam').classList.add('hidden');
+}
+
+function camStamp(date) {
+  var two = function (n) { return (n < 10 ? '0' : '') + n; };
+  return date.getFullYear() + '-' + two(date.getMonth() + 1) + '-' + two(date.getDate()) + ' ' + two(date.getHours()) + '.' + two(date.getMinutes()) + '.' + two(date.getSeconds());
+}
+
+/* The photo is the same pixels the screen showed, at the camera's full size,
+   cropped to the first photo's shape. It goes into the target cell, and a
+   pair lines up by itself as with any new photo. */
+function camShoot() {
+  var video = el('cam-video');
+  if (!video.videoWidth || el('cam-shoot').disabled) return;
+  var crop = camCrop(video.videoWidth, video.videoHeight);
+  var canvas = document.createElement('canvas');
+  canvas.width = Math.round(crop.w);
+  canvas.height = Math.round(crop.h);
+  var c = canvas.getContext('2d');
+  if (cam.front) { c.translate(canvas.width, 0); c.scale(-1, 1); }
+  c.drawImage(video, crop.x, crop.y, crop.w, crop.h, 0, 0, canvas.width, canvas.height);
+  el('cam-shoot').disabled = true;
+  createImageBitmap(canvas).then(function (bitmap) {
+    var now = new Date();
+    var stem = 'Camera ' + camStamp(now);
+    var photo = { id: 'p' + (nextId++), name: stem + '.jpg', stem: stem, bitmap: bitmap, width: bitmap.width, height: bitmap.height, date: now, dateFrom: 'photo' };
+    fitCells();
+    var index = Math.min(cam.target, cells.length - 1);
+    var cell = cells[index];
+    var old = cell.image;
+    if (old) {
+      photos = photos.filter(function (one) { return one !== old; });
+      if (old.bitmap.close) old.bitmap.close();
+    }
+    photos.push(photo);
+    cell.image = photo;
+    cell.zoom = 1;
+    cell.fx = 0.5;
+    cell.fy = 0.5;
+    cell.turn = 0;
+    cell.flip = false;
+    if (!cell.label && cellCount() === 2) cell.label = index === 0 ? 'Before' : 'After';
+    camClose();
+    forgetUndo();
+    refresh();
+  }, function () {
+    el('cam-shoot').disabled = false;
+    message('The photo could not be saved. Try again.');
+  });
+}
+
+['cam-open', 'cam-open-empty'].forEach(function (id) { el(id).addEventListener('click', camOpen); });
+el('cam-close').addEventListener('click', camClose);
+el('cam-shoot').addEventListener('click', camShoot);
+el('cam-flip').addEventListener('click', function () {
+  cam.facing = cam.facing === 'user' ? 'environment' : 'user';
+  camStart();
+});
+el('cam-guide').addEventListener('click', function () {
+  cam.guide = (cam.guide + 1) % CAM_GUIDES.length;
+  el('cam-guide').textContent = 'Guide: ' + CAM_GUIDES[cam.guide][1];
+});
+el('cam-zoom').addEventListener('input', function () {
+  if (!cam.track || !cam.track.applyConstraints) return;
+  cam.track.applyConstraints({ advanced: [{ zoom: Number(el('cam-zoom').value) }] }).catch(function () { /* this camera keeps its zoom */ });
+});
+document.addEventListener('keydown', function (event) {
+  if (el('cam').classList.contains('hidden')) return;
+  if (event.key === 'Escape') camClose();
+  else if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); camShoot(); }
+});
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden && cam.stream) camClose();
+});
+
 /* ---------- full screen ---------- */
 
 var full = false;
@@ -6282,7 +6576,7 @@ function keepTape(chunks, type, wide, high) {
   var blob = new Blob(chunks, { type: type.split(';')[0] });
   var first = cells.filter(function (cell) { return cell.image; })[0];
   var stem = (first ? first.image.stem : 'collage').slice(0, 40);
-  var name = stem + '-collage.' + (mp4 ? 'mp4' : 'webm');
+  var name = stem + '-proofline.' + (mp4 ? 'mp4' : 'webm');
   save(blob, name);
   lastTape = { blob: blob, name: name };
   el('tape-share').classList.toggle('hidden', !canShareType(blob.type, name));
@@ -6357,7 +6651,7 @@ function makeFile(button, busy, then) {
           });
         });
       }).then(function (bytes) {
-        then(new Blob([bytes], { type: 'application/pdf' }), stem + '-collage.pdf');
+        then(new Blob([bytes], { type: 'application/pdf' }), stem + '-proofline.pdf');
         el('out-size').textContent = canvas.width + ' by ' + canvas.height + ', ' + readable(bytes.length);
         done();
       }).catch(function (error) {
@@ -6370,7 +6664,7 @@ function makeFile(button, busy, then) {
 
   canvas.toBlob(function (blob) {
     var ext = format === 'image/png' ? 'png' : 'jpg';
-    then(blob, stem + '-collage.' + ext);
+    then(blob, stem + '-proofline.' + ext);
     el('out-size').textContent = canvas.width + ' by ' + canvas.height + ', ' + readable(blob.size);
     done();
   }, format, 0.92);
