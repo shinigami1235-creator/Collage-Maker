@@ -770,7 +770,7 @@ body.full .hint { display: none !important; }
           <li>Light: Matched to the first photo evens out the brightness, contrast and colour of the other photos to the first, measured on the part each one shows, so a darker room or a warmer lamp does not change how the result looks. As taken puts them back.</li>
           <li>Brand kit: set the credit, the watermark and its logo once, type a name and press Save as a kit. Picking the kit later puts them all back.</li>
           <li>The shape picker, beside Size, fits the picture into an Instagram post, a story or reel, a square or a wide video. In Swipe the frame takes that shape from edge to edge, and the swipe video uses it too. In Grid the background colour fills around the photos.</li>
-          <li>Clients keeps a folder for each client on this device: dated photos, and the photo consent form signed on screen with two separate answers, one for the record and one for posting online. Take a photo over the latest opens the client's last photo as Before and the camera over it, and the new photo goes into the folder by itself. A PIN locks every folder, and Export as PDF makes one file with the forms and every photo.</li>
+          <li>Clients keeps a folder for each client on this device: dated photos, and the photo consent form signed on screen with two separate answers, one for the record and one for posting online. Take a photo over the latest opens the client's last photo as Before and the camera over it, and the new photo goes into the folder by itself. A PIN locks every folder, and Export as PDF makes one file with the forms and every photo. Batch makes a before and after for each ticked client at once, from their first and latest photo.</li>
           <li>Take a photo opens the camera with the first photo laid faintly over it, for shooting the next photo from the same spot. Guide switches between faint, strong, an outline of the first photo's edges and off. The light reading says when the room is brighter or darker than in the first photo. The photo goes into the next empty cell, or the picked one, and lines up by itself.</li>
         </ol>
         <p class="note">Proofline is powered by Cygnus Solutions.</p>
@@ -881,6 +881,20 @@ body.full .hint { display: none !important; }
       <div class="field"><label for="client-find">Find</label><input type="search" id="client-find" placeholder="Type part of a name"></div>
       <div class="client-rows" id="client-rows"></div>
       <p class="note" id="client-none">No clients yet. Type a name under New client to make the first folder.</p>
+      <h4 class="sub">Batch</h4>
+      <p class="note">Makes a before and after for each client you tick, from their first and latest photo, with the layout, labels, watermark, credit and light set in the editor.</p>
+      <div class="client-rows" id="batch-rows"></div>
+      <label class="switch"><input type="checkbox" id="batch-eyes"> Cover the eyes, with the cover set under Cover</label>
+      <label class="switch"><input type="checkbox" id="batch-bg"> Remove the background</label>
+      <div class="field">
+        <label for="batch-as">Save as</label>
+        <select id="batch-as">
+          <option value="pdf" selected>One PDF with a page each</option>
+          <option value="files">A picture for each client</option>
+        </select>
+      </div>
+      <div class="actions"><button class="btn btn-primary" type="button" id="batch-go">Make the before and afters</button></div>
+      <p class="note" id="batch-note"></p>
       <h4 class="sub">Lock</h4>
       <p class="note" id="pin-state"></p>
       <div class="row">
@@ -6061,6 +6075,7 @@ function showClients() {
       box.appendChild(row);
     });
     el('client-none').classList.toggle('hidden', list.length > 0);
+    batchList(list);
   }, function (error) { message('The folders could not be opened. ' + error.message); });
 }
 
@@ -6345,6 +6360,109 @@ function exportClient(id) {
     });
   });
 }
+
+/* ---- batch ---- */
+
+function batchList(list) {
+  var box = el('batch-rows');
+  box.innerHTML = '';
+  list.filter(function (c) { return c.count >= 2; }).forEach(function (c) {
+    var row = document.createElement('label');
+    row.className = 'switch';
+    var tick = document.createElement('input');
+    tick.type = 'checkbox';
+    tick.value = c.id;
+    row.appendChild(tick);
+    row.appendChild(document.createTextNode(' ' + c.name + ', ' + c.count + ' photos'));
+    box.appendChild(row);
+  });
+  el('batch-go').disabled = !box.children.length;
+  el('batch-note').textContent = box.children.length ? '' : 'A client needs at least two photos to be in a batch.';
+}
+
+function waitUntil(test, limit) {
+  return new Promise(function (done) {
+    var began = Date.now();
+    var look = function () {
+      if (test() || Date.now() - began > (limit || 120000)) done();
+      else setTimeout(look, 120);
+    };
+    setTimeout(look, 120);
+  });
+}
+
+/* Each client's first and latest photo go through the editor one after the
+   other: lined up, the eyes covered and the background removed when ticked,
+   then saved with everything set in the editor. */
+function runBatch(ids) {
+  var pictures = [];
+  var width = Number(el('size').value);
+  var step = function (n) {
+    if (n >= ids.length) return Promise.resolve();
+    return Promise.all([getClient(ids[n]), shotsOf(ids[n])]).then(function (got) {
+      var client = got[0], list = got[1];
+      el('batch-note').textContent = 'Making ' + (n + 1) + ' of ' + ids.length + ': ' + client.name + '.';
+      if (mode !== 'swipe') el('layout').value = '1x2';
+      return openShots(ids[n], [list[0].id, list[list.length - 1].id]).then(function () {
+        return waitUntil(function () { return !lining; });
+      }).then(function () {
+        if (!el('batch-bg').checked) return null;
+        el('bg-auto').click();
+        return waitUntil(function () { return !cutting; });
+      }).then(function () {
+        if (!el('batch-eyes').checked) return null;
+        el('cover-eyes').click();
+        return waitUntil(function () { return !findingEyes; });
+      }).then(function () {
+        paint();
+        var canvas = render(width);
+        return new Promise(function (done) { canvas.toBlob(done, 'image/jpeg', 0.92); }).then(function (blob) {
+          pictures.push({ name: client.name, blob: blob });
+        });
+      });
+    }).then(function () { return step(n + 1); });
+  };
+  return step(0).then(function () { return pictures; });
+}
+
+el('batch-go').addEventListener('click', function () {
+  var ids = [].map.call(el('batch-rows').querySelectorAll('input:checked'), function (tick) { return tick.value; });
+  if (!ids.length) { el('batch-note').textContent = 'Tick at least one client.'; return; }
+  var button = el('batch-go'), idle = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Making them';
+  runBatch(ids).then(function (pictures) {
+    var safe = function (name) { return name.replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 40); };
+    if (el('batch-as').value === 'files') {
+      pictures.forEach(function (picture, i) {
+        setTimeout(function () { save(picture.blob, safe(picture.name) + ' - before and after.jpg'); }, i * 400);
+      });
+      el('batch-note').textContent = 'Made ' + pictures.length + (pictures.length === 1 ? ' picture.' : ' pictures.');
+      return null;
+    }
+    if (!window.PDFLib) { el('batch-note').textContent = 'The PDF part has not finished loading. Try again in a moment.'; return null; }
+    return window.PDFLib.PDFDocument.create().then(function (doc) {
+      return pictures.reduce(function (chain, picture) {
+        return chain.then(function () {
+          return picture.blob.arrayBuffer().then(function (buffer) {
+            return doc.embedJpg(new Uint8Array(buffer)).then(function (image) {
+              var page = doc.addPage([image.width, image.height]);
+              page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
+            });
+          });
+        });
+      }, Promise.resolve()).then(function () { return doc.save(); });
+    }).then(function (bytes) {
+      save(new Blob([bytes], { type: 'application/pdf' }), 'Before and afters - Proofline.pdf');
+      el('batch-note').textContent = 'Made a PDF with ' + pictures.length + (pictures.length === 1 ? ' page.' : ' pages.');
+    });
+  }).catch(function (error) {
+    el('batch-note').textContent = error.message;
+  }).then(function () {
+    button.disabled = false;
+    button.textContent = idle;
+  });
+});
 
 /* ---- buttons ---- */
 
