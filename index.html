@@ -3684,7 +3684,7 @@ function lineUp(list, area) {
     var edges = opened ? ' Move past the edges is now on.' : '';
     var inside = area ? ' inside the area' : '';
     if (placed.length === 1 && !missed.length) message('Lined up on ' + spots + ' matching spots' + inside + '.' + edges, true);
-    else if (placed.length) message('Lined up ' + placed.length + ' photos on ' + photoName(0) + '.' + edges, true);
+    else if (placed.length) message('Lined up ' + placed.map(photoName).join(' and ') + ' on ' + photoName(0) + '.' + edges, true);
     if (missed.length) {
       message(missed.length === 1 && list.length === 1
         ? (area ? 'No match found inside the area. Draw a bigger area or use Two-point line up.' : 'No match found between the two photos. Use Two-point line up.')
