@@ -162,6 +162,7 @@ details[open] summary { margin-bottom: 8px; }
 .label-row .field { margin-bottom: 4px; }
 .symbols { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .symbols .btn { padding: 0; display: flex; align-items: center; justify-content: center; }
+.actions .btn.on { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
 .symbols .btn.on { border-color: var(--primary); box-shadow: inset 0 0 0 2px var(--primary); }
 .symbols canvas { width: 22px; height: 22px; }
 input[type=date] { min-height: 40px; padding: 0 8px; width: 100%; font: 500 14px/20px var(--font); border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--text); }
@@ -343,14 +344,35 @@ body.full .hint { display: none !important; }
             </select>
           </div>
         </div>
-        <div class="field">
-          <label for="background">Background colour</label>
-          <input type="color" id="background" value="#ffffff">
-        </div>
         <div class="actions">
+          <button class="btn" type="button" id="bg-erase">Erase brush</button>
+          <button class="btn" type="button" id="bg-restore">Restore brush</button>
+        </div>
+        <div class="field">
+          <label for="bg-size">Brush size <span id="bg-size-read">40</span></label>
+          <input type="range" id="bg-size" min="6" max="160" step="1" value="40">
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="bg-soft">Edge</label>
+            <select id="bg-soft">
+              <option value="0" selected>Sharp</option>
+              <option value="2">A little soft</option>
+              <option value="5">Soft</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="background">Background colour</label>
+            <input type="color" id="background" value="#ffffff">
+          </div>
+        </div>
+        <label class="switch"><input type="checkbox" id="bg-ghost" checked> Show the removed part in faint red on screen</label>
+        <div class="actions">
+          <button class="btn" type="button" id="bg-undo">Undo</button>
+          <button class="btn" type="button" id="bg-redo">Redo</button>
           <button class="btn" type="button" id="bg-back">Put the background back</button>
         </div>
-        <p class="note">Draw a loose loop a little outside the subject and the line moves in onto its edge, like the outline in Camera Overlay. The removed part shows the background colour.</p>
+        <p class="note">Draw a loose loop a little outside the subject and the line moves in onto its edge, like the outline in Camera Overlay. Drawing stays on until you press Done. Set The line to add back or take away for each loop after the first. The brushes fix small bits the line missed.</p>
 
         <details class="more">
           <summary>More</summary>
@@ -656,7 +678,7 @@ body.full .hint { display: none !important; }
           <li>Add the photos, or paste one with Ctrl+V. They fill the cells in the order you picked them. Swap trades two over, and Before and After stay on their own side. New set clears the photos with their covers, marks and labels, and needs a second press.</li>
           <li>Pick a tool. It decides what dragging on the picture does and shows only the controls for that job.</li>
           <li>Photos: drag a photo inside its cell to move it, and scroll or pinch to zoom.</li>
-          <li>Background: Remove the background finds the person on every photo, or anything that stands apart from a plain background. Draw around it takes a loose loop drawn a little outside the subject and moves it in onto the subject's edge, for a hand, a product or a busy background. The line can keep what is inside, add it back or take it away. The removed part shows the background colour.</li>
+          <li>Background: Remove the background finds the person on every photo, or anything that stands apart from a plain background. Draw around it takes a loose loop drawn a little outside the subject and moves it in onto the subject's edge, for a hand, a product or a busy background. The line can keep what is inside, add it back or take it away, and drawing stays on until Done. The Erase and Restore brushes fix small bits by hand, and Undo and Redo step through every change. The removed part shows the background colour, and shows in faint red on screen while the Photos tool is open.</li>
           <li>Line up: in Swipe, drag a photo to move it or drag the divider to slide it. The photo you touch becomes the one picked under Moves, and the arrows, Size and Turn work on it. Both moves the two together. In Grid, Zoom works on All photos zooms them together to the same spot.</li>
           <li>Auto line up matches small spots across the photos and moves, sizes and turns each photo onto the first, even one taken on its side. It runs by itself when the second photo of a pair goes in. Line up on an area uses only the spots inside a box you drag around the face or the treated area. Two-point line up has you tap the same two spots on each photo instead, like both pupils.</li>
           <li>View: See-through lays the second photo over the first at half strength and Differences shows only where they differ. Both are for checking the line up and never show in the saved picture.</li>
@@ -974,9 +996,20 @@ function drawPhoto(c, cell, rect) {
     c.rotate(angle);
     c.translate(-mx, -my);
   }
+  /* on screen only, the removed part shows faintly so missed bits are easy to see */
+  if (ghost && cell.image.cut) {
+    c.globalAlpha = 0.3;
+    c.drawImage(cell.image.bitmap, at.x, at.y, at.width, at.height);
+    c.globalAlpha = 0.18;
+    c.fillStyle = '#d0342c';
+    c.fillRect(at.x, at.y, at.width, at.height);
+    c.globalAlpha = 1;
+  }
   c.drawImage(cell.image.cut || cell.image.bitmap, at.x, at.y, at.width, at.height);
   c.restore();
 }
+
+var ghost = false;
 
 /* The boxes the labels took on the picture being drawn, so the credit and a
    corner watermark can keep clear of them. */
@@ -1139,9 +1172,16 @@ function buildCut(image) {
   holes.height = image.mask.h;
   var hc = holes.getContext('2d');
   var data = hc.createImageData(image.mask.w, image.mask.h);
-  for (var i = 0; i < image.mask.alpha.length; i++) {
+  var alpha = image.mask.alpha;
+  var soft = Number(el('bg-soft').value) || 0;
+  if (soft) {
+    var f = new Float32Array(alpha.length);
+    for (var n = 0; n < alpha.length; n++) f[n] = alpha[n];
+    alpha = boxBlur(f, image.mask.w, image.mask.h, soft);
+  }
+  for (var i = 0; i < alpha.length; i++) {
     data.data[i * 4] = data.data[i * 4 + 1] = data.data[i * 4 + 2] = 255;
-    data.data[i * 4 + 3] = image.mask.alpha[i];
+    data.data[i * 4 + 3] = alpha[i];
   }
   hc.putImageData(data, 0, 0);
   var cut = document.createElement('canvas');
@@ -1372,6 +1412,42 @@ function share(mask) {
 
 var cutting = false;
 
+/* Undo and Redo for the background. Each step keeps a copy of the masks it
+   changed, up to 30 steps back. */
+var bgPast = [], bgAhead = [];
+
+function bgCopy(list) {
+  return list.map(function (photo) {
+    return { photo: photo, mask: photo.mask ? { w: photo.mask.w, h: photo.mask.h, alpha: photo.mask.alpha.slice() } : null };
+  });
+}
+
+function saveBg(list) {
+  var seen = [];
+  list.forEach(function (photo) { if (photo && seen.indexOf(photo) < 0) seen.push(photo); });
+  if (!seen.length) return;
+  bgPast.push(bgCopy(seen));
+  if (bgPast.length > 30) bgPast.shift();
+  bgAhead = [];
+}
+
+function bgStep(from, to) {
+  var step = from.pop();
+  if (!step) return;
+  step = step.filter(function (entry) { return photos.indexOf(entry.photo) >= 0; });
+  to.push(bgCopy(step.map(function (entry) { return entry.photo; })));
+  step.forEach(function (entry) {
+    entry.photo.mask = entry.mask;
+    buildCut(entry.photo);
+  });
+  bgButtons();
+  paint();
+}
+
+function spotPhotos(spots) {
+  return spots.map(function (spot) { return cells[spot.index].image; });
+}
+
 function bgTargets(only) {
   return photoSpots(stageWidth(), only === undefined ? -1 : only);
 }
@@ -1380,6 +1456,9 @@ el('bg-auto').addEventListener('click', function () {
   if (cutting) return;
   var spots = bgTargets();
   if (!spots.length) return;
+  cancelLasso();
+  cancelBrush();
+  saveBg(spotPhotos(spots));
   cutting = true;
   bgButtons();
   var done = 0, missed = [];
@@ -1434,7 +1513,18 @@ el('bg-auto').addEventListener('click', function () {
   }).then(finish, function (error) { message(error.message); finish(); });
 });
 
+el('bg-undo').addEventListener('click', function () { bgStep(bgPast, bgAhead); });
+el('bg-redo').addEventListener('click', function () { bgStep(bgAhead, bgPast); });
+
+el('bg-soft').addEventListener('change', function () {
+  photos.forEach(buildCut);
+  paint();
+});
+
+el('bg-ghost').addEventListener('change', paint);
+
 el('bg-back').addEventListener('click', function () {
+  saveBg(photos.filter(function (photo) { return photo.mask; }));
   photos.forEach(function (photo) { photo.mask = null; photo.cut = null; });
   bgButtons();
   paint();
@@ -1583,7 +1673,16 @@ function bgButtons() {
   el('bg-auto').disabled = cutting || !any || Boolean(lasso);
   el('bg-auto').textContent = cutting ? 'Removing the background' : 'Remove the background';
   el('bg-draw').disabled = cutting || !any;
-  el('bg-draw').textContent = lasso ? 'Cancel' : 'Draw around it';
+  el('bg-draw').textContent = lasso ? 'Done' : 'Draw around it';
+  el('bg-draw').classList.toggle('on', Boolean(lasso));
+  el('bg-erase').disabled = cutting || !any;
+  el('bg-restore').disabled = cutting || !any;
+  el('bg-erase').textContent = brush && brush.how === 'erase' ? 'Done' : 'Erase brush';
+  el('bg-restore').textContent = brush && brush.how === 'restore' ? 'Done' : 'Restore brush';
+  el('bg-erase').classList.toggle('on', Boolean(brush && brush.how === 'erase'));
+  el('bg-restore').classList.toggle('on', Boolean(brush && brush.how === 'restore'));
+  el('bg-undo').disabled = cutting || !bgPast.length;
+  el('bg-redo').disabled = cutting || !bgAhead.length;
   el('bg-back').disabled = !photos.some(function (photo) { return photo.mask; });
 }
 
@@ -1600,8 +1699,9 @@ el('bg-draw').addEventListener('click', function () {
   if (lasso) { cancelLasso(); return; }
   cancelPins();
   cancelArea();
+  cancelBrush();
   lasso = { points: [], id: null };
-  say('Draw a loose loop a little outside the subject and lift your finger to finish.');
+  say('Draw a loose loop a little outside the subject and lift your finger to finish. Press Done when you have finished.');
   showTools();
   bgButtons();
   paint();
@@ -1611,10 +1711,7 @@ el('bg-draw').addEventListener('click', function () {
    the same spot of its own cell, pulled onto that photo's own edges. */
 function finishLasso() {
   var pts = lasso.points;
-  lasso = null;
-  say('');
-  showTools();
-  bgButtons();
+  lasso = { points: [], id: null };
   var xs = pts.map(function (p) { return p.x; }), ys = pts.map(function (p) { return p.y; });
   /* The loop may run off the photo, so the cell is the one most of it sits on. */
   var home = null, most = 0;
@@ -1636,6 +1733,7 @@ function finishLasso() {
   var homeIndex = cells.indexOf(home.cell);
   var spots = bgTargets(el('bg-on').value === 'one' ? homeIndex : -1);
   var how = el('bg-how').value;
+  saveBg(spotPhotos(spots));
   spots.forEach(function (spot) {
     var cell = cells[spot.index], image = cell.image, r = spot.rect, hr = home.rect;
     var loop = pts.map(function (p) {
@@ -1657,7 +1755,120 @@ function finishLasso() {
   });
   var words = { keep: 'Kept what is inside the line', add: 'Added back what is inside the line', take: 'Took away what is inside the line' };
   message(words[how] + ' on ' + spots.length + (spots.length === 1 ? ' photo.' : ' photos.'), true);
+  bgButtons();
   paint();
+}
+
+/* ---------- the erase and restore brushes ---------- */
+
+var brush = null;
+var brushDirty = [];
+var brushFrame = 0;
+
+function cancelBrush() {
+  if (!brush) return;
+  brush = null;
+  say('');
+  showTools();
+  bgButtons();
+  paint();
+}
+
+function startBrush(how) {
+  if (brush && brush.how === how) { cancelBrush(); return; }
+  cancelPins();
+  cancelArea();
+  cancelLasso();
+  brush = { how: how, id: null, last: null, at: null, home: null, spots: [] };
+  say(how === 'erase' ? 'Paint over what should go. Press Done when you have finished.' : 'Paint over what should come back. Press Done when you have finished.');
+  showTools();
+  bgButtons();
+  paint();
+}
+
+el('bg-erase').addEventListener('click', function () { startBrush('erase'); });
+el('bg-restore').addEventListener('click', function () { startBrush('restore'); });
+el('bg-size').addEventListener('input', function () {
+  el('bg-size-read').textContent = el('bg-size').value;
+  paint();
+});
+
+/* the brush size is in screen pixels, so it feels the same at any zoom */
+function brushRadius() {
+  var bounds = stage.getBoundingClientRect();
+  return Number(el('bg-size').value) / 2 * view.cssWidth / (bounds.width || 1) / view.k;
+}
+
+function brushDown(point, id) {
+  var home = cellUnder(point);
+  if (!home) return;
+  var spots = bgTargets(el('bg-on').value === 'one' ? cells.indexOf(home.cell) : -1);
+  brush.id = id;
+  brush.home = home;
+  brush.spots = spots;
+  brush.last = point;
+  saveBg(spotPhotos(spots));
+  spots.forEach(function (spot) {
+    var image = cells[spot.index].image;
+    if (!image.mask) {
+      var size = maskSize(image);
+      image.mask = { w: size.w, h: size.h, alpha: new Uint8Array(size.w * size.h).fill(255) };
+    }
+  });
+  stroke(point, point);
+}
+
+/* Paints one stretch of the stroke into the mask of every photo it works on,
+   at the same spot of each photo's own cell. */
+function stroke(a, b) {
+  var hr = brush.home.rect, r0 = brushRadius();
+  brush.spots.forEach(function (spot) {
+    var cell = cells[spot.index], image = cell.image, r = spot.rect, mask = image.mask;
+    var move = function (p) {
+      var q = canvasToImage(cell, r, { x: r.x + (p.x - hr.x) / hr.width * r.width, y: r.y + (p.y - hr.y) / hr.height * r.height });
+      return { x: q.u * mask.w, y: q.v * mask.h };
+    };
+    var p = move(a), q = move(b);
+    var shown = placement(cell, r).width;
+    var rad = r0 * r.width / hr.width * mask.w / shown;
+    var x0 = Math.max(0, Math.floor(Math.min(p.x, q.x) - rad - 1)), x1 = Math.min(mask.w - 1, Math.ceil(Math.max(p.x, q.x) + rad + 1));
+    var y0 = Math.max(0, Math.floor(Math.min(p.y, q.y) - rad - 1)), y1 = Math.min(mask.h - 1, Math.ceil(Math.max(p.y, q.y) + rad + 1));
+    var dx = q.x - p.x, dy = q.y - p.y, len = dx * dx + dy * dy;
+    var erase = brush.how === 'erase';
+    for (var y = y0; y <= y1; y++) {
+      for (var x = x0; x <= x1; x++) {
+        var t = len ? Math.max(0, Math.min(1, ((x - p.x) * dx + (y - p.y) * dy) / len)) : 0;
+        var d = Math.hypot(x - p.x - t * dx, y - p.y - t * dy);
+        var cover = Math.max(0, Math.min(1, rad - d + 0.5));
+        if (!cover) continue;
+        var n = y * mask.w + x;
+        mask.alpha[n] = erase ? Math.min(mask.alpha[n], Math.round(255 * (1 - cover))) : Math.max(mask.alpha[n], Math.round(255 * cover));
+      }
+    }
+    if (brushDirty.indexOf(image) < 0) brushDirty.push(image);
+  });
+  if (!brushFrame) {
+    brushFrame = requestAnimationFrame(function () {
+      brushFrame = 0;
+      brushDirty.forEach(buildCut);
+      brushDirty = [];
+      paint();
+    });
+  }
+}
+
+function drawBrush(c) {
+  if (!brush || !brush.at) return;
+  c.save();
+  c.beginPath();
+  c.arc(brush.at.x, brush.at.y, brushRadius(), 0, Math.PI * 2);
+  c.lineWidth = 3 / view.k;
+  c.strokeStyle = 'rgba(16,28,43,.6)';
+  c.stroke();
+  c.lineWidth = 1.5 / view.k;
+  c.strokeStyle = brush.how === 'erase' ? '#E0B45A' : '#ffffff';
+  c.stroke();
+  c.restore();
 }
 
 function drawLasso(c) {
@@ -2328,6 +2539,7 @@ function paint() {
   stage.style.width = cssW + 'px';
   stage.style.height = cssH + 'px';
   ctx.setTransform(dpr * k, 0, 0, dpr * k, -area.x * dpr * k, -area.y * dpr * k);
+  ghost = tool === 'photos' && el('bg-ghost').checked;
   if (mode === 'swipe') {
     drawSwipe(ctx, config, cells, width, swipePosition, pins || areaPick ? 'split' : viewMode);
     grid = { rects: [{ x: 0, y: 0, width: width, height: height }], width: width, height: height };
@@ -2338,6 +2550,7 @@ function paint() {
     drawPins(ctx);
     drawArea(ctx);
     drawLasso(ctx);
+    drawBrush(ctx);
   } else {
     grid = drawGrid(ctx, config, cells, width);
     drawCovers(ctx, width);
@@ -2347,6 +2560,7 @@ function paint() {
     drawPins(ctx);
     drawArea(ctx);
     drawLasso(ctx);
+    drawBrush(ctx);
     if (close < 0) {
       markZoom(ctx, grid);
       if (picked >= 0 && grid.rects[picked]) {
@@ -2357,6 +2571,7 @@ function paint() {
       }
     }
   }
+  ghost = false;
   lastBoxes = { labels: labelBoxes.slice(), credit: creditBox, wm: wmBoxes.slice() };
   report();
 }
@@ -2548,6 +2763,7 @@ el('format').addEventListener('change', report);
 
 function showMode(next) {
   cancelLasso();
+  cancelBrush();
   cancelPins();
   cancelArea();
   forgetUndo();
@@ -2585,6 +2801,11 @@ stage.addEventListener('pointerdown', function (event) {
   var point = stagePoint(event);
   if (lasso) {
     if (lasso.id === null) { lasso.id = event.pointerId; lasso.points = [point]; }
+    return;
+  }
+  if (brush) {
+    brush.at = point;
+    if (brush.id === null) brushDown(point, event.pointerId);
     return;
   }
   /* while tapping spots, a tap counts on lifting the finger, so a pinch to zoom
@@ -2732,6 +2953,17 @@ function ensureRoom(list, rect) {
 }
 
 stage.addEventListener('pointermove', function (event) {
+  if (brush) {
+    var spot = stagePoint(event);
+    if (event.pointerId === brush.id) {
+      event.preventDefault();
+      stroke(brush.last, spot);
+      brush.last = spot;
+    }
+    brush.at = spot;
+    if (brush.id === null) paint();
+    return;
+  }
   if (lasso && event.pointerId === lasso.id) {
     event.preventDefault();
     lasso.points.push(stagePoint(event));
@@ -2813,6 +3045,15 @@ stage.addEventListener('pointermove', function (event) {
 });
 
 function endDrag(event) {
+  if (brush) {
+    if (event.pointerId === brush.id) {
+      brush.id = null;
+      bgButtons();
+    }
+    if (event.pointerType !== 'mouse') brush.at = null;
+    paint();
+    return;
+  }
   if (lasso && event.pointerId === lasso.id) {
     if (event.type === 'pointerup') finishLasso();
     else { lasso.id = null; lasso.points = []; paint(); }
@@ -2875,7 +3116,7 @@ function linkedZoom() {
 /* In Swipe a zoom works on the photo being moved, and on both while spots are
    being tapped, since only one of them shows then. */
 function zoomList() {
-  return pins || areaPick || lasso ? cells.filter(function (cell) { return cell.image; }) : activeCells();
+  return pins || areaPick || lasso || brush ? cells.filter(function (cell) { return cell.image; }) : activeCells();
 }
 
 function targets(index) {
@@ -3249,7 +3490,8 @@ function showTools() {
   if (pins) el('swipe-hint').textContent = 'Tap spot ' + (pins.step % 2 + 1);
   if (areaPick) el('swipe-hint').textContent = 'Drag a box';
   if (lasso) el('swipe-hint').textContent = 'Draw a loop around it';
-  el('swipe-hint').classList.toggle('hidden', !swipe && !lasso);
+  if (brush) el('swipe-hint').textContent = brush.how === 'erase' ? 'Paint to erase' : 'Paint to bring back';
+  el('swipe-hint').classList.toggle('hidden', !swipe && !lasso && !brush);
 }
 
 /* The photos the arrows and Bigger and Smaller act on, and the cell they are
@@ -4155,7 +4397,17 @@ document.addEventListener('keydown', function (event) {
   event.preventDefault();
   if (tool === 'mark') el('mark-undo').click();
   else if (tool === 'cover') el('cover-undo').click();
+  else if (tool === 'photos' && (lasso || brush || cutting)) bgStep(bgPast, bgAhead);
   else undo();
+});
+
+/* Ctrl+Y or Ctrl+Shift+Z brings back a background step while drawing or brushing. */
+document.addEventListener('keydown', function (event) {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+  var again = event.key === 'y' || event.key === 'Y' || (event.shiftKey && (event.key === 'z' || event.key === 'Z'));
+  if (!again || tool !== 'photos' || !(lasso || brush)) return;
+  event.preventDefault();
+  bgStep(bgAhead, bgPast);
 });
 
 /* ---------- full screen ---------- */
@@ -5059,7 +5311,7 @@ function dragFor(name) {
 
 function pickTool(name) {
   if (name !== 'line' && name !== 'steps') { cancelPins(); cancelArea(); }
-  if (name !== 'photos' && name !== 'steps') cancelLasso();
+  if (name !== 'photos' && name !== 'steps') { cancelLasso(); cancelBrush(); }
   tool = name;
   TOOLS.forEach(function (key) {
     el('tool-' + key).classList.toggle('on', key === name);
@@ -5381,7 +5633,7 @@ document.addEventListener('paste', function (event) {
 /* The choices are kept in this browser so the app opens the way it was left.
    Photos, labels and dates are never kept. */
 var KEPT = ['layout', 'shape', 'gap', 'background', 'labels', 'size', 'format', 'zoom-scope', 'free-move',
-  'cover-kind', 'cover-on', 'cover-eyes-how', 'bg-how', 'bg-on', 'cover-colour', 'cover-strength', 'mark-kind', 'mark-colour', 'mark-width', 'mark-show',
+  'cover-kind', 'cover-on', 'cover-eyes-how', 'bg-how', 'bg-on', 'bg-size', 'bg-soft', 'bg-ghost', 'cover-colour', 'cover-strength', 'mark-kind', 'mark-colour', 'mark-width', 'mark-show',
   'tape-seconds', 'date-place', 'date-style', 'credit-text', 'credit-place',
   'wm-text', 'wm-place', 'wm-size', 'wm-strength', 'wm-colour'];
 var KEPT_NAME = 'collage-maker-settings';
@@ -5412,6 +5664,7 @@ function loadSettings() {
   });
   freeMove = el('free-move').checked;
   el('photo-size').min = freeMove ? String(SMALLEST * 100) : '100';
+  el('bg-size-read').textContent = el('bg-size').value;
   if (kept.symbol && SYMBOLS.some(function (pair) { return pair[0] === kept.symbol; })) wmSymbol = kept.symbol;
   if (kept.logo) useLogo(kept.logo, kept.logoName || 'Logo');
   if (kept.creditAt && typeof kept.creditAt.x === 'number') creditAt = kept.creditAt;
