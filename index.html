@@ -171,6 +171,25 @@ input[type=date] { min-height: 40px; padding: 0 8px; width: 100%; font: 500 14px
 
 /* Full screen editing: the picture takes the whole screen and a strip of fine
    controls sits under it. In a grid it shows one photo at a time, close up. */
+.sheet { position: fixed; inset: 0; z-index: 40; background: rgba(16,28,43,.5); display: flex; justify-content: center; overflow: auto; }
+.sheet.hidden { display: none; }
+.sheet-in { background: var(--surface); width: 100%; max-width: 640px; min-height: 100%; padding: calc(16px + env(safe-area-inset-top)) 16px 40px; box-sizing: border-box; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.sheet h2 { font: 600 20px/26px var(--font); margin: 0; }
+.client-rows { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.client-row { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; font: inherit; color: inherit; }
+.client-name { font-weight: 600; }
+.shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; margin: 12px 0; }
+.shot { border: 3px solid transparent; border-radius: 8px; padding: 0; background: #EEF0F4; overflow: hidden; cursor: pointer; display: flex; flex-direction: column; font: 12px/16px var(--font); color: inherit; }
+.shot img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+.shot span { padding: 4px 6px; }
+.shot.on { border-color: var(--primary); }
+.consent-line { font: 14px/20px var(--font); padding: 8px 10px; border-radius: 6px; background: #E5F4E4; margin: 4px 0 8px; }
+.consent-line.warn { background: #FFF6E3; }
+.consent-text { font: 15px/22px var(--font); }
+.sign { width: 100%; height: 180px; border: 1px solid var(--line-strong); border-radius: 8px; touch-action: none; background: #fff; display: block; }
+.top .client-chip { border-color: var(--gold); color: var(--gold); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.top .client-chip.hidden { display: none; }
 .cam { position: fixed; inset: 0; z-index: 50; background: #05080d; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .cam.hidden { display: none; }
 .cam video { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
@@ -268,6 +287,10 @@ body.full .hint { display: none !important; }
 
 /* phones: tighter tabs so all seven tools still show */
 @media (max-width: 480px) {
+  .top { gap: 6px; }
+  .top .count { display: none; }
+  .top .client-chip { max-width: 96px; }
+  .tab-mode { padding: 0 9px; }
   .save-bar { flex-wrap: wrap; gap: 6px; }
   .save-bar select { flex: 1 1 28%; min-width: 0; padding-left: 6px; padding-right: 18px; font-size: 14px; }
   .save-bar select#post { flex-basis: 100%; }
@@ -296,6 +319,8 @@ body.full .hint { display: none !important; }
       <button class="tab-mode on" type="button" id="tab-grid">Grid</button>
       <button class="tab-mode" type="button" id="tab-swipe">Swipe</button>
     </div>
+    <button class="tab-mode" type="button" id="clients-open">Clients</button>
+    <button class="tab-mode client-chip hidden" type="button" id="client-chip"></button>
     <span class="count" id="out-size"></span>
     <span class="grow"></span>
     <button class="btn btn-install hidden" type="button" id="install">Install</button>
@@ -745,6 +770,7 @@ body.full .hint { display: none !important; }
           <li>Light: Matched to the first photo evens out the brightness, contrast and colour of the other photos to the first, measured on the part each one shows, so a darker room or a warmer lamp does not change how the result looks. As taken puts them back.</li>
           <li>Brand kit: set the credit, the watermark and its logo once, type a name and press Save as a kit. Picking the kit later puts them all back.</li>
           <li>The shape picker, beside Size, fits the picture into an Instagram post, a story or reel, a square or a wide video. In Swipe the frame takes that shape from edge to edge, and the swipe video uses it too. In Grid the background colour fills around the photos.</li>
+          <li>Clients keeps a folder for each client on this device: dated photos, and the photo consent form signed on screen with two separate answers, one for the record and one for posting online. Take a photo over the latest opens the client's last photo as Before and the camera over it, and the new photo goes into the folder by itself. A PIN locks every folder, and Export as PDF makes one file with the forms and every photo.</li>
           <li>Take a photo opens the camera with the first photo laid faintly over it, for shooting the next photo from the same spot. Guide switches between faint, strong, an outline of the first photo's edges and off. The light reading says when the room is brighter or darker than in the first photo. The photo goes into the next empty cell, or the picked one, and lines up by itself.</li>
         </ol>
         <p class="note">Proofline is powered by Cygnus Solutions.</p>
@@ -838,6 +864,74 @@ body.full .hint { display: none !important; }
     <label class="cam-zoom hidden" id="cam-zoom-wrap">Zoom <input type="range" id="cam-zoom" min="1" max="1" step="0.1" value="1"></label>
   </div>
   <p class="cam-note" id="cam-note"></p>
+</div>
+
+<div class="sheet hidden" id="clients" role="dialog" aria-label="Clients">
+  <div class="sheet-in">
+    <div id="clients-lock" class="hidden">
+      <div class="sheet-head"><h2>Clients</h2><button class="btn" type="button" id="clients-close">Close</button></div>
+      <div class="field"><label for="lock-pin">PIN</label><input type="password" id="lock-pin" inputmode="numeric" autocomplete="off" maxlength="8"></div>
+      <div class="actions"><button class="btn btn-primary" type="button" id="lock-open">Open the folders</button></div>
+      <p class="note" id="lock-note"></p>
+    </div>
+    <div id="clients-list" class="hidden">
+      <div class="sheet-head"><h2>Clients</h2><button class="btn" type="button" id="clients-close2">Close</button></div>
+      <div class="field"><label for="client-new">New client</label><input type="text" id="client-new" maxlength="60" placeholder="Example: Maria Santos"></div>
+      <div class="actions"><button class="btn btn-primary" type="button" id="client-add">Add the client</button></div>
+      <div class="field"><label for="client-find">Find</label><input type="search" id="client-find" placeholder="Type part of a name"></div>
+      <div class="client-rows" id="client-rows"></div>
+      <p class="note" id="client-none">No clients yet. Type a name under New client to make the first folder.</p>
+      <h4 class="sub">Lock</h4>
+      <p class="note" id="pin-state"></p>
+      <div class="row">
+        <div class="field"><label for="pin-new">New PIN</label><input type="password" id="pin-new" inputmode="numeric" maxlength="8" autocomplete="new-password"></div>
+        <div class="field"><label for="pin-again">The PIN again</label><input type="password" id="pin-again" inputmode="numeric" maxlength="8" autocomplete="new-password"></div>
+      </div>
+      <div class="actions">
+        <button class="btn" type="button" id="pin-set">Set a PIN</button>
+        <button class="btn hidden" type="button" id="pin-drop">Remove the PIN</button>
+      </div>
+      <p class="note" id="pin-note"></p>
+      <p class="note">The folders stay in this browser on this device. Export as PDF keeps a copy somewhere else.</p>
+    </div>
+    <div id="clients-one" class="hidden">
+      <div class="sheet-head"><button class="btn" type="button" id="client-back">All clients</button><button class="btn" type="button" id="clients-close3">Close</button></div>
+      <div class="field"><label for="client-title">Name</label><input type="text" id="client-title" maxlength="60"></div>
+      <p class="consent-line" id="client-consent"></p>
+      <div class="actions"><button class="btn" type="button" id="client-sign">Sign the consent form</button></div>
+      <div class="actions">
+        <button class="btn btn-primary" type="button" id="client-camera">Take a photo</button>
+        <button class="btn" type="button" id="client-save">Add the editor's photos</button>
+      </div>
+      <div class="shots" id="client-shots"></div>
+      <p class="note" id="client-empty">No photos yet. Take a photo here, or add the photos open in the editor.</p>
+      <div class="actions">
+        <button class="btn" type="button" id="client-open">Open the picked photo</button>
+        <button class="btn" type="button" id="client-shot-drop">Delete the picked photos</button>
+      </div>
+      <div class="actions">
+        <button class="btn" type="button" id="client-export">Export as PDF</button>
+        <button class="btn" type="button" id="client-drop">Delete this client</button>
+      </div>
+    </div>
+    <div id="clients-consent" class="hidden">
+      <div class="sheet-head"><h2>Photo consent</h2><button class="btn" type="button" id="consent-back">Back</button></div>
+      <div class="field"><label for="consent-clinic">Clinic</label><input type="text" id="consent-clinic" maxlength="80" placeholder="Example: Cygnus Aesthetics"></div>
+      <p class="consent-text" id="consent-intro"></p>
+      <label class="switch"><input type="checkbox" id="consent-keep" checked> <span id="consent-keep-text"></span></label>
+      <label class="switch"><input type="checkbox" id="consent-post"> <span id="consent-post-text"></span></label>
+      <label class="switch" id="consent-eyes-row"><input type="checkbox" id="consent-eyes"> <span id="consent-eyes-text"></span></label>
+      <p class="consent-text" id="consent-rest"></p>
+      <div class="field"><label for="consent-patient">Patient</label><input type="text" id="consent-patient" maxlength="60"></div>
+      <p class="note">Date <span id="consent-date"></span></p>
+      <div class="field"><label for="consent-sign">Signature</label><canvas class="sign" id="consent-sign"></canvas></div>
+      <div class="actions">
+        <button class="btn" type="button" id="consent-clear">Clear the signature</button>
+        <button class="btn btn-primary" type="button" id="consent-save">Sign and save</button>
+      </div>
+      <p class="note" id="consent-note"></p>
+    </div>
+  </div>
 </div>
 
 <input type="file" id="picker" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple hidden>
@@ -3046,8 +3140,18 @@ el('clear').addEventListener('click', function () {
     return;
   }
   disarmClear();
+  newSet();
+});
+
+/* Clears the photos with everything drawn on them, and keeps the settings,
+   the credit and the watermark. */
+function newSet() {
   brandPick = null;
   brandControls();
+  clientNow = null;
+  clientChip();
+  bgPast = [];
+  bgAhead = [];
   photos.forEach(function (photo) { photo.bitmap.close && photo.bitmap.close(); });
   cancelPins();
   cancelArea();
@@ -3070,7 +3174,7 @@ el('clear').addEventListener('click', function () {
   markControls();
   el('messages').textContent = '';
   refresh();
-});
+}
 
 ['layout', 'shape', 'gap', 'background', 'labels'].forEach(function (id) {
   el(id).addEventListener('change', function () {
@@ -5631,6 +5735,10 @@ function camShoot() {
     camClose();
     forgetUndo();
     refresh();
+    if (clientNow) {
+      var who = clientNow;
+      saveShot(who.id, photo).then(function () { message('Saved to ' + who.name + '.', true); }, function (error) { message(error.message); });
+    }
   }, function () {
     el('cam-shoot').disabled = false;
     message('The photo could not be saved. Try again.');
@@ -5659,6 +5767,707 @@ document.addEventListener('keydown', function (event) {
 });
 document.addEventListener('visibilitychange', function () {
   if (document.hidden && cam.stream) camClose();
+});
+
+/* ---------- client folders ---------- */
+
+/* Each client gets a folder of dated photos and signed consent forms, kept in
+   this browser's own storage on this device and never sent anywhere. With a
+   PIN set, every photo, name and form is locked with a key made from the PIN,
+   so the folders can't be read without it, even from the browser's files. */
+var DB_NAME = 'proofline';
+var LOCK_NAME = 'proofline-lock';
+var dbOpen = null;
+var lockKey = null;
+var lockTimer = 0;
+var clientNow = null;
+var clientView = { id: null, picked: [] };
+
+function db() {
+  if (dbOpen) return dbOpen;
+  dbOpen = new Promise(function (done, fail) {
+    var ask = indexedDB.open(DB_NAME, 1);
+    ask.onupgradeneeded = function () {
+      var base = ask.result;
+      if (!base.objectStoreNames.contains('clients')) base.createObjectStore('clients', { keyPath: 'id' });
+      if (!base.objectStoreNames.contains('shots')) base.createObjectStore('shots', { keyPath: 'id' }).createIndex('client', 'client');
+    };
+    ask.onsuccess = function () { done(ask.result); };
+    ask.onerror = function () { fail(ask.error); };
+  });
+  dbOpen.catch(function () { dbOpen = null; });
+  return dbOpen;
+}
+
+function dbDo(store, how, job) {
+  return db().then(function (base) {
+    return new Promise(function (done, fail) {
+      var t = base.transaction(store, how);
+      var result;
+      var ask = job(t.objectStore(store));
+      if (ask) ask.onsuccess = function () { result = ask.result; };
+      t.oncomplete = function () { done(result); };
+      t.onerror = function () { fail(t.error); };
+    });
+  });
+}
+
+function dbAll(store) { return dbDo(store, 'readonly', function (s) { return s.getAll(); }); }
+function dbGet(store, id) { return dbDo(store, 'readonly', function (s) { return s.get(id); }); }
+function dbPut(store, value) { return dbDo(store, 'readwrite', function (s) { return s.put(value); }); }
+function dbDrop(store, id) { return dbDo(store, 'readwrite', function (s) { return s.delete(id); }); }
+
+function newId(head) {
+  return head + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+/* ---- the PIN lock ---- */
+
+function lockInfo() {
+  try { return JSON.parse(localStorage.getItem(LOCK_NAME) || 'null'); } catch (error) { return null; }
+}
+
+function toBase64(bytes) {
+  var text = '';
+  bytes = new Uint8Array(bytes);
+  for (var i = 0; i < bytes.length; i++) text += String.fromCharCode(bytes[i]);
+  return btoa(text);
+}
+
+function fromBase64(text) {
+  var raw = atob(text), bytes = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  return bytes;
+}
+
+function keyFrom(pin, salt) {
+  return crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveKey']).then(function (base) {
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: salt, iterations: 200000, hash: 'SHA-256' }, base,
+      { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  });
+}
+
+function seal(key, bytes) {
+  var iv = crypto.getRandomValues(new Uint8Array(12));
+  return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, bytes).then(function (data) { return { iv: iv, data: data }; });
+}
+
+function unseal(key, box) {
+  return crypto.subtle.decrypt({ name: 'AES-GCM', iv: box.iv }, key, box.data);
+}
+
+function locked() { return Boolean(lockInfo()) && !lockKey; }
+
+function tryPin(pin) {
+  var info = lockInfo();
+  if (!info) return Promise.resolve(true);
+  return keyFrom(pin, fromBase64(info.salt)).then(function (key) {
+    return unseal(key, { iv: fromBase64(info.iv), data: fromBase64(info.check).buffer }).then(function () {
+      lockKey = key;
+      return true;
+    }, function () { return false; });
+  });
+}
+
+/* A record's private part is stored either as it is, or locked. */
+function lockedOut() {
+  return Promise.reject(new Error('The folders are locked. Open Clients and type the PIN first.'));
+}
+
+function packData(object) {
+  if (lockInfo() && !lockKey) return lockedOut();
+  if (!lockKey) return Promise.resolve({ data: object });
+  return seal(lockKey, new TextEncoder().encode(JSON.stringify(object))).then(function (box) { return { iv: box.iv, data: box.data, sealed: true }; });
+}
+
+function openData(record) {
+  if (!record.sealed) return Promise.resolve(record.data);
+  return unseal(lockKey, record).then(function (bytes) { return JSON.parse(new TextDecoder().decode(bytes)); });
+}
+
+function packBlob(blob) {
+  if (lockInfo() && !lockKey) return lockedOut();
+  if (!lockKey) return Promise.resolve({ blob: blob });
+  return blob.arrayBuffer().then(function (buffer) { return seal(lockKey, buffer); }).then(function (box) { return { iv: box.iv, data: box.data, sealed: true }; });
+}
+
+function openBlob(part) {
+  if (!part.sealed) return Promise.resolve(part.blob);
+  return unseal(lockKey, part).then(function (bytes) { return new Blob([bytes], { type: 'image/jpeg' }); });
+}
+
+/* Setting, changing or removing the PIN rewrites every record with the new
+   key, or with none. The folders must be open first. */
+function rekey(newKey, info) {
+  return Promise.all([dbAll('clients'), dbAll('shots')]).then(function (all) {
+    var clients = all[0], shots = all[1];
+    return Promise.all(clients.map(function (c) { return openData(c); })).then(function (datas) {
+      return Promise.all(shots.map(function (shot) {
+        return Promise.all([openBlob(shot.photo), openBlob(shot.thumb), openData(shot)]);
+      })).then(function (opened) {
+        lockKey = newKey;
+        if (info) localStorage.setItem(LOCK_NAME, JSON.stringify(info));
+        else localStorage.removeItem(LOCK_NAME);
+        var jobs = clients.map(function (c, i) {
+          return packData(datas[i]).then(function (packed) { return dbPut('clients', Object.assign({ id: c.id, created: c.created }, packed)); });
+        });
+        shots.forEach(function (shot, i) {
+          jobs.push(Promise.all([packBlob(opened[i][0]), packBlob(opened[i][1]), packData(opened[i][2])]).then(function (got) {
+            return dbPut('shots', Object.assign({ id: shot.id, client: shot.client, date: shot.date, photo: got[0], thumb: got[1] }, got[2]));
+          }));
+        });
+        return Promise.all(jobs);
+      });
+    });
+  });
+}
+
+function setPin(pin) {
+  var salt = crypto.getRandomValues(new Uint8Array(16));
+  return keyFrom(pin, salt).then(function (key) {
+    return seal(key, new TextEncoder().encode('proofline')).then(function (box) {
+      return rekey(key, { salt: toBase64(salt), iv: toBase64(box.iv), check: toBase64(box.data) });
+    });
+  });
+}
+
+function dropPin() { return rekey(null, null); }
+
+document.addEventListener('visibilitychange', function () {
+  clearTimeout(lockTimer);
+  if (document.hidden && lockInfo()) {
+    lockTimer = setTimeout(function () {
+      lockKey = null;
+      if (!el('clients').classList.contains('hidden')) clientsShow();
+    }, 5 * 60 * 1000);
+  }
+});
+
+/* ---- reading and writing folders ---- */
+
+function listClients() {
+  return Promise.all([dbAll('clients'), dbAll('shots')]).then(function (all) {
+    return Promise.all(all[0].map(function (c) {
+      return openData(c).then(function (data) {
+        var mine = all[1].filter(function (shot) { return shot.client === c.id; });
+        var last = mine.reduce(function (most, shot) { return Math.max(most, shot.date); }, 0);
+        return { id: c.id, created: c.created, name: data.name, consents: data.consents || [], count: mine.length, last: last };
+      });
+    }));
+  }).then(function (list) {
+    return list.sort(function (a, b) { return (b.last || b.created) - (a.last || a.created); });
+  });
+}
+
+function getClient(id) {
+  return dbGet('clients', id).then(function (c) {
+    if (!c) return null;
+    return openData(c).then(function (data) { return { id: c.id, created: c.created, name: data.name, consents: data.consents || [] }; });
+  });
+}
+
+function putClient(client) {
+  return packData({ name: client.name, consents: client.consents || [] }).then(function (packed) {
+    return dbPut('clients', Object.assign({ id: client.id, created: client.created }, packed));
+  });
+}
+
+function shotsOf(id) {
+  return dbDo('shots', 'readonly', function (s) { return s.index('client').getAll(id); }).then(function (list) {
+    return (list || []).sort(function (a, b) { return a.date - b.date; });
+  });
+}
+
+function jpegOf(source, w, h, side, quality) {
+  var k = Math.min(1, side / Math.max(w, h));
+  var canvas = document.createElement('canvas');
+  canvas.width = Math.round(w * k);
+  canvas.height = Math.round(h * k);
+  canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+  return new Promise(function (done) { canvas.toBlob(done, 'image/jpeg', quality); });
+}
+
+/* Saves one photo of the editor into a client's folder, dated as the photo. */
+function saveShot(clientId, photo) {
+  var date = photo.date ? +new Date(photo.date) : Date.now();
+  return Promise.all([jpegOf(photo.bitmap, photo.width, photo.height, 3000, 0.92), jpegOf(photo.bitmap, photo.width, photo.height, 320, 0.8)]).then(function (blobs) {
+    return Promise.all([packBlob(blobs[0]), packBlob(blobs[1]), packData({ name: photo.name })]);
+  }).then(function (got) {
+    var id = newId('s');
+    photo.shot = { id: id, client: clientId };
+    return dbPut('shots', Object.assign({ id: id, client: clientId, date: date, photo: got[0], thumb: got[1] }, got[2]));
+  });
+}
+
+function dropClient(id) {
+  return shotsOf(id).then(function (list) {
+    return Promise.all(list.map(function (shot) { return dbDrop('shots', shot.id); }));
+  }).then(function () { return dbDrop('clients', id); });
+}
+
+/* ---- the folders screen ---- */
+
+function isoDay(time) {
+  var d = new Date(time);
+  return d.getFullYear() + '-' + (d.getMonth() < 9 ? '0' : '') + (d.getMonth() + 1) + '-' + (d.getDate() < 10 ? '0' : '') + d.getDate();
+}
+
+function clientsPart(name) {
+  ['clients-lock', 'clients-list', 'clients-one', 'clients-consent'].forEach(function (id) {
+    el(id).classList.toggle('hidden', id !== name);
+  });
+}
+
+function clientsShow() {
+  el('clients').classList.remove('hidden');
+  if (locked()) {
+    clientsPart('clients-lock');
+    el('lock-pin').value = '';
+    el('lock-note').textContent = '';
+    el('lock-pin').focus();
+    return;
+  }
+  if (clientView.id) showClient(clientView.id);
+  else showClients();
+}
+
+function clientsHide() {
+  el('clients').classList.add('hidden');
+}
+
+function showClients() {
+  clientView.id = null;
+  clientsPart('clients-list');
+  el('pin-state').textContent = lockInfo() ? 'The folders are locked with a PIN.' : 'No PIN is set, so anyone with this device can open the folders.';
+  el('pin-set').textContent = lockInfo() ? 'Change the PIN' : 'Set a PIN';
+  el('pin-drop').classList.toggle('hidden', !lockInfo());
+  listClients().then(function (list) {
+    var find = el('client-find').value.trim().toLowerCase();
+    var box = el('client-rows');
+    box.innerHTML = '';
+    list.filter(function (c) { return !find || c.name.toLowerCase().indexOf(find) >= 0; }).forEach(function (c) {
+      var row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'client-row';
+      var name = document.createElement('span');
+      name.className = 'client-name';
+      name.textContent = c.name;
+      var info = document.createElement('span');
+      info.className = 'count';
+      info.textContent = c.count + (c.count === 1 ? ' photo' : ' photos') + (c.last ? ', last ' + isoDay(c.last) : '') + (c.consents.length ? '' : ', no consent yet');
+      row.appendChild(name);
+      row.appendChild(info);
+      row.addEventListener('click', function () { showClient(c.id); });
+      box.appendChild(row);
+    });
+    el('client-none').classList.toggle('hidden', list.length > 0);
+  }, function (error) { message('The folders could not be opened. ' + error.message); });
+}
+
+function consentText(consent) {
+  if (!consent) return 'No consent signed yet.';
+  var parts = ['Signed ' + isoDay(consent.date) + '.', consent.keep ? 'Keep in the record: yes.' : 'Keep in the record: no.',
+    consent.post ? 'Post online: yes' + (consent.eyes ? ', with the eyes covered.' : '.') : 'Post online: no.'];
+  return parts.join(' ');
+}
+
+function showClient(id) {
+  clientView.id = id;
+  clientsPart('clients-one');
+  Promise.all([getClient(id), shotsOf(id)]).then(function (got) {
+    var client = got[0], list = got[1];
+    if (!client) { showClients(); return; }
+    clientView.picked = clientView.picked.filter(function (sid) { return list.some(function (shot) { return shot.id === sid; }); });
+    el('client-title').value = client.name;
+    var latest = client.consents[client.consents.length - 1];
+    el('client-consent').textContent = consentText(latest);
+    el('client-consent').classList.toggle('warn', !latest || !latest.post);
+    var grid = el('client-shots');
+    grid.innerHTML = '';
+    list.forEach(function (shot) {
+      var tile = document.createElement('button');
+      tile.type = 'button';
+      tile.className = 'shot' + (clientView.picked.indexOf(shot.id) >= 0 ? ' on' : '');
+      var img = document.createElement('img');
+      img.alt = 'Photo from ' + isoDay(shot.date);
+      openBlob(shot.thumb).then(function (blob) { img.src = URL.createObjectURL(blob); });
+      var day = document.createElement('span');
+      day.textContent = isoDay(shot.date);
+      tile.appendChild(img);
+      tile.appendChild(day);
+      tile.addEventListener('click', function () {
+        var at = clientView.picked.indexOf(shot.id);
+        if (at >= 0) clientView.picked.splice(at, 1);
+        else clientView.picked.push(shot.id);
+        tile.classList.toggle('on', at < 0);
+        clientButtons(list.length);
+      });
+      grid.appendChild(tile);
+    });
+    el('client-empty').classList.toggle('hidden', list.length > 0);
+    clientButtons(list.length);
+  });
+}
+
+function clientButtons(total) {
+  var n = clientView.picked.length;
+  el('client-open').disabled = n === 0;
+  el('client-open').textContent = n > 1 ? 'Open the ' + n + ' picked photos' : 'Open the picked photo';
+  el('client-shot-drop').disabled = n === 0;
+  el('client-export').disabled = total === 0;
+  el('client-save').disabled = photos.length === 0;
+  el('client-camera').textContent = total ? 'Take a photo over the latest' : 'Take a photo';
+}
+
+/* Opens a client's photos in the editor, oldest first, so the first visit
+   is Before and the rest follow in order. */
+function openShots(clientId, ids) {
+  return Promise.all([getClient(clientId), shotsOf(clientId)]).then(function (got) {
+    var client = got[0];
+    var list = got[1].filter(function (shot) { return ids.indexOf(shot.id) >= 0; });
+    return Promise.all(list.map(function (shot) {
+      return Promise.all([openBlob(shot.photo), openData(shot)]).then(function (parts) {
+        return createImageBitmap(parts[0]).then(function (bitmap) {
+          var stem = (parts[1].name || 'Photo').replace(/\.[^.]+$/, '');
+          return { id: 'p' + (nextId++), name: parts[1].name || stem + '.jpg', stem: stem, bitmap: bitmap, width: bitmap.width, height: bitmap.height, date: new Date(shot.date), dateFrom: 'photo', shot: { id: shot.id, client: clientId } };
+        });
+      });
+    })).then(function (opened) {
+      newSet();
+      clientNow = { id: clientId, name: client.name };
+      clientChip();
+      var n = opened.length;
+      if (n > 2 && mode === 'swipe') showMode('grid');
+      if (mode !== 'swipe') el('layout').value = n <= 2 ? '1x2' : n === 3 ? '1x3' : n === 4 ? '2x2' : n <= 9 ? '3x3' : '4x4';
+      photos = opened;
+      refresh();
+      return opened;
+    });
+  });
+}
+
+function clientChip() {
+  var chip = el('client-chip');
+  chip.textContent = clientNow ? clientNow.name : '';
+  chip.classList.toggle('hidden', !clientNow);
+}
+
+/* ---- consent ---- */
+
+function consentWords(clinic) {
+  var who = clinic || 'the clinic';
+  return {
+    intro: 'I agree that ' + who + ' takes photos of me before, during and after my treatment.',
+    keep: 'Keep the photos in my record at ' + who + ', to follow my treatment.',
+    post: 'Use the photos online and in the marketing of ' + who + '.',
+    eyes: 'Cover my eyes in anything posted online.',
+    rest: 'The photos stay on the clinic\'s own device and are not sent to Proofline. I can ask ' + who + ' to show me, copy or delete them, and I can take back this consent at any time by telling the clinic. The photos are kept until I ask for them to be deleted.'
+  };
+}
+
+var signing = null;
+
+function showConsent() {
+  clientsPart('clients-consent');
+  getClient(clientView.id).then(function (client) {
+    el('consent-patient').value = client.name;
+    el('consent-clinic').value = el('credit-text').value.trim();
+    el('consent-keep').checked = true;
+    el('consent-post').checked = false;
+    el('consent-eyes').checked = false;
+    el('consent-date').textContent = isoDay(Date.now());
+    consentFill();
+    signClear();
+  });
+}
+
+function consentFill() {
+  var words = consentWords(el('consent-clinic').value.trim());
+  el('consent-intro').textContent = words.intro;
+  el('consent-keep-text').textContent = words.keep;
+  el('consent-post-text').textContent = words.post;
+  el('consent-eyes-text').textContent = words.eyes;
+  el('consent-rest').textContent = words.rest;
+  el('consent-eyes-row').classList.toggle('hidden', !el('consent-post').checked);
+}
+
+function signClear() {
+  var pad = el('consent-sign');
+  var w = pad.clientWidth || 600, h = pad.clientHeight || 180;
+  pad.width = Math.round(w * 2);
+  pad.height = Math.round(h * 2);
+  var c = pad.getContext('2d');
+  c.fillStyle = '#fff';
+  c.fillRect(0, 0, pad.width, pad.height);
+  pad.dataset.signed = '';
+}
+
+(function () {
+  var pad = el('consent-sign');
+  var at = function (event) {
+    var r = pad.getBoundingClientRect();
+    return { x: (event.clientX - r.left) * pad.width / r.width, y: (event.clientY - r.top) * pad.height / r.height };
+  };
+  pad.addEventListener('pointerdown', function (event) {
+    event.preventDefault();
+    pad.setPointerCapture(event.pointerId);
+    signing = at(event);
+  });
+  pad.addEventListener('pointermove', function (event) {
+    if (!signing) return;
+    var p = at(event), c = pad.getContext('2d');
+    c.strokeStyle = '#101C2B';
+    c.lineWidth = 4;
+    c.lineCap = 'round';
+    c.beginPath();
+    c.moveTo(signing.x, signing.y);
+    c.lineTo(p.x, p.y);
+    c.stroke();
+    signing = p;
+    pad.dataset.signed = '1';
+  });
+  ['pointerup', 'pointercancel'].forEach(function (type) { pad.addEventListener(type, function () { signing = null; }); });
+})();
+
+el('consent-clinic').addEventListener('input', consentFill);
+el('consent-post').addEventListener('change', consentFill);
+el('consent-clear').addEventListener('click', signClear);
+el('consent-back').addEventListener('click', function () { showClient(clientView.id); });
+el('consent-save').addEventListener('click', function () {
+  if (!el('consent-sign').dataset.signed) { el('consent-note').textContent = 'The patient signs in the box first.'; return; }
+  if (!el('consent-keep').checked && !el('consent-post').checked) { el('consent-note').textContent = 'Tick at least one use, or leave the form unsigned.'; return; }
+  var words = consentWords(el('consent-clinic').value.trim());
+  var consent = {
+    date: Date.now(), clinic: el('consent-clinic').value.trim(), patient: el('consent-patient').value.trim(),
+    keep: el('consent-keep').checked, post: el('consent-post').checked, eyes: el('consent-post').checked && el('consent-eyes').checked,
+    words: [words.intro, el('consent-keep').checked ? words.keep : '', el('consent-post').checked ? words.post : '', el('consent-post').checked && el('consent-eyes').checked ? words.eyes : '', words.rest].filter(Boolean).join(' '),
+    signature: el('consent-sign').toDataURL('image/png')
+  };
+  getClient(clientView.id).then(function (client) {
+    client.consents.push(consent);
+    return putClient(client);
+  }).then(function () {
+    el('consent-note').textContent = '';
+    showClient(clientView.id);
+  });
+});
+
+/* ---- export ---- */
+
+/* One PDF per client: a first page with the name and every signed form, then
+   one page per photo with its date. Pages are drawn as pictures, so names in
+   any language come out right. */
+function pageCanvas() {
+  var canvas = document.createElement('canvas');
+  canvas.width = 1240;
+  canvas.height = 1754;
+  var c = canvas.getContext('2d');
+  c.fillStyle = '#fff';
+  c.fillRect(0, 0, canvas.width, canvas.height);
+  c.fillStyle = '#101C2B';
+  c.textBaseline = 'top';
+  return { canvas: canvas, c: c };
+}
+
+function wrapText(c, text, x, y, width, line) {
+  var words = text.split(' '), now = '';
+  words.forEach(function (word) {
+    var next = now ? now + ' ' + word : word;
+    if (c.measureText(next).width > width && now) { c.fillText(now, x, y); y += line; now = word; }
+    else now = next;
+  });
+  if (now) { c.fillText(now, x, y); y += line; }
+  return y;
+}
+
+function loadPicture(src) {
+  return new Promise(function (done, fail) {
+    var image = new Image();
+    image.onload = function () { done(image); };
+    image.onerror = fail;
+    image.src = src;
+  });
+}
+
+function exportClient(id) {
+  if (!window.PDFLib) { message('The PDF part has not finished loading. Try again in a moment.'); return Promise.resolve(); }
+  return Promise.all([getClient(id), shotsOf(id)]).then(function (got) {
+    var client = got[0], list = got[1];
+    var pages = [];
+    var first = pageCanvas(), c = first.c, y = 110;
+    c.font = '600 56px system-ui, sans-serif';
+    c.fillText(client.name, 100, y);
+    y += 90;
+    c.font = '28px system-ui, sans-serif';
+    c.fillText(list.length + (list.length === 1 ? ' photo' : ' photos') + ', exported ' + isoDay(Date.now()) + ' from Proofline.', 100, y);
+    y += 80;
+    var signs = client.consents.map(function (consent) { return consent.signature ? loadPicture(consent.signature) : Promise.resolve(null); });
+    return Promise.all(signs).then(function (pictures) {
+      if (!client.consents.length) { c.fillText('No consent form has been signed.', 100, y); y += 50; }
+      client.consents.forEach(function (consent, i) {
+        c.font = '600 30px system-ui, sans-serif';
+        c.fillText('Consent signed ' + isoDay(consent.date) + (consent.patient ? ' by ' + consent.patient : ''), 100, y);
+        y += 50;
+        c.font = '26px system-ui, sans-serif';
+        y = wrapText(c, consent.words || consentText(consent), 100, y, 1040, 38) + 10;
+        if (pictures[i]) { c.drawImage(pictures[i], 100, y, 400, 120); y += 140; }
+        y += 30;
+      });
+      pages.push(first.canvas);
+      return list.reduce(function (chain, shot) {
+        return chain.then(function () {
+          return openBlob(shot.photo).then(function (blob) { return createImageBitmap(blob); }).then(function (bitmap) {
+            var page = pageCanvas();
+            var k = Math.min(1040 / bitmap.width, 1460 / bitmap.height);
+            var w = bitmap.width * k, h = bitmap.height * k;
+            page.c.drawImage(bitmap, (1240 - w) / 2, 100, w, h);
+            page.c.font = '600 32px system-ui, sans-serif';
+            page.c.fillText(client.name + ', ' + isoDay(shot.date), 100, 100 + h + 30);
+            pages.push(page.canvas);
+          });
+        });
+      }, Promise.resolve());
+    }).then(function () {
+      return window.PDFLib.PDFDocument.create().then(function (doc) {
+        return pages.reduce(function (chain, page) {
+          return chain.then(function () {
+            return new Promise(function (done) { page.toBlob(done, 'image/jpeg', 0.9); }).then(function (blob) { return blob.arrayBuffer(); }).then(function (buffer) {
+              return doc.embedJpg(new Uint8Array(buffer)).then(function (image) {
+                var p = doc.addPage([595.28, 841.89]);
+                p.drawImage(image, { x: 0, y: 0, width: 595.28, height: 841.89 });
+              });
+            });
+          });
+        }, Promise.resolve()).then(function () { return doc.save(); });
+      });
+    }).then(function (bytes) {
+      save(new Blob([bytes], { type: 'application/pdf' }), client.name.replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 40) + ' - Proofline.pdf');
+    });
+  });
+}
+
+/* ---- buttons ---- */
+
+el('clients-open').addEventListener('click', clientsShow);
+['clients-close', 'clients-close2', 'clients-close3'].forEach(function (id) { el(id).addEventListener('click', clientsHide); });
+el('client-chip').addEventListener('click', function () {
+  if (clientNow) clientView.id = clientNow.id;
+  clientsShow();
+});
+
+el('lock-open').addEventListener('click', function () {
+  var pin = el('lock-pin').value;
+  el('lock-note').textContent = 'Opening.';
+  tryPin(pin).then(function (ok) {
+    if (!ok) { el('lock-note').textContent = 'That PIN is wrong.'; el('lock-pin').select(); return; }
+    clientsShow();
+  });
+});
+el('lock-pin').addEventListener('keydown', function (event) { if (event.key === 'Enter') el('lock-open').click(); });
+
+el('client-find').addEventListener('input', showClients);
+el('client-add').addEventListener('click', function () {
+  var name = el('client-new').value.trim();
+  if (!name) { el('client-new').focus(); return; }
+  var client = { id: newId('c'), created: Date.now(), name: name, consents: [] };
+  putClient(client).then(function () {
+    el('client-new').value = '';
+    showClient(client.id);
+  });
+});
+el('client-new').addEventListener('keydown', function (event) { if (event.key === 'Enter') el('client-add').click(); });
+
+el('client-back').addEventListener('click', showClients);
+el('client-title').addEventListener('change', function () {
+  var name = el('client-title').value.trim();
+  if (!name) return;
+  getClient(clientView.id).then(function (client) {
+    client.name = name;
+    if (clientNow && clientNow.id === client.id) { clientNow.name = name; clientChip(); }
+    return putClient(client);
+  });
+});
+el('client-sign').addEventListener('click', showConsent);
+el('client-open').addEventListener('click', function () {
+  openShots(clientView.id, clientView.picked).then(function () { clientsHide(); });
+});
+el('client-save').addEventListener('click', function () {
+  var id = clientView.id;
+  var list = photos.filter(function (photo) { return !photo.shot || photo.shot.client !== id; });
+  if (!list.length) { message('The photos in the editor are already in this folder.'); return; }
+  list.reduce(function (chain, photo) { return chain.then(function () { return saveShot(id, photo); }); }, Promise.resolve()).then(function () {
+    getClient(id).then(function (client) { clientNow = { id: id, name: client.name }; clientChip(); });
+    showClient(id);
+  });
+});
+el('client-camera').addEventListener('click', function () {
+  var id = clientView.id;
+  shotsOf(id).then(function (list) {
+    var latest = list[list.length - 1];
+    var go = function () {
+      clientsHide();
+      getClient(id).then(function (client) {
+        clientNow = { id: id, name: client.name };
+        clientChip();
+        camOpen();
+      });
+    };
+    if (latest) openShots(id, [latest.id]).then(go);
+    else { newSet(); go(); }
+  });
+});
+el('client-export').addEventListener('click', function () {
+  var button = el('client-export'), idle = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Making the PDF';
+  exportClient(clientView.id).catch(function (error) { message(error.message); }).then(function () {
+    button.disabled = false;
+    button.textContent = idle;
+  });
+});
+
+var dropArmed = { client: 0, shots: 0 };
+function armed(key, button, words, idle) {
+  if (dropArmed[key]) { clearTimeout(dropArmed[key]); dropArmed[key] = 0; button.textContent = idle; button.classList.remove('btn-danger'); return true; }
+  button.textContent = words;
+  button.classList.add('btn-danger');
+  dropArmed[key] = setTimeout(function () { dropArmed[key] = 0; button.textContent = idle; button.classList.remove('btn-danger'); }, 4000);
+  return false;
+}
+el('client-drop').addEventListener('click', function () {
+  if (!armed('client', el('client-drop'), 'Press again to delete', 'Delete this client')) return;
+  var id = clientView.id;
+  dropClient(id).then(function () {
+    if (clientNow && clientNow.id === id) { clientNow = null; clientChip(); }
+    showClients();
+  });
+});
+el('client-shot-drop').addEventListener('click', function () {
+  if (!armed('shots', el('client-shot-drop'), 'Press again to delete', 'Delete the picked photos')) return;
+  Promise.all(clientView.picked.map(function (sid) { return dbDrop('shots', sid); })).then(function () {
+    clientView.picked = [];
+    showClient(clientView.id);
+  });
+});
+
+el('pin-set').addEventListener('click', function () {
+  var pin = el('pin-new').value, again = el('pin-again').value;
+  if (!/^\d{4,8}$/.test(pin)) { el('pin-note').textContent = 'The PIN is 4 to 8 numbers.'; return; }
+  if (pin !== again) { el('pin-note').textContent = 'The two PINs are not the same.'; return; }
+  el('pin-note').textContent = 'Locking the folders.';
+  setPin(pin).then(function () {
+    el('pin-new').value = '';
+    el('pin-again').value = '';
+    el('pin-note').textContent = 'The folders are locked. Write the PIN down somewhere safe, since the folders can\'t be opened without it.';
+    showClients();
+  }, function (error) { el('pin-note').textContent = error.message; });
+});
+el('pin-drop').addEventListener('click', function () {
+  if (!armed('pin', el('pin-drop'), 'Press again to remove the PIN', 'Remove the PIN')) return;
+  dropPin().then(function () {
+    el('pin-note').textContent = 'The PIN is removed.';
+    showClients();
+  });
 });
 
 /* ---------- full screen ---------- */
