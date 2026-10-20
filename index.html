@@ -368,6 +368,10 @@ body.full .hint { display: none !important; }
         </div>
         <label class="switch"><input type="checkbox" id="bg-ghost" checked> Show the removed part in faint red on screen</label>
         <div class="actions">
+          <button class="btn" type="button" id="bg-copy">Use the first photo's cut on the others</button>
+        </div>
+        <label class="switch"><input type="checkbox" id="bg-carry" checked> Carry the first photo's cut over when lining up</label>
+        <div class="actions">
           <button class="btn" type="button" id="bg-undo">Undo</button>
           <button class="btn" type="button" id="bg-redo">Redo</button>
           <button class="btn" type="button" id="bg-back">Put the background back</button>
@@ -397,8 +401,11 @@ body.full .hint { display: none !important; }
         </div>
         <div class="actions">
           <button class="btn btn-primary" type="button" id="line-auto">Auto line up</button>
-          <button class="btn" type="button" id="line-area">Line up on an area</button>
+          <button class="btn" type="button" id="line-area">Line up on a part</button>
+        </div>
+        <div class="actions">
           <button class="btn" type="button" id="line-pins">Two-point line up</button>
+          <button class="btn" type="button" id="line-pins4">Four-point line up</button>
         </div>
         <div class="actions">
           <button class="btn" type="button" id="line-reline">Reset and line up</button>
@@ -680,7 +687,7 @@ body.full .hint { display: none !important; }
           <li>Photos: drag a photo inside its cell to move it, and scroll or pinch to zoom.</li>
           <li>Background: Remove the background finds the person on every photo, or anything that stands apart from a plain background. Draw around it takes a loose loop drawn a little outside the subject and moves it in onto the subject's edge, for a hand, a product or a busy background. The line can keep what is inside, add it back or take it away, and drawing stays on until Done. The Erase and Restore brushes fix small bits by hand, and Undo and Redo step through every change. The removed part shows the background colour, and shows in faint red on screen while the Photos tool is open.</li>
           <li>Line up: in Swipe, drag a photo to move it or drag the divider to slide it. The photo you touch becomes the one picked under Moves, and the arrows, Size and Turn work on it. Both moves the two together. In Grid, Zoom works on All photos zooms them together to the same spot.</li>
-          <li>Auto line up matches small spots across the photos and moves, sizes and turns each photo onto the first, even one taken on its side. It runs by itself when the second photo of a pair goes in. Line up on an area uses only the spots inside a box you drag around the face or the treated area. Two-point line up has you tap the same two spots on each photo instead, like both pupils.</li>
+          <li>Auto line up matches small spots across the photos and moves, sizes and turns each photo onto the first, even one taken on its side. It runs by itself when the second photo of a pair goes in. Auto line up works on the main subject, the person or the arm, so a floor or a wall that moved does not pull it off. Line up on a part has you draw around something on the first photo, like a scar or a mole, and finds the same part on the other photos even when they are turned or closer. Two-point line up has you tap the same two spots on each photo instead, like both pupils. Four-point line up takes four spots and also matches the camera angle, for a photo taken from the side. A magnifier shows under your finger while you tap. When the first photo has its background removed, the photos lined up on it get the same cut.</li>
           <li>View: See-through lays the second photo over the first at half strength and Differences shows only where they differ. Both are for checking the line up and never show in the saved picture.</li>
           <li>Fill the frame zooms the photos together until no background shows. Centre both puts the photos back in the middle at their own size. Reset and line up does the same and then runs Auto line up again. Undo or Ctrl+Z takes back the last move, size or turn.</li>
           <li>Labels: a label and a date for each photo. The date comes from the photo when it holds one, and you can change it. Credit puts a line like "Cygnus Aesthetics" along the top or bottom of the picture, and Watermark lays words, a symbol or your logo over every photo. Only the labels differ from photo to photo. With Labels open, tap a label, the credit or the watermark to pick it, drag it to put it anywhere, and use its round handle to tilt it and its square corner to size it.</li>
@@ -1412,6 +1419,162 @@ function share(mask) {
 
 var cutting = false;
 
+/* The person finder and the face finder are loaded one after the other, since
+   loading both at once can stop one of them starting, and each job using them
+   waits its turn. */
+var finderTools = null;
+function loadFinders() {
+  if (finderTools) return finderTools;
+  var tools = { found: null, faces: null };
+  var none = function () { return null; };
+  finderTools = loadCutter().then(function (got) { tools.found = got; }, none).then(function () {
+    return loadFinder().then(function (got) { tools.faces = got; }, none);
+  }).then(function () { return tools; });
+  return finderTools;
+}
+
+var finderTurn = Promise.resolve();
+function inTurn(job) {
+  var run = finderTurn.then(job, job);
+  finderTurn = run.then(null, function () { return null; });
+  return run;
+}
+
+/* The main subject of a photo as a rough mask, or null when none stands out.
+   The person finder is used when the photo has a face, or when the plain
+   background test finds nothing, since it also picks out arms and legs.
+   Without a face it can mistake a cup for a person. */
+function roughSubject(image) {
+  return loadFinders().then(function (tools) {
+    return inTurn(function () {
+      var size = maskSize(image);
+      var pixels = photoPixels(image, size.w, size.h);
+      var got = [];
+      return Promise.resolve(tools.found ? personMask(tools.found, image, size.w, size.h) : null).then(function (mask) {
+        got[0] = mask;
+        return tools.faces ? eyesOf(tools.faces, image).then(null, function () { return []; }) : [];
+      }).then(function (eyes) {
+        var seed = -1;
+        if (eyes.length) {
+          var face = eyes[0];
+          var fx = Math.round((face.a.u + face.b.u) / 2 * (size.w - 1)), fy = Math.round((face.a.v + face.b.v) / 2 * (size.h - 1));
+          if (fx >= 0 && fy >= 0 && fx < size.w && fy < size.h) seed = fy * size.w + fx;
+        }
+        var person = got[0] && share(got[0]) > 0.04 ? tidyParts(got[0], size.w, size.h, seed) : null;
+        var plain = tidyParts(borderMask(pixels, size.w, size.h), size.w, size.h);
+        var fits = function (mask) { var part = share(mask); return part > 0.03 && part < 0.97; };
+        var rough = person && (eyes.length || !fits(plain)) ? person : plain;
+        return fits(rough) ? { size: size, pixels: pixels, rough: rough, person: rough === person } : null;
+      });
+    });
+  });
+}
+
+/* The subject as a mask a little wider than itself, for lining up. A photo
+   with its background removed uses its own cut. */
+function wideSubject(w, h, test) {
+  var hard = new Float32Array(w * h);
+  for (var i = 0; i < hard.length; i++) hard[i] = test(i) ? 1 : 0;
+  var wide = boxBlur(hard, w, h, Math.max(2, Math.round(Math.max(w, h) * 0.015)));
+  var on = new Uint8Array(w * h);
+  for (i = 0; i < on.length; i++) on[i] = wide[i] > 0.05 ? 1 : 0;
+  return { w: w, h: h, on: on, hard: hard };
+}
+
+function subjectOf(image) {
+  if (image.mask) {
+    var mask = image.mask;
+    return Promise.resolve(wideSubject(mask.w, mask.h, function (i) { return mask.alpha[i] > 127; }));
+  }
+  if (image.subject !== undefined) return Promise.resolve(image.subject);
+  return roughSubject(image).then(function (got) {
+    image.subject = got ? wideSubject(got.size.w, got.size.h, function (i) { return got.rough[i] > 0.5; }) : null;
+    return image.subject;
+  }, function () {
+    image.subject = null;
+    return null;
+  });
+}
+
+/* u and v are 0 to 1 across the photo as it shows */
+function inSubject(subject, flip, u, v) {
+  var x = Math.min(subject.w - 1, Math.max(0, Math.floor((flip ? 1 - u : u) * subject.w)));
+  var y = Math.min(subject.h - 1, Math.max(0, Math.floor(v * subject.h)));
+  return subject.on[y * subject.w + x] === 1;
+}
+
+/* A box around the middle of the subject, as a loop of spots on the photo as
+   it was opened, for finding it again when matching spots fails. */
+function middleLoop(subject) {
+  var sx = 0, sy = 0, n = 0, x0 = subject.w, x1 = 0, y0 = subject.h, y1 = 0;
+  for (var y = 0; y < subject.h; y++) {
+    for (var x = 0; x < subject.w; x++) {
+      if (!subject.hard[y * subject.w + x]) continue;
+      sx += x; sy += y; n++;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+    }
+  }
+  if (!n) return null;
+  var cx = sx / n / subject.w, cy = sy / n / subject.h;
+  var hw = (x1 - x0) / subject.w * 0.17, hh = (y1 - y0) / subject.h * 0.17;
+  return [{ u: cx - hw, v: cy - hh }, { u: cx + hw, v: cy - hh }, { u: cx + hw, v: cy + hh }, { u: cx - hw, v: cy + hh }];
+}
+
+/* Gives a photo the first photo's cut, through where the two sit on the
+   picture, so the cut lands on the same part of each. */
+function copyCut(refCell, refRect, cell, rect) {
+  var mask = refCell.image.mask;
+  if (!mask || !cell.image) return false;
+  var size = maskSize(cell.image);
+  var map = function (u, v) {
+    var p = imageToCanvas(cell, rect, u, v);
+    return canvasToImage(refCell, refRect, { x: refRect.x + (p.x - rect.x) / rect.width * refRect.width, y: refRect.y + (p.y - rect.y) / rect.height * refRect.height });
+  };
+  var o = map(0, 0), ex = map(1, 0), ey = map(0, 1);
+  var alpha = new Uint8Array(size.w * size.h);
+  for (var y = 0; y < size.h; y++) {
+    var v = (y + 0.5) / size.h;
+    for (var x = 0; x < size.w; x++) {
+      var u = (x + 0.5) / size.w;
+      var mx = (o.u + (ex.u - o.u) * u + (ey.u - o.u) * v) * mask.w - 0.5;
+      var my = (o.v + (ex.v - o.v) * u + (ey.v - o.v) * v) * mask.h - 0.5;
+      mx = Math.min(mask.w - 1.001, Math.max(0, mx));
+      my = Math.min(mask.h - 1.001, Math.max(0, my));
+      var ix = Math.floor(mx), iy = Math.floor(my), fx = mx - ix, fy = my - iy, at = iy * mask.w + ix;
+      alpha[y * size.w + x] = Math.round(mask.alpha[at] * (1 - fx) * (1 - fy) + mask.alpha[at + 1] * fx * (1 - fy)
+        + mask.alpha[at + mask.w] * (1 - fx) * fy + mask.alpha[at + mask.w + 1] * fx * fy);
+    }
+  }
+  cell.image.mask = { w: size.w, h: size.h, alpha: alpha };
+  buildCut(cell.image);
+  return true;
+}
+
+/* After a photo is lined up on the first, it takes the first photo's cut when
+   it has none of its own. */
+function carryCut(index) {
+  var ref = cells[0], cell = cells[index];
+  if (!el('bg-carry').checked || !ref.image || !ref.image.mask || !cell.image || cell.image.mask) return;
+  saveBg([cell.image]);
+  copyCut(ref, lineRect(0), cell, lineRect(index));
+}
+
+el('bg-copy').addEventListener('click', function () {
+  var ref = cells[0];
+  if (!ref || !ref.image || !ref.image.mask) return;
+  var list = [];
+  cells.forEach(function (cell, index) { if (index > 0 && cell.image) list.push(index); });
+  if (mode === 'swipe') list = cells[1] && cells[1].image ? [1] : [];
+  saveBg(list.map(function (index) { return cells[index].image; }));
+  list.forEach(function (index) { copyCut(ref, lineRect(0), cells[index], lineRect(index)); });
+  message('Used ' + photoName(0) + "'s cut on " + list.map(photoName).join(' and ') + '.', true);
+  bgButtons();
+  paint();
+});
+
 /* Undo and Redo for the background. Each step keeps a copy of the masks it
    changed, up to 30 steps back. */
 var bgPast = [], bgAhead = [];
@@ -1470,47 +1633,20 @@ el('bg-auto').addEventListener('click', function () {
     if (missed.length) message('No subject found on ' + missed.map(photoName).join(' and ') + '. Use Draw around it on '
       + (missed.length === 1 ? 'that one.' : 'those.'));
   };
-  var none = function () { return null; };
-  /* the two finders are loaded and run one after the other, since loading
-     both at once can stop one of them starting */
-  var found = null, faces = null;
-  loadCutter().then(function (got) { found = got; }, none).then(function () {
-    return loadFinder().then(function (got) { faces = got; }, none);
-  }).then(function () {
-    var next = function (n) {
-      if (n >= spots.length) return Promise.resolve();
-      var image = cells[spots[n].index].image;
-      var size = maskSize(image);
-      var pixels = photoPixels(image, size.w, size.h);
-      var got = [];
-      return Promise.resolve(found ? personMask(found, image, size.w, size.h) : null).then(function (mask) {
-        got[0] = mask;
-        return faces ? eyesOf(faces, image).then(null, function () { return []; }) : [];
-      }).then(function (eyes) {
-        got[1] = eyes;
-        /* The person finder is used when the photo has a face, or when the
-           plain background test finds nothing, since it also picks out arms
-           and legs. Without a face it can mistake a cup for a person. */
-        var seed = -1;
-        if (got[1].length) {
-          var face = got[1][0];
-          var fx = Math.round((face.a.u + face.b.u) / 2 * (size.w - 1)), fy = Math.round((face.a.v + face.b.v) / 2 * (size.h - 1));
-          if (fx >= 0 && fy >= 0 && fx < size.w && fy < size.h) seed = fy * size.w + fx;
-        }
-        var person = got[0] && share(got[0]) > 0.04 ? tidyParts(got[0], size.w, size.h, seed) : null;
-        var plain = tidyParts(borderMask(pixels, size.w, size.h), size.w, size.h);
-        var fits = function (mask) { var part = share(mask); return part > 0.03 && part < 0.97; };
-        var rough = person && (got[1].length || !fits(plain)) ? person : plain;
-        if (!fits(rough)) { missed.push(spots[n].index); return next(n + 1); }
-        var band = Math.max(3, Math.round(Math.max(size.w, size.h) * 0.012));
-        image.mask = { w: size.w, h: size.h, alpha: tidyEdge(pixels, size.w, size.h, rough, band, rough === person ? 0.3 : 0.2) };
-        buildCut(image);
-        done++;
-        return next(n + 1);
-      });
-    };
-    return next(0);
-  }).then(finish, function (error) { message(error.message); finish(); });
+  var next = function (n) {
+    if (n >= spots.length) return Promise.resolve();
+    var image = cells[spots[n].index].image;
+    return roughSubject(image).then(function (got) {
+      if (!got) { missed.push(spots[n].index); return next(n + 1); }
+      var size = got.size;
+      var band = Math.max(3, Math.round(Math.max(size.w, size.h) * 0.012));
+      image.mask = { w: size.w, h: size.h, alpha: tidyEdge(got.pixels, size.w, size.h, got.rough, band, got.person ? 0.3 : 0.2) };
+      buildCut(image);
+      done++;
+      return next(n + 1);
+    });
+  };
+  next(0).then(finish, function (error) { message(error.message); finish(); });
 });
 
 el('bg-undo').addEventListener('click', function () { bgStep(bgPast, bgAhead); });
@@ -1684,6 +1820,7 @@ function bgButtons() {
   el('bg-undo').disabled = cutting || !bgPast.length;
   el('bg-redo').disabled = cutting || !bgAhead.length;
   el('bg-back').disabled = !photos.some(function (photo) { return photo.mask; });
+  el('bg-copy').disabled = cutting || !(cells[0] && cells[0].image && cells[0].image.mask) || !cells.some(function (cell, index) { return index > 0 && cell.image; });
 }
 
 function cancelLasso() {
@@ -2551,6 +2688,7 @@ function paint() {
     drawArea(ctx);
     drawLasso(ctx);
     drawBrush(ctx);
+    drawLoupe(ctx);
   } else {
     grid = drawGrid(ctx, config, cells, width);
     drawCovers(ctx, width);
@@ -2561,6 +2699,7 @@ function paint() {
     drawArea(ctx);
     drawLasso(ctx);
     drawBrush(ctx);
+    drawLoupe(ctx);
     if (close < 0) {
       markZoom(ctx, grid);
       if (picked >= 0 && grid.rects[picked]) {
@@ -2814,16 +2953,18 @@ stage.addEventListener('pointerdown', function (event) {
     var first = lineRect(0);
     if (areaPick.down) return;
     if (point.x < first.x || point.x > first.x + first.width || point.y < first.y || point.y > first.y + first.height) {
-      say(photoName(0) + ': drag the box on this photo.');
+      say(photoName(0) + ': draw on this photo.');
       return;
     }
     areaPick.down = { id: event.pointerId, x: point.x, y: point.y };
-    areaPick.box = null;
+    areaPick.path = [point];
+    areaPick.box = areaBox(point, point);
     return;
   }
   if (pins) {
-    if (pins.down) pins.down.multi = true;
-    else pins.down = { id: event.pointerId, x: event.clientX, y: event.clientY, multi: false };
+    if (pins.down) { pins.down.multi = true; pins.at = null; }
+    else { pins.down = { id: event.pointerId, x: event.clientX, y: event.clientY, multi: false }; pins.at = point; }
+    paint();
     return;
   }
   if (el('drag-does').value === 'mark') {
@@ -2953,6 +3094,12 @@ function ensureRoom(list, rect) {
 }
 
 stage.addEventListener('pointermove', function (event) {
+  if (pins && ((pins.down && event.pointerId === pins.down.id && !pins.down.multi) || (!pins.down && event.pointerType === 'mouse'))) {
+    event.preventDefault();
+    pins.at = stagePoint(event);
+    paint();
+    if (pins.down) return;
+  }
   if (brush) {
     var spot = stagePoint(event);
     if (event.pointerId === brush.id) {
@@ -2972,7 +3119,11 @@ stage.addEventListener('pointermove', function (event) {
   }
   if (areaPick && areaPick.down && event.pointerId === areaPick.down.id) {
     event.preventDefault();
-    areaPick.box = areaBox(areaPick.down, stagePoint(event));
+    var rect0 = lineRect(0), at = stagePoint(event);
+    at = { x: Math.min(rect0.x + rect0.width, Math.max(rect0.x, at.x)), y: Math.min(rect0.y + rect0.height, Math.max(rect0.y, at.y)) };
+    areaPick.path.push(at);
+    var xs = areaPick.path.map(function (q) { return q.x; }), ys = areaPick.path.map(function (q) { return q.y; });
+    areaPick.box = areaBox({ x: Math.min.apply(null, xs), y: Math.min.apply(null, ys) }, { x: Math.max.apply(null, xs), y: Math.max.apply(null, ys) });
     paint();
     return;
   }
@@ -3062,15 +3213,15 @@ function endDrag(event) {
   if (areaPick && areaPick.down && event.pointerId === areaPick.down.id) {
     areaPick.down = null;
     if (event.type === 'pointerup' && areaPick.box) finishArea();
-    else { areaPick.box = null; paint(); }
+    else { areaPick.box = null; areaPick.path = []; paint(); }
     return;
   }
   if (pins && pins.down && event.pointerId === pins.down.id) {
     var down = pins.down;
     pins.down = null;
-    if (event.type === 'pointerup' && !down.multi && Math.hypot(event.clientX - down.x, event.clientY - down.y) < 10) {
-      pinTap(stagePoint(event));
-    }
+    if (event.pointerType !== 'mouse') pins.at = null;
+    if (event.type === 'pointerup' && !down.multi) pinTap(stagePoint(event));
+    else paint();
     return;
   }
   if (moving && event.pointerId === moving.id) {
@@ -3487,7 +3638,7 @@ function showTools() {
     : doing === 'cover' ? 'Drag over what to cover, or drag a cover to move it'
     : doing === 'mark' ? 'Drag to draw a mark'
     : 'Drag a photo or the divider';
-  if (pins) el('swipe-hint').textContent = 'Tap spot ' + (pins.step % 2 + 1);
+  if (pins) el('swipe-hint').textContent = 'Tap spot ' + (pins.step % pins.count + 1);
   if (areaPick) el('swipe-hint').textContent = 'Drag a box';
   if (lasso) el('swipe-hint').textContent = 'Draw a loop around it';
   if (brush) el('swipe-hint').textContent = brush.how === 'erase' ? 'Paint to erase' : 'Paint to bring back';
@@ -3810,8 +3961,9 @@ function middleOf(found, to) {
    photo wins, since that is where the face or the treated area usually is. */
 /* box, when given, is the area drawn on the first photo in match pixels, and
    only spots inside it count. */
-function findFit(from, to, box) {
+function findFit(from, to, box, only) {
   var pairs = pairSpots(from, to);
+  if (only) pairs = pairs.filter(only);
   if (box) {
     pairs = pairs.filter(function (m) {
       return m.q.x >= box.x && m.q.x <= box.x + box.w && m.q.y >= box.y && m.q.y <= box.y + box.h;
@@ -3822,7 +3974,7 @@ function findFit(from, to, box) {
   var first = bestFit(pairs, reach);
   if (!first) return null;
   var pick = first;
-  if (!box) {
+  if (!box && !only) {
     var rest = pairs.filter(function (m) { return missOf(first.fit, m) > reach * 1.5; });
     var second = rest.length >= MATCH_LEAST ? bestFit(rest, reach) : null;
     if (second && spread(second, to) && second.agree.length >= Math.max(MATCH_LEAST, first.agree.length * 0.25)
@@ -3883,6 +4035,326 @@ function allowEdges() {
   return true;
 }
 
+/* ---------- finding a part again on the other photos ---------- */
+
+/* A photo seen as fine detail only: the grey photo less a blurred copy of
+   itself, so a faint scar or a mole counts and the light on the skin does not.
+   It is drawn the way it shows, mirrored if the cell is mirrored. */
+function detailOf(image, flip, side) {
+  var k = side / Math.max(image.width, image.height);
+  var w = Math.max(16, Math.round(image.width * k)), h = Math.max(16, Math.round(image.height * k));
+  var canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  var c = canvas.getContext('2d', { willReadFrequently: true });
+  c.imageSmoothingQuality = 'high';
+  if (flip) { c.translate(w, 0); c.scale(-1, 1); }
+  c.drawImage(image.bitmap, 0, 0, w, h);
+  var d = c.getImageData(0, 0, w, h).data;
+  var g = new Float32Array(w * h);
+  for (var i = 0; i < g.length; i++) g[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+  var r = Math.max(1, Math.round(side / 80));
+  var blur = boxBlur(boxBlur(boxBlur(g, w, h, r), w, h, r), w, h, r);
+  for (i = 0; i < g.length; i++) g[i] -= blur[i];
+  return { w: w, h: h, k: w / image.width, px: g };
+}
+
+/* The part drawn on the first photo, cut out of its detail. loop is in pixels
+   of the detail. */
+function partOf(det, loop) {
+  var canvas = document.createElement('canvas');
+  canvas.width = det.w;
+  canvas.height = det.h;
+  var c = canvas.getContext('2d', { willReadFrequently: true });
+  c.beginPath();
+  loop.forEach(function (p, i) { if (i) c.lineTo(p.x, p.y); else c.moveTo(p.x, p.y); });
+  c.closePath();
+  c.fill();
+  var m = c.getImageData(0, 0, det.w, det.h).data;
+  var x0 = det.w, y0 = det.h, x1 = -1, y1 = -1;
+  for (var y = 0; y < det.h; y++) {
+    for (var x = 0; x < det.w; x++) {
+      if (m[(y * det.w + x) * 4 + 3] < 128) continue;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+    }
+  }
+  if (x1 < x0 + 4 || y1 < y0 + 4) return null;
+  var w = x1 - x0 + 1, h = y1 - y0 + 1, px = new Float32Array(w * h), on = new Uint8Array(w * h);
+  var sx = 0, sy = 0, n = 0;
+  for (y = 0; y < h; y++) {
+    for (x = 0; x < w; x++) {
+      var at = (y + y0) * det.w + x + x0;
+      if (m[at * 4 + 3] < 128) continue;
+      px[y * w + x] = det.px[at];
+      on[y * w + x] = 1;
+      sx += x; sy += y; n++;
+    }
+  }
+  return { w: w, h: h, px: px, on: on, cx: sx / n, cy: sy / n, x0: x0, y0: y0 };
+}
+
+/* The part turned by angle and sized by scale, as it would look on another
+   photo. A spot d away from the middle there is R(-angle) d / scale away from
+   the middle of the part on the first photo. */
+function turnedPart(part, angle, scale) {
+  var cos = Math.cos(angle), sin = Math.sin(angle);
+  var R = Math.ceil(Math.hypot(Math.max(part.cx, part.w - part.cx), Math.max(part.cy, part.h - part.cy)) * scale) + 1;
+  var n = 2 * R + 1, px = new Float32Array(n * n), on = new Uint8Array(n * n);
+  var x0 = n, y0 = n, x1 = -1, y1 = -1;
+  for (var y = 0; y < n; y++) {
+    for (var x = 0; x < n; x++) {
+      var dx = x - R, dy = y - R;
+      var tx = (cos * dx + sin * dy) / scale + part.cx, ty = (-sin * dx + cos * dy) / scale + part.cy;
+      var ix = Math.floor(tx), iy = Math.floor(ty);
+      if (ix < 0 || iy < 0 || ix >= part.w - 1 || iy >= part.h - 1) continue;
+      var a = iy * part.w + ix;
+      if (!part.on[a] || !part.on[a + 1] || !part.on[a + part.w] || !part.on[a + part.w + 1]) continue;
+      var fx = tx - ix, fy = ty - iy;
+      px[y * n + x] = part.px[a] * (1 - fx) * (1 - fy) + part.px[a + 1] * fx * (1 - fy) + part.px[a + part.w] * (1 - fx) * fy + part.px[a + part.w + 1] * fx * fy;
+      on[y * n + x] = 1;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+    }
+  }
+  if (x1 < x0) return null;
+  var w = x1 - x0 + 1, h = y1 - y0 + 1, opx = new Float32Array(w * h), oon = new Uint8Array(w * h), count = 0, sum = 0;
+  for (y = 0; y < h; y++) {
+    for (x = 0; x < w; x++) {
+      var from = (y + y0) * n + x + x0;
+      if (!on[from]) continue;
+      opx[y * w + x] = px[from];
+      oon[y * w + x] = 1;
+      sum += px[from];
+      count++;
+    }
+  }
+  /* the part less its own average, and how much it varies, for the match score */
+  var mean = sum / count, spread = 0;
+  for (var i = 0; i < opx.length; i++) {
+    if (!oon[i]) continue;
+    opx[i] -= mean;
+    spread += opx[i] * opx[i];
+  }
+  return { w: w, h: h, px: opx, on: oon, n: count, spread: spread, ox: R - x0, oy: R - y0 };
+}
+
+/* A plain radix-2 FFT, in place, for n a power of two. */
+var fftTables = {};
+function fft1(re, im, n, back) {
+  var table = fftTables[n];
+  if (!table) {
+    var bits = new Uint32Array(n), cos = new Float64Array(n / 2), sin = new Float64Array(n / 2);
+    for (var i = 0, j = 0; i < n; i++) {
+      bits[i] = j;
+      var bit = n >> 1;
+      while (j & bit) { j ^= bit; bit >>= 1; }
+      j |= bit;
+    }
+    for (i = 0; i < n / 2; i++) { cos[i] = Math.cos(2 * Math.PI * i / n); sin[i] = Math.sin(2 * Math.PI * i / n); }
+    table = fftTables[n] = { bits: bits, cos: cos, sin: sin };
+  }
+  for (i = 0; i < n; i++) {
+    var k = table.bits[i];
+    if (k > i) {
+      var t = re[i]; re[i] = re[k]; re[k] = t;
+      t = im[i]; im[i] = im[k]; im[k] = t;
+    }
+  }
+  var sign = back ? 1 : -1;
+  for (var size = 2; size <= n; size <<= 1) {
+    var half = size >> 1, step = n / size;
+    for (var start = 0; start < n; start += size) {
+      for (var m = 0; m < half; m++) {
+        var wr = table.cos[m * step], wi = sign * table.sin[m * step];
+        var a = start + m, b = a + half;
+        var xr = re[b] * wr - im[b] * wi, xi = re[b] * wi + im[b] * wr;
+        re[b] = re[a] - xr; im[b] = im[a] - xi;
+        re[a] += xr; im[a] += xi;
+      }
+    }
+  }
+}
+
+function fft2(re, im, n, back) {
+  var rr = new Float64Array(n), ri = new Float64Array(n);
+  for (var y = 0; y < n; y++) {
+    var row = y * n;
+    for (var x = 0; x < n; x++) { rr[x] = re[row + x]; ri[x] = im[row + x]; }
+    fft1(rr, ri, n, back);
+    for (x = 0; x < n; x++) { re[row + x] = rr[x]; im[row + x] = ri[x]; }
+  }
+  for (x = 0; x < n; x++) {
+    for (y = 0; y < n; y++) { rr[y] = re[y * n + x]; ri[y] = im[y * n + x]; }
+    fft1(rr, ri, n, back);
+    for (y = 0; y < n; y++) { re[y * n + x] = rr[y]; im[y * n + x] = ri[y]; }
+  }
+  if (back) {
+    var scale = 1 / (n * n);
+    for (var i = 0; i < re.length; i++) { re[i] *= scale; im[i] *= scale; }
+  }
+}
+
+/* Every turn and size of the part tried against every spot of the other
+   photo at once, through the FFT. The score is the usual normalised match of
+   the part against the photo under it. */
+function partSearch(target, part, turns, sizes) {
+  var n = 16;
+  while (n < Math.max(target.w, target.h)) n <<= 1;
+  var Ir = new Float64Array(n * n), Ii = new Float64Array(n * n), Sr = new Float64Array(n * n), Si = new Float64Array(n * n);
+  for (var y = 0; y < target.h; y++) {
+    for (var x = 0; x < target.w; x++) {
+      var v = target.px[y * target.w + x];
+      Ir[y * n + x] = v;
+      Sr[y * n + x] = v * v;
+    }
+  }
+  fft2(Ir, Ii, n, false);
+  fft2(Sr, Si, n, false);
+  var Zr = new Float64Array(n * n), Zi = new Float64Array(n * n);
+  var Pr = new Float64Array(n * n), Pi = new Float64Array(n * n), Qr = new Float64Array(n * n), Qi = new Float64Array(n * n);
+  var found = [];
+  turns.forEach(function (angle) {
+    sizes.forEach(function (scale) {
+      var t = turnedPart(part, angle, scale);
+      if (!t || t.w >= target.w || t.h >= target.h || t.n < 30 || t.spread < 1) return;
+      Zr.fill(0);
+      Zi.fill(0);
+      for (var y = 0; y < t.h; y++) {
+        for (var x = 0; x < t.w; x++) {
+          Zr[y * n + x] = t.px[y * t.w + x];
+          Zi[y * n + x] = t.on[y * t.w + x];
+        }
+      }
+      fft2(Zr, Zi, n, false);
+      /* With Z the part plus i times its outline, Z at -k times the photo gives
+         the part's match and the outline's sum together, and the outline alone
+         against the squared photo gives the rest. */
+      for (var v = 0; v < n; v++) {
+        for (var u = 0; u < n; u++) {
+          var k = v * n + u, back = ((n - v) % n) * n + (n - u) % n;
+          var ar = Zr[back], ai = Zi[back];
+          Pr[k] = ar * Ir[k] - ai * Ii[k];
+          Pi[k] = ar * Ii[k] + ai * Ir[k];
+          var mr = (Zi[k] + Zi[back]) / 2, mi = -(Zr[k] - Zr[back]) / 2;
+          Qr[k] = mr * Sr[k] + mi * Si[k];
+          Qi[k] = mr * Si[k] - mi * Sr[k];
+        }
+      }
+      fft2(Pr, Pi, n, true);
+      fft2(Qr, Qi, n, true);
+      var best = -2, bx = 0, by = 0;
+      for (y = 0; y <= target.h - t.h; y++) {
+        for (x = 0; x <= target.w - t.w; x++) {
+          var at = y * n + x;
+          var sum = Pi[at], rest = Qr[at] - sum * sum / t.n;
+          if (rest <= 1e-6) continue;
+          var score = Pr[at] / Math.sqrt(t.spread * rest);
+          if (score > best) { best = score; bx = x; by = y; }
+        }
+      }
+      if (best > -2) found.push({ score: best, angle: angle, scale: scale, x: bx + t.ox, y: by + t.oy });
+    });
+  });
+  return found.sort(function (a, b) { return b.score - a.score; });
+}
+
+/* The match of the part placed with its middle at x, y, worked out directly. */
+function partScore(target, t, x, y) {
+  var left = Math.round(x - t.ox), top = Math.round(y - t.oy);
+  if (left < 0 || top < 0 || left + t.w > target.w || top + t.h > target.h) return -2;
+  var dot = 0, sum = 0, sq = 0;
+  for (var j = 0; j < t.h; j++) {
+    var row = (top + j) * target.w + left, trow = j * t.w;
+    for (var i = 0; i < t.w; i++) {
+      if (!t.on[trow + i]) continue;
+      var v = target.px[row + i];
+      dot += t.px[trow + i] * v;
+      sum += v;
+      sq += v * v;
+    }
+  }
+  var rest = sq - sum * sum / t.n;
+  return rest > 1e-6 ? dot / Math.sqrt(t.spread * rest) : -2;
+}
+
+/* A closer look around a rough find: small turns, sizes and moves. */
+function partRefine(target, part, guess) {
+  var best = guess, reach = 5;
+  [-10, -5, 0, 5, 10].forEach(function (turn) {
+    [0.9, 0.95, 1, 1.05, 1.1].forEach(function (size) {
+      var angle = guess.angle + turn * Math.PI / 180, scale = guess.scale * size;
+      var t = turnedPart(part, angle, scale);
+      if (!t || t.n < 30 || t.spread < 1) return;
+      for (var dy = -reach; dy <= reach; dy++) {
+        for (var dx = -reach; dx <= reach; dx++) {
+          var score = partScore(target, t, guess.x + dx, guess.y + dy);
+          if (score > best.score) best = { score: score, angle: angle, scale: scale, x: guess.x + dx, y: guess.y + dy };
+        }
+      }
+    });
+  });
+  return best;
+}
+
+var PART_SURE = 0.5;
+
+/* Finds the part drawn on the first photo (a loop of spots on it, 0 to 1
+   across the photo as it was opened) on another photo. Gives the fit that
+   carries the other photo onto the first, in pixels of the photos as they
+   show, or null. A fit from matching spots can be passed in as well; the one
+   whose placing of the part matches better wins. */
+function findPart(ref, cell, loop, other) {
+  var small = 200, big = 400;
+  var r0 = detailOf(ref.image, ref.flip, small), t0 = detailOf(cell.image, cell.flip, small);
+  var shown = function (det, flip) {
+    return loop.map(function (p) { return { x: (flip ? 1 - p.u : p.u) * det.w, y: p.v * det.h }; });
+  };
+  var part0 = partOf(r0, shown(r0, ref.flip));
+  if (!part0) return null;
+  var turns = [];
+  for (var a = 0; a < 360; a += 20) turns.push(a * Math.PI / 180);
+  var rough = partSearch(t0, part0, turns, [0.6, 0.78, 1, 1.28, 1.65]);
+  var r1 = detailOf(ref.image, ref.flip, big), t1 = detailOf(cell.image, cell.flip, big);
+  var part1 = partOf(r1, shown(r1, ref.flip));
+  if (!part1) return null;
+  var up = t1.w / t0.w;
+  var best = null;
+  rough.slice(0, 3).forEach(function (guess) {
+    var done = partRefine(t1, part1, { score: -2, angle: guess.angle, scale: guess.scale, x: guess.x * up, y: guess.y * up });
+    if (!best || done.score > best.score) best = done;
+  });
+  var middle = { x: part1.x0 + part1.cx, y: part1.y0 + part1.cy };
+  /* a fit from matching spots places the part too; it gets the same test */
+  if (other) {
+    var size = Math.hypot(other.a, other.b), turn = Math.atan2(other.b, other.a);
+    var refPx = { x: middle.x / r1.k, y: middle.y / r1.k };
+    /* where the middle of the part lands on the other photo under that fit */
+    var dx = refPx.x - other.tx, dy = refPx.y - other.ty;
+    var cos = Math.cos(-turn), sin = Math.sin(-turn);
+    var there = { x: (cos * dx - sin * dy) / size * t1.k, y: (sin * dx + cos * dy) / size * t1.k };
+    var guess = { score: -2, angle: -turn, scale: t1.k / (r1.k * size), x: there.x, y: there.y };
+    var checked = partRefine(t1, part1, guess);
+    if (!best || checked.score >= best.score - 0.02) return { fit: other, score: checked.score, how: 'spots' };
+  }
+  if (!best || best.score < PART_SURE) return best ? { fit: null, score: best.score } : null;
+  var scale = t1.k / (r1.k * best.scale), c = Math.cos(-best.angle), s = Math.sin(-best.angle);
+  return {
+    fit: {
+      a: scale * c,
+      b: scale * s,
+      tx: (middle.x - (c * best.x - s * best.y) / best.scale) / r1.k,
+      ty: (middle.y - (s * best.x + c * best.y) / best.scale) / r1.k
+    },
+    score: best.score,
+    how: 'part'
+  };
+}
+
 var lining = false;
 
 function lineUp(list, area) {
@@ -3896,43 +4368,92 @@ function lineUp(list, area) {
   }
   lining = true;
   lineButtons();
-  /* a moment for the button to show Lining up before the work holds the page */
-  setTimeout(function () {
-    var placed = [], missed = [], spots = 0, opened = false;
-    try {
-      var to = matchImage(ref);
-      var box = null;
-      if (area) {
-        var left = ref.flip ? 1 - area.u1 : area.u0, right = ref.flip ? 1 - area.u0 : area.u1;
-        box = { x: left * to.w, y: area.v0 * to.h, w: (right - left) * to.w, h: (area.v1 - area.v0) * to.h };
-      }
-      remember();
-      list.forEach(function (index) {
-        var cell = cells[index];
-        var from = matchImage(cell);
-        var fit = findFit(from, to, box);
-        if (fit && placeBy(ref, lineRect(0), cell, lineRect(index), inPixels(fit, from, to))) {
-          placed.push(index);
-          spots = fit.count;
-        } else missed.push(index);
-      });
-    } catch (error) {
-      message(error.message);
+  if (area) say('Looking for the part on ' + list.map(photoName).join(' and ') + '.');
+  var placed = [], missed = [], unsure = [], spots = 0, parts = 0, opened = false;
+  var pause = function () { return new Promise(function (done) { setTimeout(done, 30); }); };
+  /* the subject of each photo first, so a floor or a wall that moved does not
+     win over the person or the arm */
+  var subjects = area ? Promise.resolve([]) : Promise.all([ref].concat(list.map(function (index) { return cells[index]; })).map(function (cell) {
+    return subjectOf(cell.image).then(null, function () { return null; });
+  }));
+  pause().then(function () { return subjects; }).then(function (subs) {
+    var to = matchImage(ref);
+    var box = null;
+    if (area) {
+      var left = ref.flip ? 1 - area.u1 : area.u0, right = ref.flip ? 1 - area.u0 : area.u1;
+      box = { x: left * to.w, y: area.v0 * to.h, w: (right - left) * to.w, h: (area.v1 - area.v0) * to.h };
     }
-    if (placed.length) opened = allowEdges();
+    remember();
+    var refSub = subs[0];
+    var step = function (n) {
+      if (n >= list.length) return Promise.resolve();
+      return pause().then(function () {
+        var index = list[n], cell = cells[index];
+        var from = matchImage(cell);
+        var fit = null, sure = true, found, part;
+        if (area) {
+          found = findFit(from, to, box);
+          part = findPart(ref, cell, area.loop, found ? inPixels(found, from, to) : null);
+          if (part && part.fit) {
+            fit = part.fit;
+            if (part.how === 'part') parts++;
+            else spots = found.count;
+            sure = part.how === 'spots' || part.score >= PART_SURE + 0.1;
+          }
+        } else if (refSub && subs[n + 1]) {
+          var sub = subs[n + 1];
+          found = findFit(from, to, null, function (m) {
+            return inSubject(sub, cell.flip, m.p.x / from.w, m.p.y / from.h) && inSubject(refSub, ref.flip, m.q.x / to.w, m.q.y / to.h);
+          });
+          if (found) {
+            fit = inPixels(found, from, to);
+            spots = found.count;
+          } else {
+            var loop = middleLoop(refSub);
+            part = loop ? findPart(ref, cell, loop, null) : null;
+            if (part && part.fit) {
+              fit = part.fit;
+              parts++;
+              sure = part.score >= PART_SURE + 0.1;
+            }
+          }
+        } else {
+          found = findFit(from, to);
+          if (found) {
+            fit = inPixels(found, from, to);
+            spots = found.count;
+          }
+        }
+        if (fit && placeBy(ref, lineRect(0), cell, lineRect(index), fit)) {
+          placed.push(index);
+          if (!sure) unsure.push(index);
+          if (!opened) opened = allowEdges();
+          carryCut(index);
+          paint();
+        } else missed.push(index);
+        return step(n + 1);
+      });
+    };
+    return step(0);
+  }).catch(function (error) {
+    message(error.message);
+  }).then(function () {
     lining = false;
     say('');
+    lineButtons();
+    bgButtons();
     paint();
     var edges = opened ? ' Move past the edges is now on.' : '';
-    var inside = area ? ' inside the area' : '';
-    if (placed.length === 1 && !missed.length) message('Lined up on ' + spots + ' matching spots' + inside + '.' + edges, true);
-    else if (placed.length) message('Lined up ' + placed.map(photoName).join(' and ') + ' on ' + photoName(0) + '.' + edges, true);
+    var how = area ? ' by the part you drew' : '';
+    if (placed.length === 1 && !missed.length && !parts) message('Lined up on ' + spots + ' matching spots' + (area ? ' inside the part' : '') + '.' + edges, true);
+    else if (placed.length) message('Lined up ' + placed.map(photoName).join(' and ') + ' on ' + photoName(0) + how + '.' + edges, true);
+    if (unsure.length) message('Check ' + unsure.map(photoName).join(' and ') + ', since the match there is weak. Two-point or Four-point line up can fix it.');
     if (missed.length) {
-      message(missed.length === 1 && list.length === 1
-        ? (area ? 'No match found inside the area. Draw a bigger area or use Two-point line up.' : 'No match found between the two photos. Use Two-point line up.')
-        : 'No match found for ' + missed.map(photoName).join(' and ') + '. Use Two-point line up for those.');
+      message(area
+        ? 'Could not find the part on ' + missed.map(photoName).join(' and ') + '. Use Four-point line up, since it also handles a different camera angle.'
+        : 'No match found for ' + missed.map(photoName).join(' and ') + '. Try Line up on a part, or tap the spots with Two-point or Four-point line up.');
     }
-  }, 30);
+  });
 }
 
 /* Lines up a pair by itself the first time both photos are in. */
@@ -3971,24 +4492,26 @@ function pinTarget() {
   return -1;
 }
 
-var PIN_SAY = [
-  ': tap a spot you can find on both photos, like a pupil or a mole.',
-  ': tap a second spot, as far from the first as you can.',
-  ': tap the first spot again.',
-  ': tap the second spot again.'
-];
+var PIN_SAY = {
+  2: [': tap a spot you can find on both photos, like a pupil or a mole.', ': tap a second spot, as far from the first as you can.'],
+  4: [': tap spot 1 of 4, like one end of a scar.', ': tap spot 2 of 4, like the other end.', ': tap spot 3 of 4, off to one side of the first two.', ': tap spot 4 of 4, on the other side.']
+};
+var PIN_AGAIN = ['first', 'second', 'third', 'fourth'];
 
 function pinSay() {
-  var index = pins.step < 2 ? 0 : pins.target;
-  say(photoName(index) + PIN_SAY[pins.step]);
-  el('swipe-hint').textContent = 'Tap spot ' + (pins.step % 2 + 1);
+  var first = pins.step < pins.count;
+  var index = first ? 0 : pins.target, n = pins.step % pins.count;
+  say(photoName(index) + (first ? PIN_SAY[pins.count][n] : ': tap the ' + PIN_AGAIN[n] + ' spot again.') + ' Hold and slide to place it exactly.');
+  el('swipe-hint').textContent = 'Tap spot ' + (n + 1);
 }
 
-function startPins() {
+function startPins(count) {
   cancelArea();
+  cancelLasso();
+  cancelBrush();
   var target = pinTarget();
   if (!cells[0] || !cells[0].image || target < 1) return;
-  pins = { target: target, step: 0, spots: [], split: swipePosition, down: null };
+  pins = { target: target, step: 0, spots: [], split: swipePosition, down: null, count: count || 2, at: null };
   if (mode === 'swipe') swipePosition = 1;
   pinSay();
   lineButtons();
@@ -3997,6 +4520,7 @@ function startPins() {
 
 function cancelPins() {
   if (!pins) return;
+  pins.at = null;
   if (mode === 'swipe') swipePosition = pins.split;
   pins = null;
   say('');
@@ -4006,12 +4530,18 @@ function cancelPins() {
 }
 
 el('line-pins').addEventListener('click', function () {
-  if (pins) cancelPins();
-  else startPins();
+  var was = pins && pins.count;
+  cancelPins();
+  if (was !== 2) startPins(2);
+});
+el('line-pins4').addEventListener('click', function () {
+  var was = pins && pins.count;
+  cancelPins();
+  if (was !== 4) startPins(4);
 });
 
 function pinTap(point) {
-  var index = pins.step < 2 ? 0 : pins.target;
+  var index = pins.step < pins.count ? 0 : pins.target;
   var rect = lineRect(index);
   var cell = cells[index];
   if (!rect || !cell || !cell.image) { cancelPins(); return; }
@@ -4021,18 +4551,20 @@ function pinTap(point) {
     say(photoName(index) + ': tap on the photo itself.');
     return;
   }
-  if (pins.step % 2 === 1) {
-    var first = imageToCanvas(cell, rect, pins.spots[pins.step - 1].u, pins.spots[pins.step - 1].v);
-    if (Math.hypot(first.x - point.x, first.y - point.y) < rect.width * 0.05) {
-      say(photoName(index) + ': tap a second spot further from the first.');
+  var start = pins.step < pins.count ? 0 : pins.count;
+  for (var i = start; i < pins.step; i++) {
+    var before = imageToCanvas(cell, rect, pins.spots[i].u, pins.spots[i].v);
+    if (Math.hypot(before.x - point.x, before.y - point.y) < rect.width * 0.05) {
+      say(photoName(index) + ': tap further from the spots already placed.');
       return;
     }
   }
   pins.spots.push(spot);
   pins.step++;
-  if (pins.step === 2 && mode === 'swipe') swipePosition = 0;
-  if (pins.step < 4) { pinSay(); paint(); return; }
-  finishPins();
+  if (pins.step === pins.count && mode === 'swipe') swipePosition = 0;
+  if (pins.step < pins.count * 2) { pinSay(); paint(); return; }
+  if (pins.count === 4) finishFour();
+  else finishPins();
 }
 
 /* The four taps in pixels of each photo as it shows, then the fit that carries
@@ -4063,8 +4595,8 @@ function finishPins() {
 function drawPins(c) {
   if (!pins) return;
   pins.spots.forEach(function (spot, i) {
-    var index = i < 2 ? 0 : pins.target;
-    if (mode === 'swipe' && (i < 2) !== (pins.step < 2)) return;
+    var index = i < pins.count ? 0 : pins.target;
+    if (mode === 'swipe' && (i < pins.count) !== (pins.step < pins.count)) return;
     var cell = cells[index], rect = lineRect(index);
     if (!cell || !cell.image || !rect) return;
     var at = imageToCanvas(cell, rect, spot.u, spot.v);
@@ -4081,9 +4613,209 @@ function drawPins(c) {
     c.font = '600 ' + (13 / view.k) + 'px system-ui, sans-serif';
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    c.fillText(String(i % 2 + 1), at.x, at.y + 0.5 / view.k);
+    c.fillText(String(i % pins.count + 1), at.x, at.y + 0.5 / view.k);
     c.restore();
   });
+}
+
+/* A circle above the finger showing the photo three times closer, with a
+   cross on the spot that will be placed, so a faint mark can be hit exactly. */
+function drawLoupe(c) {
+  if (!pins || !pins.at) return;
+  var index = pins.step < pins.count ? 0 : pins.target;
+  var cell = cells[index], rect = lineRect(index);
+  if (!cell || !cell.image || !rect) return;
+  var at = pins.at, r = 64 / view.k, gap = 34 / view.k, zoom = 3;
+  var cx = at.x, cy = at.y - r - gap;
+  if (cy - r < view.y) cy = at.y + r + gap;
+  c.save();
+  c.beginPath();
+  c.arc(cx, cy, r, 0, Math.PI * 2);
+  c.clip();
+  c.fillStyle = '#101c2b';
+  c.fillRect(cx - r, cy - r, r * 2, r * 2);
+  c.translate(cx, cy);
+  c.scale(zoom, zoom);
+  c.translate(-at.x, -at.y);
+  c.beginPath();
+  c.rect(rect.x, rect.y, rect.width, rect.height);
+  c.clip();
+  drawPhoto(c, cell, rect);
+  c.restore();
+  c.save();
+  c.beginPath();
+  c.arc(cx, cy, r, 0, Math.PI * 2);
+  c.lineWidth = 3 / view.k;
+  c.strokeStyle = '#E0B45A';
+  c.stroke();
+  c.lineWidth = 1.5 / view.k;
+  c.strokeStyle = '#ffffff';
+  var arm = 12 / view.k;
+  c.beginPath();
+  c.moveTo(cx - arm, cy); c.lineTo(cx - 3 / view.k, cy);
+  c.moveTo(cx + 3 / view.k, cy); c.lineTo(cx + arm, cy);
+  c.moveTo(cx, cy - arm); c.lineTo(cx, cy - 3 / view.k);
+  c.moveTo(cx, cy + 3 / view.k); c.lineTo(cx, cy + arm);
+  c.stroke();
+  c.restore();
+}
+
+/* ---------- four-point line up, for a different camera angle ---------- */
+
+/* The projective fit that carries four spots onto four others, from the
+   eight equations they give. */
+function fitFour(from, to) {
+  var A = [], b = [];
+  for (var i = 0; i < 4; i++) {
+    var x = from[i].x, y = from[i].y, X = to[i].x, Y = to[i].y;
+    A.push([x, y, 1, 0, 0, 0, -x * X, -y * X]); b.push(X);
+    A.push([0, 0, 0, x, y, 1, -x * Y, -y * Y]); b.push(Y);
+  }
+  for (var col = 0; col < 8; col++) {
+    var pivot = col;
+    for (var row = col + 1; row < 8; row++) if (Math.abs(A[row][col]) > Math.abs(A[pivot][col])) pivot = row;
+    if (Math.abs(A[pivot][col]) < 1e-9) return null;
+    var tmp = A[col]; A[col] = A[pivot]; A[pivot] = tmp;
+    tmp = b[col]; b[col] = b[pivot]; b[pivot] = tmp;
+    for (row = 0; row < 8; row++) {
+      if (row === col) continue;
+      var f = A[row][col] / A[col][col];
+      for (var k = col; k < 8; k++) A[row][k] -= f * A[col][k];
+      b[row] -= f * b[col];
+    }
+  }
+  var h = b.map(function (v, n) { return v / A[n][n]; });
+  return [h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7], 1];
+}
+
+function times3(a, b) {
+  var out = [];
+  for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++) out.push(a[r * 3] * b[c] + a[r * 3 + 1] * b[3 + c] + a[r * 3 + 2] * b[6 + c]);
+  return out;
+}
+
+function invert3(m) {
+  var a = m[0], b = m[1], c = m[2], d = m[3], e = m[4], f = m[5], g = m[6], h = m[7], i = m[8];
+  var A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g;
+  var det = a * A + b * B + c * C;
+  if (Math.abs(det) < 1e-12) return null;
+  return [A / det, -(b * i - c * h) / det, (b * f - c * e) / det, B / det, (a * i - c * g) / det, -(a * f - c * d) / det, C / det, -(a * h - b * g) / det, (a * e - b * d) / det];
+}
+
+function project(m, x, y) {
+  var w = m[6] * x + m[7] * y + m[8];
+  return { x: (m[0] * x + m[1] * y + m[2]) / w, y: (m[3] * x + m[4] * y + m[5]) / w, w: w };
+}
+
+/* Redraws the photo as if taken from where the first photo was taken. The
+   photo keeps its original, so Undo and a second four-point line up work from
+   that and not from a copy of a copy. m carries pixels of the photo as it is
+   now onto pixels of the first photo. */
+function warpOnto(image, ref, m) {
+  var keep = image.unwarped || { bitmap: image.bitmap, width: image.width, height: image.height, mask: image.mask };
+  var total = image.warp ? times3(m, image.warp) : m;
+  var back = invert3(total);
+  if (!back) return false;
+  var ks = Math.min(1, 2400 / Math.max(keep.width, keep.height));
+  var sw = Math.round(keep.width * ks), sh = Math.round(keep.height * ks);
+  var source = document.createElement('canvas');
+  source.width = sw;
+  source.height = sh;
+  var sc = source.getContext('2d', { willReadFrequently: true });
+  sc.drawImage(keep.bitmap, 0, 0, sw, sh);
+  var src = sc.getImageData(0, 0, sw, sh).data;
+  var ko = Math.min(1, 2400 / Math.max(ref.width, ref.height));
+  var ow = Math.round(ref.width * ko), oh = Math.round(ref.height * ko);
+  var out = document.createElement('canvas');
+  out.width = ow;
+  out.height = oh;
+  var oc = out.getContext('2d');
+  var img = oc.createImageData(ow, oh), dst = img.data;
+  for (var y = 0; y < oh; y++) {
+    for (var x = 0; x < ow; x++) {
+      var q = project(back, (x + 0.5) / ko, (y + 0.5) / ko);
+      if (q.w <= 0) continue;
+      var fx = q.x * ks - 0.5, fy = q.y * ks - 0.5;
+      if (fx < 0 || fy < 0 || fx > sw - 1.001 || fy > sh - 1.001) continue;
+      var ix = Math.floor(fx), iy = Math.floor(fy), ax = fx - ix, ay = fy - iy;
+      var p0 = (iy * sw + ix) * 4, p1 = p0 + 4, p2 = p0 + sw * 4, p3 = p2 + 4, o = (y * ow + x) * 4;
+      for (var ch = 0; ch < 3; ch++) {
+        dst[o + ch] = src[p0 + ch] * (1 - ax) * (1 - ay) + src[p1 + ch] * ax * (1 - ay) + src[p2 + ch] * (1 - ax) * ay + src[p3 + ch] * ax * ay;
+      }
+      dst[o + 3] = 255;
+    }
+  }
+  oc.putImageData(img, 0, 0);
+  /* a cut made on the photo as it is now moves with it */
+  var mask = image.mask, newMask = null;
+  if (mask) {
+    var size = maskSize(ref), alpha = new Uint8Array(size.w * size.h), now = invert3(m);
+    for (y = 0; y < size.h; y++) {
+      for (x = 0; x < size.w; x++) {
+        var r = project(now, (x + 0.5) / size.w * ref.width, (y + 0.5) / size.h * ref.height);
+        var mx = Math.floor(r.x / image.width * mask.w), my = Math.floor(r.y / image.height * mask.h);
+        if (r.w > 0 && mx >= 0 && my >= 0 && mx < mask.w && my < mask.h) alpha[y * size.w + x] = mask.alpha[my * mask.w + mx];
+      }
+    }
+    newMask = { w: size.w, h: size.h, alpha: alpha };
+  }
+  image.unwarped = keep;
+  image.warp = total;
+  image.bitmap = out;
+  image.width = ref.width;
+  image.height = ref.height;
+  image.mask = newMask;
+  image.edges = null;
+  image.subject = undefined;
+  buildCut(image);
+  return true;
+}
+
+/* The four spots on each photo in pixels of the photo as it was opened. The
+   lined up photo is redrawn in the first photo's frame and then sits in its
+   cell exactly as the first photo sits in its own. */
+function finishFour() {
+  var ref = cells[0], cell = cells[pins.target], s = pins.spots, target = pins.target;
+  if (mode === 'swipe') swipePosition = pins.split;
+  pins = null;
+  showTools();
+  lineButtons();
+  var px = function (image, spot) { return { x: spot.u * image.width, y: spot.v * image.height }; };
+  var m = fitFour(s.slice(4).map(function (spot) { return px(cell.image, spot); }), s.slice(0, 4).map(function (spot) { return px(ref.image, spot); }));
+  var sane = m && [[0, 0], [cell.image.width, 0], [0, cell.image.height], [cell.image.width, cell.image.height]].every(function (corner) {
+    return project(m, corner[0], corner[1]).w > 0.05;
+  });
+  if (sane) {
+    var area = function (list) {
+      var sum = 0;
+      for (var i = 0; i < 4; i++) sum += list[i].x * list[(i + 1) % 4].y - list[(i + 1) % 4].x * list[i].y;
+      return sum;
+    };
+    var a1 = area(s.slice(0, 4).map(function (spot) { return px(ref.image, spot); }));
+    var a2 = area(s.slice(4).map(function (spot) { return px(cell.image, spot); }));
+    sane = Math.abs(a1) > ref.image.width * ref.image.height * 0.002 && a1 * a2 > 0;
+  }
+  if (!sane) {
+    say('Those four spots could not be used. Press Four-point line up and tap four spots spread out, not on one line, in the same order on both photos.');
+    paint();
+    return;
+  }
+  remember();
+  if (!warpOnto(cell.image, ref.image, m)) {
+    say('Those four spots could not be used. Press Four-point line up and try spots further apart.');
+    paint();
+    return;
+  }
+  cell.zoom = ref.zoom;
+  cell.fx = ref.fx;
+  cell.fy = ref.fy;
+  cell.turn = ref.turn || 0;
+  cell.flip = ref.flip;
+  var opened = allowEdges();
+  carryCut(target);
+  bgButtons();
+  say('Lined up on the four spots, with the camera angle matched to ' + photoName(0) + '.' + (opened ? ' Move past the edges is now on.' : ''));
+  paint();
 }
 
 function lineButtons() {
@@ -4091,9 +4823,11 @@ function lineButtons() {
   el('line-auto').disabled = lining || !ready || Boolean(pins) || Boolean(areaPick);
   el('line-auto').textContent = lining ? 'Lining up' : 'Auto line up';
   el('line-pins').disabled = lining || Boolean(areaPick) || (!pins && pinTarget() < 1);
-  el('line-pins').textContent = pins ? 'Cancel' : 'Two-point line up';
+  el('line-pins').textContent = pins && pins.count === 2 ? 'Cancel' : 'Two-point line up';
+  el('line-pins4').disabled = lining || Boolean(areaPick) || (!pins && pinTarget() < 1);
+  el('line-pins4').textContent = pins && pins.count === 4 ? 'Cancel' : 'Four-point line up';
   el('line-area').disabled = lining || Boolean(pins) || (!areaPick && !ready);
-  el('line-area').textContent = areaPick ? 'Cancel' : 'Line up on an area';
+  el('line-area').textContent = areaPick ? 'Cancel' : 'Line up on a part';
   el('line-fill').disabled = !cells.some(function (cell) { return cell.image; });
   var many = mode !== 'swipe' && centreList().length > 2;
   ['line-centre', 'fine-centre'].forEach(function (id) {
@@ -4120,10 +4854,10 @@ var areaPick = null;
 function startArea() {
   cancelPins();
   if (!cells[0] || !cells[0].image) return;
-  areaPick = { split: swipePosition, down: null, box: null };
+  areaPick = { split: swipePosition, down: null, box: null, path: [] };
   if (mode === 'swipe') swipePosition = 1;
-  say(photoName(0) + ': drag a box around the face or the treated area.');
-  el('swipe-hint').textContent = 'Drag a box';
+  say(photoName(0) + ': draw around the part to line up on, like a scar, a mole or the treated area.');
+  el('swipe-hint').textContent = 'Draw around the part';
   lineButtons();
   paint();
 }
@@ -4156,6 +4890,7 @@ function areaBox(from, to) {
    moved or turned. */
 function finishArea() {
   var box = areaPick.box;
+  var path = areaPick.path;
   var rect = lineRect(0);
   var ref = cells[0];
   if (mode === 'swipe') swipePosition = areaPick.split;
@@ -4163,7 +4898,7 @@ function finishArea() {
   showTools();
   lineButtons();
   if (!box || box.w < rect.width * 0.05 || box.h < rect.height * 0.05) {
-    say('The area is too small. Press Line up on an area and drag a bigger box.');
+    say('The part is too small. Press Line up on a part and draw around a bigger part.');
     paint();
     return;
   }
@@ -4177,21 +4912,25 @@ function finishArea() {
     v0: clip(Math.min.apply(null, corners.map(function (c) { return c.v; }))),
     v1: clip(Math.max.apply(null, corners.map(function (c) { return c.v; })))
   };
+  area.loop = (path.length > 8 ? path : [{ x: box.x, y: box.y }, { x: box.x + box.w, y: box.y }, { x: box.x + box.w, y: box.y + box.h }, { x: box.x, y: box.y + box.h }])
+    .map(function (q) { return canvasToImage(ref, rect, q); });
   say('');
   paint();
   lineUp(lineTargets(), area);
 }
 
 function drawArea(c) {
-  if (!areaPick || !areaPick.box) return;
-  var box = areaPick.box;
+  if (!areaPick || !areaPick.path || areaPick.path.length < 2) return;
   c.save();
+  c.beginPath();
+  areaPick.path.forEach(function (q, i) { if (i) c.lineTo(q.x, q.y); else c.moveTo(q.x, q.y); });
+  c.closePath();
   c.fillStyle = 'rgba(224,180,90,.16)';
-  c.fillRect(box.x, box.y, box.w, box.h);
+  c.fill();
   c.setLineDash([8 / view.k, 6 / view.k]);
   c.lineWidth = 2 / view.k;
   c.strokeStyle = '#E0B45A';
-  c.strokeRect(box.x, box.y, box.w, box.h);
+  c.stroke();
   c.restore();
 }
 
@@ -4309,6 +5048,20 @@ function relineUp() {
   cancelPins();
   cancelArea();
   remember();
+  cells.forEach(function (cell) {
+    var image = cell.image;
+    if (!image || !image.unwarped) return;
+    var keep = image.unwarped;
+    image.bitmap = keep.bitmap;
+    image.width = keep.width;
+    image.height = keep.height;
+    image.mask = keep.mask;
+    image.unwarped = null;
+    image.warp = null;
+    image.edges = null;
+    image.subject = undefined;
+    buildCut(image);
+  });
   centreAll();
   say('');
   paint();
@@ -4330,7 +5083,11 @@ function snapshot() {
   return {
     split: swipePosition,
     cells: cells.map(function (cell) {
-      return { image: cell.image, zoom: cell.zoom, fx: cell.fx, fy: cell.fy, turn: cell.turn || 0, flip: cell.flip };
+      var image = cell.image;
+      return {
+        image: image, zoom: cell.zoom, fx: cell.fx, fy: cell.fy, turn: cell.turn || 0, flip: cell.flip,
+        look: image ? { bitmap: image.bitmap, width: image.width, height: image.height, unwarped: image.unwarped, warp: image.warp, mask: image.mask } : null
+      };
     })
   };
 }
@@ -4340,6 +5097,7 @@ function sameAs(a, b) {
   for (var i = 0; i < a.cells.length; i++) {
     var x = a.cells[i], y = b.cells[i];
     if (x.image !== y.image || x.zoom !== y.zoom || x.fx !== y.fx || x.fy !== y.fy || x.turn !== y.turn || x.flip !== y.flip) return false;
+    if ((x.look && x.look.bitmap) !== (y.look && y.look.bitmap)) return false;
   }
   return true;
 }
@@ -4371,6 +5129,14 @@ function undo() {
   snap.cells.forEach(function (saved, index) {
     var cell = cells[index];
     ['image', 'zoom', 'fx', 'fy', 'turn', 'flip'].forEach(function (key) { cell[key] = saved[key]; });
+    /* a photo redrawn by Four-point line up goes back to how it was */
+    var image = cell.image, look = saved.look;
+    if (image && look && image.bitmap !== look.bitmap) {
+      ['bitmap', 'width', 'height', 'unwarped', 'warp', 'mask'].forEach(function (key) { image[key] = look[key]; });
+      image.edges = null;
+      image.subject = undefined;
+      buildCut(image);
+    }
   });
   swipePosition = snap.split;
   undoLast = { key: '', at: 0 };
@@ -5633,7 +6399,7 @@ document.addEventListener('paste', function (event) {
 /* The choices are kept in this browser so the app opens the way it was left.
    Photos, labels and dates are never kept. */
 var KEPT = ['layout', 'shape', 'gap', 'background', 'labels', 'size', 'format', 'zoom-scope', 'free-move',
-  'cover-kind', 'cover-on', 'cover-eyes-how', 'bg-how', 'bg-on', 'bg-size', 'bg-soft', 'bg-ghost', 'cover-colour', 'cover-strength', 'mark-kind', 'mark-colour', 'mark-width', 'mark-show',
+  'cover-kind', 'cover-on', 'cover-eyes-how', 'bg-how', 'bg-on', 'bg-size', 'bg-soft', 'bg-ghost', 'bg-carry', 'cover-colour', 'cover-strength', 'mark-kind', 'mark-colour', 'mark-width', 'mark-show',
   'tape-seconds', 'date-place', 'date-style', 'credit-text', 'credit-place',
   'wm-text', 'wm-place', 'wm-size', 'wm-strength', 'wm-colour'];
 var KEPT_NAME = 'collage-maker-settings';
