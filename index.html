@@ -4302,6 +4302,34 @@ function partRefine(target, part, guess) {
 }
 
 var PART_SURE = 0.5;
+/* below this a found part is not trusted enough to move the photo */
+var PART_PLACE = 0.6;
+
+/* How well the two subjects cover each other once the fit is applied, from 0
+   to 1. A fit that matched the wrong spots leaves the person or the arm
+   sitting off its outline on the first photo. */
+function subjectOverlap(ref, cell, refSub, sub, fit) {
+  var size = Math.hypot(fit.a, fit.b), turn = Math.atan2(fit.b, fit.a);
+  var cos = Math.cos(-turn), sin = Math.sin(-turn);
+  var both = 0, either = 0, step = Math.max(1, Math.round(refSub.w / 160));
+  for (var y = 0; y < refSub.h; y += step) {
+    for (var x = 0; x < refSub.w; x += step) {
+      var inRef = refSub.hard[y * refSub.w + x] > 0;
+      var u = (x + 0.5) / refSub.w, v = (y + 0.5) / refSub.h;
+      var px = (ref.flip ? 1 - u : u) * ref.image.width, py = v * ref.image.height;
+      var dx = px - fit.tx, dy = py - fit.ty;
+      var tx = (cos * dx - sin * dy) / size / cell.image.width, ty = (sin * dx + cos * dy) / size / cell.image.height;
+      var inCell = false;
+      if (tx >= 0 && ty >= 0 && tx < 1 && ty < 1) {
+        var su = cell.flip ? 1 - tx : tx;
+        inCell = sub.hard[Math.floor(ty * sub.h) * sub.w + Math.floor(su * sub.w)] > 0;
+      }
+      if (inRef && inCell) both++;
+      if (inRef || inCell) either++;
+    }
+  }
+  return either ? both / either : 0;
+}
 
 /* Finds the part drawn on the first photo (a loop of spots on it, 0 to 1
    across the photo as it was opened) on another photo. Gives the fit that
@@ -4356,6 +4384,8 @@ function findPart(ref, cell, loop, other) {
 }
 
 var lining = false;
+var SUBJECT_OVERLAP = 0.3;
+var lineChecks = [];
 
 function lineUp(list, area) {
   if (lining) return;
@@ -4394,29 +4424,36 @@ function lineUp(list, area) {
         if (area) {
           found = findFit(from, to, box);
           part = findPart(ref, cell, area.loop, found ? inPixels(found, from, to) : null);
-          if (part && part.fit) {
+          if (part && part.fit && (part.how === 'spots' || part.score >= PART_PLACE)) {
             fit = part.fit;
             if (part.how === 'part') parts++;
             else spots = found.count;
-            sure = part.how === 'spots' || part.score >= PART_SURE + 0.1;
+            sure = part.how === 'spots' || part.score >= PART_PLACE + 0.08;
           }
         } else if (refSub && subs[n + 1]) {
           var sub = subs[n + 1];
           found = findFit(from, to, null, function (m) {
             return inSubject(sub, cell.flip, m.p.x / from.w, m.p.y / from.h) && inSubject(refSub, ref.flip, m.q.x / to.w, m.q.y / to.h);
           });
+          var overlap = 0;
           if (found) {
             fit = inPixels(found, from, to);
             spots = found.count;
-          } else {
+            overlap = subjectOverlap(ref, cell, refSub, sub, fit);
+          }
+          /* matched spots that leave the subject off its outline are a wrong
+             match, so the middle of the subject is looked for instead */
+          if (!fit || overlap < SUBJECT_OVERLAP) {
             var loop = middleLoop(refSub);
             part = loop ? findPart(ref, cell, loop, null) : null;
-            if (part && part.fit) {
+            var partOverlap = part && part.fit ? subjectOverlap(ref, cell, refSub, sub, part.fit) : 0;
+            if (part && part.fit && part.score >= PART_PLACE && partOverlap >= SUBJECT_OVERLAP && partOverlap > overlap) {
               fit = part.fit;
               parts++;
-              sure = part.score >= PART_SURE + 0.1;
-            }
-          }
+              sure = part.score >= PART_PLACE + 0.08;
+            } else if (overlap < SUBJECT_OVERLAP) fit = null;
+            lineChecks.push({ index: index, overlap: overlap, part: part ? part.score : null, partOverlap: partOverlap });
+          } else lineChecks.push({ index: index, overlap: overlap });
         } else {
           found = findFit(from, to);
           if (found) {
@@ -4449,9 +4486,8 @@ function lineUp(list, area) {
     else if (placed.length) message('Lined up ' + placed.map(photoName).join(' and ') + ' on ' + photoName(0) + how + '.' + edges, true);
     if (unsure.length) message('Check ' + unsure.map(photoName).join(' and ') + ', since the match there is weak. Two-point or Four-point line up can fix it.');
     if (missed.length) {
-      message(area
-        ? 'Could not find the part on ' + missed.map(photoName).join(' and ') + '. Use Four-point line up, since it also handles a different camera angle.'
-        : 'No match found for ' + missed.map(photoName).join(' and ') + '. Try Line up on a part, or tap the spots with Two-point or Four-point line up.');
+      message((area ? 'Could not find the part for sure on ' : 'Could not line up ') + missed.map(photoName).join(' and ')
+        + (area ? '' : ' for sure') + ', so it stays where it was. Tap the same two spots on both photos with Two-point line up, like both ends of the scar. When the photos were taken from different angles, Four-point line up matches the angle too.');
     }
   });
 }
