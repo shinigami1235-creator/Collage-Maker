@@ -31,6 +31,7 @@ installed the app keeps serving the old build until that string changes.
     vendor/pdf-lib.min.js      used by the PDF export
     vendor/jsfeat.min.js       finds and pairs the spots for Auto line up
     vendor/mediapipe/          MediaPipe face detection 0.4, Apache 2.0, finds the eyes for Cover the eyes
+    vendor/mediapipe-selfie/   MediaPipe selfie segmentation 0.1, Apache 2.0, finds the person for Remove the background
 
 Settings are kept in the browser under `collage-maker-settings`. Photos,
 labels and dates are never kept.

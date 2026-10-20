@@ -320,21 +320,47 @@ body.full .hint { display: none !important; }
           <label for="shape">Cell shape</label>
           <select id="shape"></select>
         </div>
+
+        <h4 class="sub">Background</h4>
+        <div class="actions">
+          <button class="btn btn-primary" type="button" id="bg-auto">Remove the background</button>
+          <button class="btn" type="button" id="bg-draw">Draw around it</button>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="bg-how">The line</label>
+            <select id="bg-how">
+              <option value="keep" selected>Keeps what is inside</option>
+              <option value="add">Adds back what is inside</option>
+              <option value="take">Takes away what is inside</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="bg-on">Works on</label>
+            <select id="bg-on">
+              <option value="every" selected>Every photo</option>
+              <option value="one">This photo only</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="background">Background colour</label>
+          <input type="color" id="background" value="#ffffff">
+        </div>
+        <div class="actions">
+          <button class="btn" type="button" id="bg-back">Put the background back</button>
+        </div>
+        <p class="note">Draw a loose loop a little outside the subject and the line moves in onto its edge, like the outline in Camera Overlay. The removed part shows the background colour.</p>
+
         <details class="more">
           <summary>More</summary>
-          <div class="row">
-            <div class="field">
-              <label for="gap">Gap</label>
-              <select id="gap">
-                <option value="0">None</option>
-                <option value="10" selected>Thin</option>
-                <option value="25">Wide</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="background">Background</label>
-              <input type="color" id="background" value="#ffffff">
-            </div>
+          <div class="field">
+            <label for="gap">Gap</label>
+            <select id="gap">
+              <option value="0">None</option>
+              <option value="10" selected>Thin</option>
+              <option value="25">Wide</option>
+            </select>
           </div>
         </details>
       </section>
@@ -630,6 +656,7 @@ body.full .hint { display: none !important; }
           <li>Add the photos, or paste one with Ctrl+V. They fill the cells in the order you picked them. Swap trades two over, and Before and After stay on their own side. New set clears the photos with their covers, marks and labels, and needs a second press.</li>
           <li>Pick a tool. It decides what dragging on the picture does and shows only the controls for that job.</li>
           <li>Photos: drag a photo inside its cell to move it, and scroll or pinch to zoom.</li>
+          <li>Background: Remove the background finds the person on every photo, or anything that stands apart from a plain background. Draw around it takes a loose loop drawn a little outside the subject and moves it in onto the subject's edge, for a hand, a product or a busy background. The line can keep what is inside, add it back or take it away. The removed part shows the background colour.</li>
           <li>Line up: in Swipe, drag a photo to move it or drag the divider to slide it. The photo you touch becomes the one picked under Moves, and the arrows, Size and Turn work on it. Both moves the two together. In Grid, Zoom works on All photos zooms them together to the same spot.</li>
           <li>Auto line up matches small spots across the photos and moves, sizes and turns each photo onto the first, even one taken on its side. It runs by itself when the second photo of a pair goes in. Line up on an area uses only the spots inside a box you drag around the face or the treated area. Two-point line up has you tap the same two spots on each photo instead, like both pupils.</li>
           <li>View: See-through lays the second photo over the first at half strength and Differences shows only where they differ. Both are for checking the line up and never show in the saved picture.</li>
@@ -947,7 +974,7 @@ function drawPhoto(c, cell, rect) {
     c.rotate(angle);
     c.translate(-mx, -my);
   }
-  c.drawImage(cell.image.bitmap, at.x, at.y, at.width, at.height);
+  c.drawImage(cell.image.cut || cell.image.bitmap, at.x, at.y, at.width, at.height);
   c.restore();
 }
 
@@ -1079,6 +1106,570 @@ function drawSwipe(ctx, settings, cells, width, position, view) {
     if (shown > 0) paintLabel(ctx, box, words, shown);
   });
   return { width: width, height: height, cut: cut };
+}
+
+/* ---------- removing the background ---------- */
+
+/* A photo's cut-out is kept as a mask of up to 1024 pixels on the long side,
+   0 for gone and 255 for kept, laid over the photo as it was opened, so the
+   cut follows the photo when it is moved, sized or turned. photo.cut is the
+   photo with the mask applied, which is what gets drawn. */
+var MASK_SIDE = 1024;
+
+function maskSize(image) {
+  var k = Math.min(1, MASK_SIDE / Math.max(image.width, image.height));
+  return { w: Math.max(1, Math.round(image.width * k)), h: Math.max(1, Math.round(image.height * k)) };
+}
+
+function photoPixels(image, w, h) {
+  var canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  var c = canvas.getContext('2d', { willReadFrequently: true });
+  c.drawImage(image.bitmap, 0, 0, w, h);
+  return c.getImageData(0, 0, w, h).data;
+}
+
+function buildCut(image) {
+  if (!image.mask) { image.cut = null; return; }
+  var k = Math.min(1, 2400 / Math.max(image.width, image.height));
+  var w = Math.round(image.width * k), h = Math.round(image.height * k);
+  var holes = document.createElement('canvas');
+  holes.width = image.mask.w;
+  holes.height = image.mask.h;
+  var hc = holes.getContext('2d');
+  var data = hc.createImageData(image.mask.w, image.mask.h);
+  for (var i = 0; i < image.mask.alpha.length; i++) {
+    data.data[i * 4] = data.data[i * 4 + 1] = data.data[i * 4 + 2] = 255;
+    data.data[i * 4 + 3] = image.mask.alpha[i];
+  }
+  hc.putImageData(data, 0, 0);
+  var cut = document.createElement('canvas');
+  cut.width = w;
+  cut.height = h;
+  var c = cut.getContext('2d');
+  c.drawImage(image.bitmap, 0, 0, w, h);
+  c.globalCompositeOperation = 'destination-in';
+  c.imageSmoothingQuality = 'high';
+  c.drawImage(holes, 0, 0, w, h);
+  image.cut = cut;
+}
+
+/* Box blur of a 0 to 1 map, used to soften and to find the edge band. */
+function boxBlur(src, w, h, r) {
+  var tmp = new Float32Array(w * h), out = new Float32Array(w * h);
+  for (var y = 0; y < h; y++) {
+    var sum = 0, row = y * w;
+    for (var x = -r; x <= r; x++) sum += src[row + Math.min(w - 1, Math.max(0, x))];
+    for (x = 0; x < w; x++) {
+      tmp[row + x] = sum / (2 * r + 1);
+      sum += src[row + Math.min(w - 1, x + r + 1)] - src[row + Math.max(0, x - r)];
+    }
+  }
+  for (x = 0; x < w; x++) {
+    sum = 0;
+    for (y = -r; y <= r; y++) sum += tmp[Math.min(h - 1, Math.max(0, y)) * w + x];
+    for (y = 0; y < h; y++) {
+      out[y * w + x] = sum / (2 * r + 1);
+      sum += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x];
+    }
+  }
+  return out;
+}
+
+/* A few typical colours of a set of pixels, by k-means. */
+function colourGroups(pixels, list, k) {
+  if (!list.length) return [];
+  var centres = [];
+  for (var i = 0; i < k; i++) {
+    var p = list[Math.floor((i + 0.5) * list.length / k)] * 4;
+    centres.push([pixels[p], pixels[p + 1], pixels[p + 2]]);
+  }
+  for (var round = 0; round < 8; round++) {
+    var sums = centres.map(function () { return [0, 0, 0, 0]; });
+    list.forEach(function (n) {
+      var q = n * 4, best = 0, bestD = Infinity;
+      for (var j = 0; j < centres.length; j++) {
+        var c = centres[j], d = (pixels[q] - c[0]) * (pixels[q] - c[0]) + (pixels[q + 1] - c[1]) * (pixels[q + 1] - c[1]) + (pixels[q + 2] - c[2]) * (pixels[q + 2] - c[2]);
+        if (d < bestD) { bestD = d; best = j; }
+      }
+      var s = sums[best];
+      s[0] += pixels[q]; s[1] += pixels[q + 1]; s[2] += pixels[q + 2]; s[3]++;
+    });
+    centres = centres.map(function (c, j) { var s = sums[j]; return s[3] ? [s[0] / s[3], s[1] / s[3], s[2] / s[3]] : c; });
+  }
+  return centres;
+}
+
+function nearest(pixels, q, centres) {
+  var best = Infinity;
+  for (var j = 0; j < centres.length; j++) {
+    var c = centres[j], d = (pixels[q] - c[0]) * (pixels[q] - c[0]) + (pixels[q + 1] - c[1]) * (pixels[q + 1] - c[1]) + (pixels[q + 2] - c[2]) * (pixels[q + 2] - c[2]);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+/* Tidies a rough mask along its edge. In a band either side of the edge each
+   pixel is kept or dropped by whether its colour is closer to the subject's
+   colours or the background's, so the cut follows hair and skin instead of
+   the blocky first guess. trust is how much the first guess still counts. */
+function tidyEdge(pixels, w, h, rough, band, trust) {
+  var hard = new Float32Array(w * h);
+  for (var i = 0; i < hard.length; i++) hard[i] = rough[i] > 0.5 ? 1 : 0;
+  var spread = boxBlur(hard, w, h, band);
+  var keep = [], gone = [];
+  var step = Math.max(1, Math.floor(w * h / 60000));
+  for (i = 0; i < hard.length; i += step) {
+    if (spread[i] > 0.999) keep.push(i);
+    else if (spread[i] < 0.001) gone.push(i);
+  }
+  var inside = colourGroups(pixels, keep, 6), outside = colourGroups(pixels, gone, 6);
+  var alpha = new Float32Array(w * h);
+  for (i = 0; i < hard.length; i++) {
+    if (spread[i] > 0.999 || spread[i] < 0.001 || !inside.length || !outside.length) { alpha[i] = hard[i]; continue; }
+    var din = nearest(pixels, i * 4, inside), dout = nearest(pixels, i * 4, outside);
+    var a = Math.sqrt(dout) / (Math.sqrt(din) + Math.sqrt(dout) + 1e-6);
+    a = Math.min(1, Math.max(0, (a - 0.5) * 3.5 + 0.5));
+    alpha[i] = a * (1 - trust) + rough[i] * trust;
+  }
+  alpha = boxBlur(alpha, w, h, 1);
+  var out = new Uint8Array(w * h);
+  for (i = 0; i < alpha.length; i++) out[i] = Math.round(Math.min(1, Math.max(0, alpha[i])) * 255);
+  return out;
+}
+
+/* The person finder, loaded on first use from the app's own copy. */
+var cutter = null;
+var cutterAnswer = null;
+
+function loadCutter() {
+  if (cutter) return cutter;
+  cutter = new Promise(function (done, fail) {
+    var script = document.createElement('script');
+    script.src = './vendor/mediapipe-selfie/selfie_segmentation.js';
+    script.onload = function () {
+      try {
+        var found = new window.SelfieSegmentation({ locateFile: function (file) { return './vendor/mediapipe-selfie/' + file; } });
+        found.setOptions({ modelSelection: 0 });
+        found.onResults(function (results) {
+          if (cutterAnswer) { var answer = cutterAnswer; cutterAnswer = null; answer(results.segmentationMask); }
+        });
+        found.initialize().then(function () { done(found); }, fail);
+      } catch (error) { fail(error); }
+    };
+    script.onerror = function () { fail(new Error('missing')); };
+    document.head.appendChild(script);
+  });
+  cutter.catch(function () { cutter = null; });
+  return cutter;
+}
+
+function personMask(found, image, w, h) {
+  var canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  canvas.getContext('2d').drawImage(image.bitmap, 0, 0, w, h);
+  /* the wide model keeps people apart better on wide photos, and the square
+     one does better on tall ones, such as an arm shot from above */
+  found.setOptions({ modelSelection: w > h * 1.15 ? 1 : 0 });
+  return new Promise(function (done) {
+    cutterAnswer = function (mask) {
+      var read = document.createElement('canvas');
+      read.width = w;
+      read.height = h;
+      var c = read.getContext('2d', { willReadFrequently: true });
+      c.drawImage(mask, 0, 0, w, h);
+      var data = c.getImageData(0, 0, w, h).data;
+      var out = new Float32Array(w * h);
+      /* the finder is generous around the head, so only its surer part counts */
+      for (var i = 0; i < out.length; i++) out[i] = Math.min(1, Math.max(0, (Math.max(data[i * 4], data[i * 4 + 3]) / 255 - 0.75) * 3 + 0.5));
+      /* the finder works at 256 pixels, so its edge is softened before it is used */
+      done(boxBlur(out, w, h, Math.max(2, Math.round(Math.max(w, h) / 200))));
+    };
+    found.send({ image: canvas }).catch(function () { cutterAnswer = null; done(null); });
+  });
+}
+
+/* For anything that is not a person: the colours around the border of the
+   photo are taken as the background, and what is connected to the border in
+   those colours is dropped. What stands apart from them stays, which suits a
+   plain wall, a sheet or a table. */
+function borderMask(pixels, w, h) {
+  var edge = Math.max(2, Math.round(Math.min(w, h) * 0.03));
+  var ring = [];
+  for (var y = 0; y < h; y += 2) {
+    for (var x = 0; x < w; x += 2) {
+      if (x < edge || y < edge || x >= w - edge || y >= h - edge) ring.push(y * w + x);
+    }
+  }
+  var centres = colourGroups(pixels, ring, 5);
+  var near = ring.map(function (n) { return nearest(pixels, n * 4, centres); }).sort(function (a, b) { return a - b; });
+  var limit = near[Math.floor(near.length * 0.9)] * 2.2 + 400;
+  var gone = new Uint8Array(w * h), queue = new Int32Array(w * h), head = 0, tail = 0;
+  var push = function (n) {
+    if (gone[n] || nearest(pixels, n * 4, centres) > limit) return;
+    gone[n] = 1;
+    queue[tail++] = n;
+  };
+  for (x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+  for (y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+  while (head < tail) {
+    var n = queue[head++], px = n % w, py = (n - px) / w;
+    if (px > 0) push(n - 1);
+    if (px < w - 1) push(n + 1);
+    if (py > 0) push(n - w);
+    if (py < h - 1) push(n + w);
+  }
+  var out = new Float32Array(w * h);
+  for (var i = 0; i < out.length; i++) out[i] = gone[i] ? 0 : 1;
+  return out;
+}
+
+/* Drops loose bits that are much smaller than the main subject and fills
+   small holes inside it, so specks of wall stay gone and specks of shirt stay. */
+function tidyParts(mask, w, h, seed) {
+  var hard = new Uint8Array(w * h);
+  for (var i = 0; i < hard.length; i++) hard[i] = mask[i] > 0.5 ? 1 : 0;
+  var group = new Int32Array(w * h).fill(-1), queue = new Int32Array(w * h);
+  var sizes = [], edges = [];
+  for (var start = 0; start < hard.length; start++) {
+    if (group[start] >= 0) continue;
+    var id = sizes.length, kind = hard[start], head = 0, tail = 0, size = 0, border = false;
+    group[start] = id;
+    queue[tail++] = start;
+    while (head < tail) {
+      var n = queue[head++], x = n % w, y = (n - x) / w;
+      size++;
+      if (x === 0 || y === 0 || x === w - 1 || y === h - 1) border = true;
+      var near = [x > 0 ? n - 1 : -1, x < w - 1 ? n + 1 : -1, y > 0 ? n - w : -1, y < h - 1 ? n + w : -1];
+      for (var j = 0; j < 4; j++) {
+        var m = near[j];
+        if (m >= 0 && group[m] < 0 && hard[m] === kind) { group[m] = id; queue[tail++] = m; }
+      }
+    }
+    sizes.push(kind ? size : -size);
+    edges.push(border);
+  }
+  var biggest = 0;
+  sizes.forEach(function (size) { if (size > biggest) biggest = size; });
+  /* with a face found, only the person whose face it is stays */
+  var only = seed !== undefined && seed >= 0 && hard[seed] ? group[seed] : -1;
+  var out = new Float32Array(w * h);
+  for (i = 0; i < hard.length; i++) {
+    var size = sizes[group[i]];
+    if (size > 0) out[i] = (only >= 0 ? group[i] === only : size >= biggest * 0.3) ? mask[i] : 0;
+    else out[i] = !edges[group[i]] && -size < w * h * 0.01 ? 1 : mask[i];
+  }
+  return out;
+}
+
+function share(mask) {
+  var sum = 0;
+  for (var i = 0; i < mask.length; i++) sum += mask[i] > 0.5 ? 1 : 0;
+  return sum / mask.length;
+}
+
+var cutting = false;
+
+function bgTargets(only) {
+  return photoSpots(stageWidth(), only === undefined ? -1 : only);
+}
+
+el('bg-auto').addEventListener('click', function () {
+  if (cutting) return;
+  var spots = bgTargets();
+  if (!spots.length) return;
+  cutting = true;
+  bgButtons();
+  var done = 0, missed = [];
+  var finish = function () {
+    cutting = false;
+    bgButtons();
+    paint();
+    if (done) message('Removed the background on ' + done + (done === 1 ? ' photo.' : ' photos.'), true);
+    if (missed.length) message('No subject found on ' + missed.map(photoName).join(' and ') + '. Use Draw around it on '
+      + (missed.length === 1 ? 'that one.' : 'those.'));
+  };
+  var none = function () { return null; };
+  /* the two finders are loaded and run one after the other, since loading
+     both at once can stop one of them starting */
+  var found = null, faces = null;
+  loadCutter().then(function (got) { found = got; }, none).then(function () {
+    return loadFinder().then(function (got) { faces = got; }, none);
+  }).then(function () {
+    var next = function (n) {
+      if (n >= spots.length) return Promise.resolve();
+      var image = cells[spots[n].index].image;
+      var size = maskSize(image);
+      var pixels = photoPixels(image, size.w, size.h);
+      var got = [];
+      return Promise.resolve(found ? personMask(found, image, size.w, size.h) : null).then(function (mask) {
+        got[0] = mask;
+        return faces ? eyesOf(faces, image).then(null, function () { return []; }) : [];
+      }).then(function (eyes) {
+        got[1] = eyes;
+        /* The person finder is used when the photo has a face, or when the
+           plain background test finds nothing, since it also picks out arms
+           and legs. Without a face it can mistake a cup for a person. */
+        var seed = -1;
+        if (got[1].length) {
+          var face = got[1][0];
+          var fx = Math.round((face.a.u + face.b.u) / 2 * (size.w - 1)), fy = Math.round((face.a.v + face.b.v) / 2 * (size.h - 1));
+          if (fx >= 0 && fy >= 0 && fx < size.w && fy < size.h) seed = fy * size.w + fx;
+        }
+        var person = got[0] && share(got[0]) > 0.04 ? tidyParts(got[0], size.w, size.h, seed) : null;
+        var plain = tidyParts(borderMask(pixels, size.w, size.h), size.w, size.h);
+        var fits = function (mask) { var part = share(mask); return part > 0.03 && part < 0.97; };
+        var rough = person && (got[1].length || !fits(plain)) ? person : plain;
+        if (!fits(rough)) { missed.push(spots[n].index); return next(n + 1); }
+        var band = Math.max(3, Math.round(Math.max(size.w, size.h) * 0.012));
+        image.mask = { w: size.w, h: size.h, alpha: tidyEdge(pixels, size.w, size.h, rough, band, rough === person ? 0.3 : 0.2) };
+        buildCut(image);
+        done++;
+        return next(n + 1);
+      });
+    };
+    return next(0);
+  }).then(finish, function (error) { message(error.message); finish(); });
+});
+
+el('bg-back').addEventListener('click', function () {
+  photos.forEach(function (photo) { photo.mask = null; photo.cut = null; });
+  bgButtons();
+  paint();
+});
+
+/* ---------- drawing around the subject ---------- */
+
+/* The same edge pull as Camera Overlay: the loop is cut into 240 points, each
+   point may slide in or out along the loop's normal, and a single pass picks
+   the slides that sit on the strongest edges, stay near the line drawn and do
+   not zigzag. It runs wide and then close. */
+var SNAP_POINTS = 240;
+var SNAP_BANDS = [0.12, 0.05];
+var SNAP_STICK = 0.35;
+var SNAP_BEND = 0.1;
+var SNAP_EDGE_FULL = 160;
+var SNAP_FIRST = 0.3;
+var SNAP_FIRST_PULL = 0.5;
+
+function edgeMap(image) {
+  if (image.edges) return image.edges;
+  var k = Math.min(1, 480 / Math.max(image.width, image.height));
+  var w = Math.max(1, Math.round(image.width * k)), h = Math.max(1, Math.round(image.height * k));
+  var data = photoPixels(image, w, h);
+  var gray = new Float32Array(w * h);
+  for (var i = 0, p = 0; i < data.length; i += 4, p++) gray[p] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+  var mag = new Float32Array(w * h);
+  for (var y = 1; y < h - 1; y++) {
+    for (var x = 1; x < w - 1; x++) {
+      var n = y * w + x;
+      var gx = -gray[n - w - 1] + gray[n - w + 1] - 2 * gray[n - 1] + 2 * gray[n + 1] - gray[n + w - 1] + gray[n + w + 1];
+      var gy = -gray[n - w - 1] - 2 * gray[n - w] - gray[n - w + 1] + gray[n + w - 1] + 2 * gray[n + w] + gray[n + w + 1];
+      mag[n] = Math.sqrt(gx * gx + gy * gy);
+    }
+  }
+  image.edges = { w: w, h: h, mag: mag };
+  return image.edges;
+}
+
+function snapLoop(image, loop, band) {
+  var map = edgeMap(image), w = map.w, h = map.h, mag = map.mag;
+  var edgeAt = function (x, y) {
+    if (x < 0 || y < 0 || x > w - 1 || y > h - 1) return 0;
+    var x0 = Math.floor(x), y0 = Math.floor(y), x1 = Math.min(w - 1, x0 + 1), y1 = Math.min(h - 1, y0 + 1);
+    var fx = x - x0, fy = y - y0;
+    var v = mag[y0 * w + x0] * (1 - fx) * (1 - fy) + mag[y0 * w + x1] * fx * (1 - fy) + mag[y1 * w + x0] * (1 - fx) * fy + mag[y1 * w + x1] * fx * fy;
+    return Math.min(1, v / SNAP_EDGE_FULL);
+  };
+  var pts = loop.map(function (p) { return { x: p.u * w, y: p.v * h }; });
+  var segLen = [], total = 0;
+  for (var i = 0; i < pts.length; i++) {
+    var a = pts[i], b = pts[(i + 1) % pts.length];
+    var d = Math.hypot(b.x - a.x, b.y - a.y);
+    segLen.push(d);
+    total += d;
+  }
+  if (total < 1) return loop;
+  var N = SNAP_POINTS, even = [], seg = 0, into = 0;
+  for (i = 0; i < N; i++) {
+    var target = (i / N) * total;
+    while (into + segLen[seg] < target && seg < pts.length - 1) { into += segLen[seg]; seg++; }
+    a = pts[seg]; b = pts[(seg + 1) % pts.length];
+    var t = segLen[seg] > 0 ? (target - into) / segLen[seg] : 0;
+    even.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+  }
+  var normals = even.map(function (p, n) {
+    var before = even[(n - 1 + N) % N], after = even[(n + 1) % N];
+    var tx = after.x - before.x, ty = after.y - before.y, len = Math.hypot(tx, ty) || 1;
+    return { x: -ty / len, y: tx / len };
+  });
+  var K = Math.max(3, Math.round(band * Math.min(w, h))), S = 2 * K + 1, MAX_STEP = 3;
+  /* which way along the normal is inside the loop */
+  var area = 0;
+  for (i = 0; i < N; i++) area += even[i].x * even[(i + 1) % N].y - even[(i + 1) % N].x * even[i].y;
+  var ins = area > 0 ? 1 : -1;
+  var unary = new Float32Array(N * S), along = new Float32Array(S);
+  for (i = 0; i < N; i++) {
+    for (var s = 0; s < S; s++) {
+      var off = s - K;
+      along[s] = edgeAt(even[i].x + normals[i].x * off, even[i].y + normals[i].y * off);
+      unary[i * S + s] = -along[s] + SNAP_STICK * Math.abs(off) / K;
+    }
+    /* The loop is drawn outside the subject, so the first clear edge met going
+       in from the line is most likely the subject's outline. Without this the
+       line can jump to a stronger edge inside, such as a hairline. */
+    for (var t = 0; t <= K; t++) {
+      var at = K + t * ins, before = K + (t - 1) * ins, after = K + (t + 1) * ins;
+      var v = along[at];
+      if (v < SNAP_FIRST) continue;
+      if ((t > 0 && along[before] > v) || (t < K && along[after] > v)) continue;
+      for (var spread = -1; spread <= 1; spread++) {
+        var q = at + spread;
+        if (q >= 0 && q < S) unary[i * S + q] -= SNAP_FIRST_PULL * (spread ? 0.5 : 1);
+      }
+      break;
+    }
+  }
+  var L = 2 * N, back = new Int16Array(L * S), prev = new Float32Array(S), cur = new Float32Array(S);
+  for (s = 0; s < S; s++) prev[s] = unary[s];
+  for (var l = 1; l < L; l++) {
+    var at = l % N;
+    for (s = 0; s < S; s++) {
+      var best = Infinity, arg = s;
+      for (var dd = -MAX_STEP; dd <= MAX_STEP; dd++) {
+        var q = s + dd;
+        if (q < 0 || q >= S) continue;
+        var cost = prev[q] + SNAP_BEND * Math.abs(dd);
+        if (cost < best) { best = cost; arg = q; }
+      }
+      cur[s] = best + unary[at * S + s];
+      back[l * S + s] = arg;
+    }
+    var swap = prev; prev = cur; cur = swap;
+  }
+  var end = 0;
+  for (s = 1; s < S; s++) if (prev[s] < prev[end]) end = s;
+  var slide = new Array(L);
+  for (l = L - 1, s = end; l >= 0; l--) { slide[l] = s - K; s = back[l * S + s]; }
+  var moved = slide.slice(N);
+  for (var pass = 0; pass < 2; pass++) {
+    moved = moved.map(function (v, n) { return (moved[(n - 1 + N) % N] + v + moved[(n + 1) % N]) / 3; });
+  }
+  return even.map(function (p, n) { return { u: (p.x + normals[n].x * moved[n]) / w, v: (p.y + normals[n].y * moved[n]) / h }; });
+}
+
+function loopMask(loop, w, h) {
+  var canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  var c = canvas.getContext('2d', { willReadFrequently: true });
+  c.fillStyle = '#fff';
+  c.beginPath();
+  loop.forEach(function (p, i) { if (i) c.lineTo(p.u * w, p.v * h); else c.moveTo(p.u * w, p.v * h); });
+  c.closePath();
+  c.fill();
+  var data = c.getImageData(0, 0, w, h).data;
+  var out = new Float32Array(w * h);
+  for (var i = 0; i < out.length; i++) out[i] = data[i * 4 + 3] / 255;
+  return boxBlur(out, w, h, 1);
+}
+
+var lasso = null;
+
+function bgButtons() {
+  var any = cells.some(function (cell) { return cell.image; });
+  el('bg-auto').disabled = cutting || !any || Boolean(lasso);
+  el('bg-auto').textContent = cutting ? 'Removing the background' : 'Remove the background';
+  el('bg-draw').disabled = cutting || !any;
+  el('bg-draw').textContent = lasso ? 'Cancel' : 'Draw around it';
+  el('bg-back').disabled = !photos.some(function (photo) { return photo.mask; });
+}
+
+function cancelLasso() {
+  if (!lasso) return;
+  lasso = null;
+  say('');
+  showTools();
+  bgButtons();
+  paint();
+}
+
+el('bg-draw').addEventListener('click', function () {
+  if (lasso) { cancelLasso(); return; }
+  cancelPins();
+  cancelArea();
+  lasso = { points: [], id: null };
+  say('Draw a loose loop a little outside the subject and lift your finger to finish.');
+  showTools();
+  bgButtons();
+  paint();
+});
+
+/* The loop is drawn once on the picture. Each photo it works on gets it at
+   the same spot of its own cell, pulled onto that photo's own edges. */
+function finishLasso() {
+  var pts = lasso.points;
+  lasso = null;
+  say('');
+  showTools();
+  bgButtons();
+  var xs = pts.map(function (p) { return p.x; }), ys = pts.map(function (p) { return p.y; });
+  /* The loop may run off the photo, so the cell is the one most of it sits on. */
+  var home = null, most = 0;
+  photoSpots(stageWidth(), -1).forEach(function (spot) {
+    var r = spot.clip ? { x: spot.clip.x, y: spot.clip.y, width: spot.clip.w, height: spot.clip.h } : spot.rect;
+    var count = pts.filter(function (p) { return p.x >= r.x && p.y >= r.y && p.x <= r.x + r.width && p.y <= r.y + r.height; }).length;
+    if (count > most) { most = count; home = { cell: cells[spot.index], rect: spot.rect }; }
+  });
+  if (!home) {
+    var mid = { x: pts.reduce(function (a, p) { return a + p.x; }, 0) / pts.length, y: pts.reduce(function (a, p) { return a + p.y; }, 0) / pts.length };
+    home = cellUnder(mid);
+  }
+  if (pts.length < 12 || !home || Math.max.apply(null, xs) - Math.min.apply(null, xs) < home.rect.width * 0.04
+    || Math.max.apply(null, ys) - Math.min.apply(null, ys) < home.rect.height * 0.04) {
+    message('Draw a bigger loop around the subject.');
+    paint();
+    return;
+  }
+  var homeIndex = cells.indexOf(home.cell);
+  var spots = bgTargets(el('bg-on').value === 'one' ? homeIndex : -1);
+  var how = el('bg-how').value;
+  spots.forEach(function (spot) {
+    var cell = cells[spot.index], image = cell.image, r = spot.rect, hr = home.rect;
+    var loop = pts.map(function (p) {
+      return canvasToImage(cell, r, { x: r.x + (p.x - hr.x) / hr.width * r.width, y: r.y + (p.y - hr.y) / hr.height * r.height });
+    });
+    try {
+      SNAP_BANDS.forEach(function (band) { loop = snapLoop(image, loop, band); });
+    } catch (error) { /* the loop as drawn */ }
+    var size = image.mask ? { w: image.mask.w, h: image.mask.h } : maskSize(image);
+    var inside = loopMask(loop, size.w, size.h);
+    var old = image.mask ? image.mask.alpha : null;
+    var alpha = new Uint8Array(size.w * size.h);
+    for (var i = 0; i < alpha.length; i++) {
+      var line = Math.round(inside[i] * 255), was = old ? old[i] : 255;
+      alpha[i] = how === 'add' ? Math.max(was, line) : how === 'take' ? Math.min(was, 255 - line) : line;
+    }
+    image.mask = { w: size.w, h: size.h, alpha: alpha };
+    buildCut(image);
+  });
+  var words = { keep: 'Kept what is inside the line', add: 'Added back what is inside the line', take: 'Took away what is inside the line' };
+  message(words[how] + ' on ' + spots.length + (spots.length === 1 ? ' photo.' : ' photos.'), true);
+  paint();
+}
+
+function drawLasso(c) {
+  if (!lasso || lasso.points.length < 2) return;
+  c.save();
+  c.lineWidth = 3 / view.k;
+  c.lineJoin = 'round';
+  c.strokeStyle = '#E0B45A';
+  c.beginPath();
+  lasso.points.forEach(function (p, i) { if (i) c.lineTo(p.x, p.y); else c.moveTo(p.x, p.y); });
+  c.stroke();
+  c.restore();
 }
 
 /* ---------- finding the eyes ---------- */
@@ -1746,6 +2337,7 @@ function paint() {
     drawPicked(ctx);
     drawPins(ctx);
     drawArea(ctx);
+    drawLasso(ctx);
   } else {
     grid = drawGrid(ctx, config, cells, width);
     drawCovers(ctx, width);
@@ -1754,6 +2346,7 @@ function paint() {
     drawPicked(ctx);
     drawPins(ctx);
     drawArea(ctx);
+    drawLasso(ctx);
     if (close < 0) {
       markZoom(ctx, grid);
       if (picked >= 0 && grid.rects[picked]) {
@@ -1818,6 +2411,7 @@ function report() {
   }
   if (act.length) el('photo-size-read').textContent = Math.round(act[0].zoom * 100) + '%';
   el('photo-turn').disabled = act.length === 0;
+  bgButtons();
   if (act.length && document.activeElement !== el('photo-turn')) el('photo-turn').value = String(act[0].turn || 0);
   el('photo-turn-read').textContent = turnText(act.length ? act[0].turn : 0);
   lineButtons();
@@ -1953,6 +2547,7 @@ el('size').addEventListener('change', report);
 el('format').addEventListener('change', report);
 
 function showMode(next) {
+  cancelLasso();
   cancelPins();
   cancelArea();
   forgetUndo();
@@ -1988,6 +2583,10 @@ stage.addEventListener('pointerdown', function (event) {
   event.preventDefault();
   stage.setPointerCapture(event.pointerId);
   var point = stagePoint(event);
+  if (lasso) {
+    if (lasso.id === null) { lasso.id = event.pointerId; lasso.points = [point]; }
+    return;
+  }
   /* while tapping spots, a tap counts on lifting the finger, so a pinch to zoom
      in for a closer look does not drop a spot */
   if (areaPick) {
@@ -2133,6 +2732,12 @@ function ensureRoom(list, rect) {
 }
 
 stage.addEventListener('pointermove', function (event) {
+  if (lasso && event.pointerId === lasso.id) {
+    event.preventDefault();
+    lasso.points.push(stagePoint(event));
+    paint();
+    return;
+  }
   if (areaPick && areaPick.down && event.pointerId === areaPick.down.id) {
     event.preventDefault();
     areaPick.box = areaBox(areaPick.down, stagePoint(event));
@@ -2208,6 +2813,11 @@ stage.addEventListener('pointermove', function (event) {
 });
 
 function endDrag(event) {
+  if (lasso && event.pointerId === lasso.id) {
+    if (event.type === 'pointerup') finishLasso();
+    else { lasso.id = null; lasso.points = []; paint(); }
+    return;
+  }
   if (areaPick && areaPick.down && event.pointerId === areaPick.down.id) {
     areaPick.down = null;
     if (event.type === 'pointerup' && areaPick.box) finishArea();
@@ -2265,7 +2875,7 @@ function linkedZoom() {
 /* In Swipe a zoom works on the photo being moved, and on both while spots are
    being tapped, since only one of them shows then. */
 function zoomList() {
-  return pins || areaPick ? cells.filter(function (cell) { return cell.image; }) : activeCells();
+  return pins || areaPick || lasso ? cells.filter(function (cell) { return cell.image; }) : activeCells();
 }
 
 function targets(index) {
@@ -2638,6 +3248,8 @@ function showTools() {
     : 'Drag a photo or the divider';
   if (pins) el('swipe-hint').textContent = 'Tap spot ' + (pins.step % 2 + 1);
   if (areaPick) el('swipe-hint').textContent = 'Drag a box';
+  if (lasso) el('swipe-hint').textContent = 'Draw a loop around it';
+  el('swipe-hint').classList.toggle('hidden', !swipe && !lasso);
 }
 
 /* The photos the arrows and Bigger and Smaller act on, and the cell they are
@@ -4447,6 +5059,7 @@ function dragFor(name) {
 
 function pickTool(name) {
   if (name !== 'line' && name !== 'steps') { cancelPins(); cancelArea(); }
+  if (name !== 'photos' && name !== 'steps') cancelLasso();
   tool = name;
   TOOLS.forEach(function (key) {
     el('tool-' + key).classList.toggle('on', key === name);
@@ -4768,7 +5381,7 @@ document.addEventListener('paste', function (event) {
 /* The choices are kept in this browser so the app opens the way it was left.
    Photos, labels and dates are never kept. */
 var KEPT = ['layout', 'shape', 'gap', 'background', 'labels', 'size', 'format', 'zoom-scope', 'free-move',
-  'cover-kind', 'cover-on', 'cover-eyes-how', 'cover-colour', 'cover-strength', 'mark-kind', 'mark-colour', 'mark-width', 'mark-show',
+  'cover-kind', 'cover-on', 'cover-eyes-how', 'bg-how', 'bg-on', 'cover-colour', 'cover-strength', 'mark-kind', 'mark-colour', 'mark-width', 'mark-show',
   'tape-seconds', 'date-place', 'date-style', 'credit-text', 'credit-place',
   'wm-text', 'wm-place', 'wm-size', 'wm-strength', 'wm-colour'];
 var KEPT_NAME = 'collage-maker-settings';

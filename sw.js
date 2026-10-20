@@ -1,6 +1,6 @@
 /* Bump CACHE_VERSION on every deploy, since that is what tells browsers a new
    version exists. */
-const CACHE_VERSION = 'v22';
+const CACHE_VERSION = 'v23';
 const CACHE = `collage-maker-${CACHE_VERSION}`;
 
 const FILES = [
@@ -21,6 +21,13 @@ const FILES = [
   './vendor/mediapipe/face_detection_short_range.tflite',
   './vendor/mediapipe/face_detection_full.binarypb',
   './vendor/mediapipe/face_detection_full_range_sparse.tflite',
+  './vendor/mediapipe-selfie/selfie_segmentation.js',
+  './vendor/mediapipe-selfie/selfie_segmentation.binarypb',
+  './vendor/mediapipe-selfie/selfie_segmentation.tflite',
+  './vendor/mediapipe-selfie/selfie_segmentation_landscape.tflite',
+  './vendor/mediapipe-selfie/selfie_segmentation_solution_simd_wasm_bin.js',
+  './vendor/mediapipe-selfie/selfie_segmentation_solution_simd_wasm_bin.wasm',
+  './vendor/mediapipe-selfie/selfie_segmentation_solution_simd_wasm_bin.data',
 ];
 
 /* cache: 'reload' goes past the browser's own copy to the server. GitHub Pages
