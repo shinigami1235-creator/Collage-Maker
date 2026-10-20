@@ -268,6 +268,11 @@ body.full .hint { display: none !important; }
 
 /* phones: tighter tabs so all seven tools still show */
 @media (max-width: 480px) {
+  .save-bar { flex-wrap: wrap; gap: 6px; }
+  .save-bar select { flex: 1 1 28%; min-width: 0; padding-left: 6px; padding-right: 18px; font-size: 14px; }
+  .save-bar select#post { flex-basis: 100%; }
+  .save-bar .grow { display: none; }
+  .save-bar .btn { flex: 1 1 40%; }
   .tools { gap: 2px; padding: 0 6px; }
   .tool { padding: 0 4px; font-size: 13.5px; }
 }
@@ -494,6 +499,20 @@ body.full .hint { display: none !important; }
 
       <section class="panel" id="panel-labels">
         <h3>Labels</h3>
+        <h4 class="sub">Brand kit</h4>
+        <div class="field">
+          <label for="kit">Kit</label>
+          <select id="kit"><option value="">None saved yet</option></select>
+        </div>
+        <div class="field">
+          <label for="kit-name">Kit name</label>
+          <input type="text" id="kit-name" maxlength="40" placeholder="Example: Cygnus Aesthetics Bangkok">
+        </div>
+        <div class="actions">
+          <button class="btn" type="button" id="kit-save">Save as a kit</button>
+          <button class="btn" type="button" id="kit-drop">Delete this kit</button>
+        </div>
+        <p class="note">A kit keeps the credit, the watermark with its logo, the date style, the label setting and the background colour. Pick it to use them all at once, one kit per clinic or branch.</p>
         <p class="note">Tap a label, the credit or the watermark on the picture to pick it, then drag it to move it. Drag the round handle above it to tilt it and the square corner to size it.</p>
         <div class="label-row hidden" id="picked-box">
           <div class="head" id="picked-name"></div>
@@ -724,6 +743,8 @@ body.full .hint { display: none !important; }
           <li>More under each tool holds the settings you need less often. The app keeps your settings for next time, while the photos, labels and dates are not kept.</li>
           <li>Press Save, or Share on a phone to send the picture straight to another app.</li>
           <li>Light: Matched to the first photo evens out the brightness, contrast and colour of the other photos to the first, measured on the part each one shows, so a darker room or a warmer lamp does not change how the result looks. As taken puts them back.</li>
+          <li>Brand kit: set the credit, the watermark and its logo once, type a name and press Save as a kit. Picking the kit later puts them all back.</li>
+          <li>The shape picker, beside Size, fits the picture into an Instagram post, a story or reel, a square or a wide video. In Swipe the frame takes that shape from edge to edge, and the swipe video uses it too. In Grid the background colour fills around the photos.</li>
           <li>Take a photo opens the camera with the first photo laid faintly over it, for shooting the next photo from the same spot. Guide switches between faint, strong, an outline of the first photo's edges and off. The light reading says when the room is brighter or darker than in the first photo. The photo goes into the next empty cell, or the picked one, and lines up by itself.</li>
         </ol>
         <p class="note">Proofline is powered by Cygnus Solutions.</p>
@@ -773,7 +794,15 @@ body.full .hint { display: none !important; }
 
   <div class="save-bar">
     <label class="count" for="size">Size</label>
+    <select id="post" style="width:auto" aria-label="Made for">
+      <option value="as" selected>Shape as shown</option>
+      <option value="post">Instagram post 4:5</option>
+      <option value="square">Square 1:1</option>
+      <option value="story">Story or reel 9:16</option>
+      <option value="wide">Wide video 16:9</option>
+    </select>
     <select id="size" style="width:auto">
+      <option value="1080">1080px</option>
       <option value="1200">1200px</option>
       <option value="2000" selected>2000px</option>
       <option value="3000">3000px</option>
@@ -2705,6 +2734,9 @@ Object.keys(SHAPES).forEach(function (key) {
 });
 
 function shapeRatio() {
+  /* in Swipe the frame itself takes the shape it is made for, so a story is
+     the swipe from edge to edge with no bands */
+  if (mode === 'swipe' && postShape()) return postShape();
   var shape = SHAPES[el('shape').value];
   if (shape.ratio) return shape.ratio;
   for (var i = 0; i < cells.length; i++) {
@@ -2887,7 +2919,9 @@ function markZoom(ctx, box) {
 function report() {
   var config = settings();
   var width = Number(el('size').value);
-  if (mode === 'swipe') {
+  if (postShape()) {
+    el('out-size').textContent = width + ' by ' + Math.round(width / postShape());
+  } else if (mode === 'swipe') {
     el('out-size').textContent = width + ' by ' + Math.round(width / (config.ratio || 1));
   } else {
     var box = layoutOf(config, width);
@@ -3049,6 +3083,7 @@ el('clear').addEventListener('click', function () {
 });
 el('size').addEventListener('change', report);
 el('format').addEventListener('change', report);
+el('post').addEventListener('change', function () { report(); paint(); });
 
 function showMode(next) {
   cancelLasso();
@@ -6553,7 +6588,36 @@ function render(width) {
   return renderInto(document.createElement('canvas'), width);
 }
 
+/* Made for fits the picture inside the shape a post, a story or a wide video
+   needs, with the background colour around it, so it uploads without being
+   cropped. The video uses the same shape. */
+var POST_SHAPES = { as: null, post: 4 / 5, square: 1, story: 9 / 16, wide: 16 / 9 };
+
+function postShape() {
+  return POST_SHAPES[el('post').value] || null;
+}
+
 function renderInto(canvas, width) {
+  var shape = postShape();
+  if (!shape) return drawPicture(canvas, width);
+  if (!canvas.inner) canvas.inner = document.createElement('canvas');
+  var inner = drawPicture(canvas.inner, width);
+  var tw = width, th = Math.round(width / shape);
+  var k = Math.min(tw / inner.width, th / inner.height);
+  var w = Math.round(inner.width * k), h = Math.round(inner.height * k);
+  if (canvas.width !== tw || canvas.height !== th) {
+    canvas.width = tw;
+    canvas.height = th;
+  }
+  var c = canvas.getContext('2d');
+  c.fillStyle = settings().background;
+  c.fillRect(0, 0, tw, th);
+  c.imageSmoothingQuality = 'high';
+  c.drawImage(inner, Math.round((tw - w) / 2), Math.round((th - h) / 2), w, h);
+  return canvas;
+}
+
+function drawPicture(canvas, width) {
   var config = settings();
   var out = canvas.getContext('2d');
   if (mode === 'swipe') {
@@ -6849,7 +6913,7 @@ document.addEventListener('paste', function (event) {
 /* The choices are kept in this browser so the app opens the way it was left.
    Photos, labels and dates are never kept. */
 var KEPT = ['layout', 'shape', 'gap', 'background', 'labels', 'size', 'format', 'zoom-scope', 'free-move',
-  'cover-kind', 'cover-on', 'cover-eyes-how', 'bg-how', 'bg-on', 'bg-size', 'bg-soft', 'bg-ghost', 'bg-carry', 'tone', 'cover-colour', 'cover-strength', 'mark-kind', 'mark-colour', 'mark-width', 'mark-show',
+  'cover-kind', 'cover-on', 'cover-eyes-how', 'bg-how', 'bg-on', 'bg-size', 'bg-soft', 'bg-ghost', 'bg-carry', 'tone', 'post', 'cover-colour', 'cover-strength', 'mark-kind', 'mark-colour', 'mark-width', 'mark-show',
   'tape-seconds', 'date-place', 'date-style', 'credit-text', 'credit-place',
   'wm-text', 'wm-place', 'wm-size', 'wm-strength', 'wm-colour'];
 var KEPT_NAME = 'collage-maker-settings';
@@ -6899,7 +6963,91 @@ KEPT.forEach(function (id) {
 
 window.addEventListener('resize', function () { if (photos.length) paint(); });
 
+/* ---------- brand kits ---------- */
+
+var KIT_NAME = 'proofline-brand-kits';
+var KIT_FIELDS = ['background', 'labels', 'date-place', 'date-style', 'credit-text', 'credit-place',
+  'wm-text', 'wm-place', 'wm-size', 'wm-strength', 'wm-colour'];
+
+function readKits() {
+  try { return JSON.parse(localStorage.getItem(KIT_NAME) || '{}') || {}; } catch (error) { return {}; }
+}
+
+function writeKits(kits) {
+  try { localStorage.setItem(KIT_NAME, JSON.stringify(kits)); return true; } catch (error) { return false; }
+}
+
+function kitList(pick) {
+  var kits = readKits(), names = Object.keys(kits).sort(), box = el('kit');
+  box.innerHTML = '';
+  var none = document.createElement('option');
+  none.value = '';
+  none.textContent = names.length ? 'Pick a kit' : 'None saved yet';
+  box.appendChild(none);
+  names.forEach(function (name) {
+    var option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    box.appendChild(option);
+  });
+  box.value = pick && kits[pick] ? pick : '';
+  el('kit-drop').disabled = !box.value;
+}
+
+el('kit-save').addEventListener('click', function () {
+  var name = el('kit-name').value.trim() || el('kit').value;
+  if (!name) { message('Type a name for the kit first.'); el('kit-name').focus(); return; }
+  var kit = { symbol: wmSymbol, logo: wmLogoData, logoName: wmLogoName, creditAt: creditAt, wmAt: wmAt, creditScale: creditScale, creditTurn: creditTurn, wmTurn: wmTurn };
+  KIT_FIELDS.forEach(function (id) { var box = el(id); kit[id] = box.type === 'checkbox' ? box.checked : box.value; });
+  var kits = readKits();
+  kits[name] = kit;
+  if (!writeKits(kits)) {
+    delete kit.logo;
+    kits[name] = kit;
+    if (!writeKits(kits)) { message('This browser has no room left to keep the kit.'); return; }
+    message('Saved ' + name + ' without its logo, since the logo is too big to keep.');
+  } else message('Saved the brand kit ' + name + '.', true);
+  el('kit-name').value = '';
+  kitList(name);
+});
+
+el('kit').addEventListener('change', function () {
+  var kit = readKits()[el('kit').value];
+  el('kit-drop').disabled = !kit;
+  if (!kit) return;
+  KIT_FIELDS.forEach(function (id) {
+    if (!(id in kit)) return;
+    var box = el(id);
+    if (box.type === 'checkbox') box.checked = Boolean(kit[id]);
+    else box.value = kit[id];
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  if (kit.symbol && SYMBOLS.some(function (pair) { return pair[0] === kit.symbol; })) wmSymbol = kit.symbol;
+  if (kit.creditAt) creditAt = kit.creditAt;
+  if (kit.wmAt) wmAt = kit.wmAt;
+  if (typeof kit.creditScale === 'number') creditScale = kit.creditScale;
+  if (typeof kit.creditTurn === 'number') creditTurn = kit.creditTurn;
+  if (typeof kit.wmTurn === 'number') wmTurn = kit.wmTurn;
+  if (kit.logo) useLogo(kit.logo, kit.logoName || 'Logo');
+  else { wmLogo = null; wmLogoName = ''; wmLogoData = ''; }
+  symbolButtons();
+  brandReads();
+  keepSettings();
+  paint();
+});
+
+el('kit-drop').addEventListener('click', function () {
+  var name = el('kit').value;
+  if (!name) return;
+  var kits = readKits();
+  delete kits[name];
+  writeKits(kits);
+  kitList('');
+});
+
 var keptAtStart = loadSettings();
+kitList('');
 symbolButtons();
 brandReads();
 fitCells();
