@@ -199,6 +199,10 @@ input[type=date] { min-height: 40px; padding: 0 8px; width: 100%; font: 500 14px
 .cam-bottom { bottom: 0; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
 .cam-btn { font: 600 14px/18px var(--font); min-height: 44px; padding: 0 14px; border: none; border-radius: 999px; background: rgba(16,28,43,.78); color: #fff; cursor: pointer; }
 .cam-btn.hidden { visibility: hidden; }
+.cam-tools { position: absolute; left: 0; right: 0; bottom: calc(104px + env(safe-area-inset-bottom)); display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; padding: 0 12px; }
+.cam-btn.on { background: #E0B45A; color: #101C2B; }
+.cam-spacer { width: 44px; }
+.cam canvas.drawing { cursor: crosshair; }
 .cam-shoot { width: 72px; height: 72px; border-radius: 50%; border: 4px solid #fff; background: #E0B45A; cursor: pointer; flex: none; }
 .cam-shoot:disabled { opacity: .5; }
 .cam-light { font: 600 13px/18px var(--font); padding: 6px 12px; border-radius: 999px; background: rgba(16,28,43,.78); }
@@ -771,7 +775,7 @@ body.full .hint { display: none !important; }
           <li>Brand kit: set the credit, the watermark and its logo once, type a name and press Save as a kit. Picking the kit later puts them all back.</li>
           <li>The shape picker, beside Size, fits the picture into an Instagram post, a story or reel, a square or a wide video. In Swipe the frame takes that shape from edge to edge, and the swipe video uses it too. In Grid the background colour fills around the photos.</li>
           <li>Clients keeps a folder for each client on this device: dated photos, and the photo consent form signed on screen with two separate answers, one for the record and one for posting online. Take a photo over the latest opens the client's last photo as Before and the camera over it, and the new photo goes into the folder by itself. A PIN locks every folder, and Export as PDF makes one file with the forms and every photo. Batch makes a before and after for each ticked client at once, from their first and latest photo.</li>
-          <li>Take a photo opens the camera with the first photo laid faintly over it, for shooting the next photo from the same spot. Guide switches between faint, strong, an outline of the first photo's edges and off. The light reading says when the room is brighter or darker than in the first photo. The photo goes into the next empty cell, or the picked one, and lines up by itself.</li>
+          <li>Take a photo opens the camera with the first photo laid faintly over it, for shooting the next photo from the same spot. Photo shows the first photo faint, strong or off. Outline draws its edges, or only the subject's outline, as solid gold lines. Black out turns everything outside the subject black, using the first photo's removed background, or a loop drawn around the subject in the camera. The light reading says when the room is brighter or darker than in the first photo. The photo goes into the next empty cell, or the picked one, and lines up by itself.</li>
         </ol>
         <p class="note">Proofline is powered by Cygnus Solutions.</p>
       </section>
@@ -858,8 +862,13 @@ body.full .hint { display: none !important; }
     <span class="cam-light" id="cam-light"></span>
     <button class="cam-btn" type="button" id="cam-flip">Flip</button>
   </div>
+  <div class="cam-tools">
+    <button class="cam-btn" type="button" id="cam-guide">Photo: Faint</button>
+    <button class="cam-btn" type="button" id="cam-line">Outline: Edges</button>
+    <button class="cam-btn" type="button" id="cam-black">Black out</button>
+  </div>
   <div class="cam-bottom">
-    <button class="cam-btn" type="button" id="cam-guide">Guide: Faint</button>
+    <span class="cam-spacer"></span>
     <button class="cam-shoot" type="button" id="cam-shoot" aria-label="Take the photo"></button>
     <label class="cam-zoom hidden" id="cam-zoom-wrap">Zoom <input type="range" id="cam-zoom" min="1" max="1" step="0.1" value="1"></label>
   </div>
@@ -5529,8 +5538,19 @@ document.addEventListener('keydown', function (event) {
    the first photo's shape, so the next shot is taken from the same spot and
    lines up without help. A front camera shows and saves the mirror image,
    the way the screen shows it. */
-var cam = { stream: null, facing: 'environment', front: false, guide: 0, raf: 0, timer: 0, outline: null, ref: null, refLight: null, target: -1, track: null };
-var CAM_GUIDES = [['faint', 'Faint'], ['strong', 'Strong'], ['outline', 'Outline'], ['off', 'Off']];
+var cam = { stream: null, facing: 'environment', front: false, guide: 0, line: 1, black: false, raf: 0, timer: 0, ref: null, refLight: null, target: -1, track: null,
+  edges: null, hole: null, holeLayer: null, subject: null, edgesInside: null, drawing: null };
+var CAM_GUIDES = [['faint', 'Faint'], ['strong', 'Strong'], ['off', 'Off']];
+var CAM_LINES = [['off', 'Off'], ['edges', 'Edges'], ['subject', 'Subject']];
+(function () {
+  try {
+    var kept = JSON.parse(localStorage.getItem('proofline-camera') || 'null');
+    if (kept) { cam.guide = kept.guide % CAM_GUIDES.length; cam.line = kept.line % CAM_LINES.length; cam.black = Boolean(kept.black); }
+  } catch (error) { /* first time */ }
+})();
+function camKeep() {
+  try { localStorage.setItem('proofline-camera', JSON.stringify({ guide: cam.guide, line: cam.line, black: cam.black })); } catch (error) { /* private windows keep nothing */ }
+}
 
 function camTarget() {
   fitCells();
@@ -5539,20 +5559,123 @@ function camTarget() {
   return cells.length > 1 ? cells.length - 1 : 0;
 }
 
-function camOutline(image) {
-  var map = edgeMap(image);
+/* Hard lines: every edge of the first photo strong enough to count, drawn
+   fully solid in gold with a dark rim, so they show on skin, walls and the
+   black out alike. */
+function camLines(w, h, test) {
+  var on = new Uint8Array(w * h);
+  for (var i = 0; i < on.length; i++) on[i] = test(i) ? 1 : 0;
   var canvas = document.createElement('canvas');
-  canvas.width = map.w;
-  canvas.height = map.h;
+  canvas.width = w;
+  canvas.height = h;
   var c = canvas.getContext('2d');
-  var data = c.createImageData(map.w, map.h);
-  for (var i = 0; i < map.mag.length; i++) {
-    if (map.mag[i] < 60) continue;
-    data.data[i * 4] = 224; data.data[i * 4 + 1] = 180; data.data[i * 4 + 2] = 90;
-    data.data[i * 4 + 3] = Math.min(255, map.mag[i]);
+  var data = c.createImageData(w, h), d = data.data;
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      var n = y * w + x, o = n * 4;
+      if (on[n]) { d[o] = 240; d[o + 1] = 192; d[o + 2] = 96; d[o + 3] = 255; continue; }
+      var near = (x > 0 && on[n - 1]) || (x < w - 1 && on[n + 1]) || (y > 0 && on[n - w]) || (y < h - 1 && on[n + w]);
+      if (near) { d[o] = 16; d[o + 1] = 28; d[o + 2] = 43; d[o + 3] = 200; }
+    }
   }
   c.putImageData(data, 0, 0);
   return canvas;
+}
+
+/* The edges of the first photo the way Camera Overlay draws them: every edge
+   past the same cut-off, stronger edges more solid, with a dark rim on the
+   strong ones so they read on a light wall too. */
+function camEdges(image) {
+  var map = edgeMap(image), w = map.w, h = map.h, mag = map.mag;
+  var canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  var c = canvas.getContext('2d');
+  var data = c.createImageData(w, h), d = data.data;
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      var n = y * w + x, o = n * 4;
+      if (mag[n] > 40) {
+        d[o] = 224; d[o + 1] = 172; d[o + 2] = 76; d[o + 3] = Math.min(255, mag[n] * 1.3);
+        continue;
+      }
+      var strong = (x > 0 && mag[n - 1] > 110) || (x < w - 1 && mag[n + 1] > 110) || (y > 0 && mag[n - w] > 110) || (y < h - 1 && mag[n + w] > 110);
+      if (strong) { d[o] = 16; d[o + 1] = 28; d[o + 2] = 43; d[o + 3] = 150; }
+    }
+  }
+  c.putImageData(data, 0, 0);
+  return canvas;
+}
+
+/* The subject's own outline, from the first photo's removed background or a
+   loop drawn in the camera, two pixels wide. */
+function camSubject(hole) {
+  var w = hole.w, h = hole.h, a = hole.alpha;
+  var inside = function (n) { return a[n] > 0.5; };
+  var edge = new Uint8Array(w * h);
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      var n = y * w + x;
+      if (!inside(n)) continue;
+      if (x === 0 || y === 0 || x === w - 1 || y === h - 1 || !inside(n - 1) || !inside(n + 1) || !inside(n - w) || !inside(n + w)) edge[n] = 1;
+    }
+  }
+  var thick = new Uint8Array(w * h);
+  for (y = 0; y < h; y++) {
+    for (x = 0; x < w; x++) {
+      n = y * w + x;
+      if (edge[n] || (x > 0 && edge[n - 1]) || (y > 0 && edge[n - w]) || (x > 0 && y > 0 && edge[n - w - 1])) thick[n] = 1;
+    }
+  }
+  return camLines(w, h, function (i) { return thick[i] === 1; });
+}
+
+/* The black out: black everywhere outside the subject, with a little room
+   around it so the live edge still shows while lining up. */
+function camHoleFrom(alpha, w, h) {
+  var hard = new Float32Array(w * h);
+  for (var i = 0; i < hard.length; i++) hard[i] = alpha[i] > 0.5 ? 1 : 0;
+  var room = boxBlur(hard, w, h, Math.max(2, Math.round(Math.max(w, h) * 0.02)));
+  var hole = new Float32Array(w * h);
+  for (i = 0; i < hole.length; i++) hole[i] = Math.min(1, room[i] * 3);
+  return { w: w, h: h, alpha: hole, shape: hard };
+}
+
+function camSetHole(hole) {
+  cam.hole = hole;
+  cam.subject = hole ? camSubject({ w: hole.w, h: hole.h, alpha: hole.shape }) : null;
+  cam.holeLayer = null;
+  cam.edgesInside = null;
+  if (!hole) return;
+  var layer = document.createElement('canvas');
+  layer.width = hole.w;
+  layer.height = hole.h;
+  var c = layer.getContext('2d');
+  var data = c.createImageData(hole.w, hole.h);
+  for (var i = 0; i < hole.alpha.length; i++) data.data[i * 4 + 3] = Math.round(255 * (1 - hole.alpha[i]));
+  c.putImageData(data, 0, 0);
+  cam.holeLayer = layer;
+  if (cam.edges) {
+    var inside = document.createElement('canvas');
+    inside.width = cam.edges.width;
+    inside.height = cam.edges.height;
+    var ic = inside.getContext('2d');
+    ic.drawImage(cam.edges, 0, 0);
+    ic.globalCompositeOperation = 'destination-out';
+    ic.drawImage(layer, 0, 0, inside.width, inside.height);
+    cam.edgesInside = inside;
+  }
+}
+
+function camButtons() {
+  var hasSubject = Boolean(cam.hole);
+  if (!hasSubject && CAM_LINES[cam.line][0] === 'subject') cam.line = 1;
+  el('cam-guide').textContent = 'Photo: ' + CAM_GUIDES[cam.guide][1];
+  el('cam-line').textContent = 'Outline: ' + CAM_LINES[cam.line][1];
+  var black = el('cam-black');
+  black.textContent = cam.drawing ? 'Cancel' : cam.black ? 'Show all' : 'Black out';
+  black.classList.toggle('on', cam.black || Boolean(cam.drawing));
+  ['cam-guide', 'cam-line', 'cam-black'].forEach(function (id) { el(id).classList.toggle('hidden', !cam.ref); });
 }
 
 /* the average brightness of the middle of a picture, from 0 to 255 */
@@ -5592,7 +5715,7 @@ function camDraw() {
   var vw = video.videoWidth, vh = video.videoHeight;
   if (!vw || !vh) return;
   var ratio = camShape();
-  var roomW = window.innerWidth, roomH = Math.max(200, window.innerHeight - 180);
+  var roomW = window.innerWidth, roomH = Math.max(200, window.innerHeight - 240);
   var cssW = Math.min(roomW, roomH * ratio), cssH = cssW / ratio;
   var dpr = Math.min(window.devicePixelRatio || 1, 2);
   var bw = Math.round(cssW * dpr), bh = Math.round(cssH * dpr);
@@ -5608,22 +5731,40 @@ function camDraw() {
   if (cam.front) { c.translate(bw, 0); c.scale(-1, 1); }
   c.drawImage(video, crop.x, crop.y, crop.w, crop.h, 0, 0, bw, bh);
   c.restore();
+  if (!cam.ref) return;
   var guide = CAM_GUIDES[cam.guide][0];
-  if (cam.ref && guide !== 'off') {
+  if (guide !== 'off') {
     c.save();
-    if (guide === 'outline') {
-      c.globalAlpha = 0.95;
-      c.drawImage(cam.outline, 0, 0, bw, bh);
-    } else {
-      c.globalAlpha = guide === 'faint' ? 0.35 : 0.6;
-      c.drawImage(cam.ref.bitmap, 0, 0, bw, bh);
-    }
+    c.globalAlpha = guide === 'faint' ? 0.35 : 0.6;
+    c.drawImage(cam.ref.bitmap, 0, 0, bw, bh);
+    c.restore();
+  }
+  if (cam.black && cam.holeLayer) c.drawImage(cam.holeLayer, 0, 0, bw, bh);
+  var line = CAM_LINES[cam.line][0];
+  if (line === 'edges' && cam.edges) {
+    c.save();
+    c.globalAlpha = 0.9;
+    c.drawImage(cam.black && cam.edgesInside ? cam.edgesInside : cam.edges, 0, 0, bw, bh);
+    c.restore();
+  }
+  if (line === 'subject' && cam.subject) c.drawImage(cam.subject, 0, 0, bw, bh);
+  if (cam.drawing && cam.drawing.points.length > 1) {
+    var k = bw / view.width;
+    c.save();
+    c.lineWidth = 3 * (window.devicePixelRatio || 1);
+    c.lineJoin = 'round';
+    c.strokeStyle = '#E0B45A';
+    c.setLineDash([10, 8]);
+    c.beginPath();
+    cam.drawing.points.forEach(function (p, i) { if (i) c.lineTo(p.u * bw, p.v * bh); else c.moveTo(p.u * bw, p.v * bh); });
+    c.stroke();
     c.restore();
   }
 }
 
 function camMeter() {
   var video = el('cam-video');
+  if (cam.drawing) return;
   if (!cam.stream || !video.videoWidth || cam.refLight === null) { el('cam-light').textContent = ''; return; }
   var crop = camCrop(video.videoWidth, video.videoHeight);
   var canvas = document.createElement('canvas');
@@ -5693,10 +5834,18 @@ function camOpen() {
   cam.target = camTarget();
   var first = cells[0] && cells[0].image;
   cam.ref = first && cam.target !== 0 ? first : null;
-  cam.outline = cam.ref ? camOutline(cam.ref) : null;
+  cam.edges = cam.ref ? camEdges(cam.ref) : null;
+  cam.drawing = null;
+  var hole = null;
+  if (cam.ref && cam.ref.mask) {
+    var m = cam.ref.mask, alpha = new Float32Array(m.alpha.length);
+    for (var i = 0; i < alpha.length; i++) alpha[i] = m.alpha[i] / 255;
+    hole = camHoleFrom(alpha, m.w, m.h);
+  } else if (cam.ref && cam.ref.camHole) hole = cam.ref.camHole;
+  camSetHole(hole);
+  if (cam.black && !cam.hole) cam.black = false;
   cam.refLight = cam.ref ? middleLight(cam.ref.bitmap, cam.ref.width, cam.ref.height) : null;
-  el('cam-guide').classList.toggle('hidden', !cam.ref);
-  el('cam-guide').textContent = 'Guide: ' + CAM_GUIDES[cam.guide][1];
+  camButtons();
   el('cam-light').textContent = '';
   el('cam').classList.remove('hidden');
   camStart();
@@ -5768,8 +5917,70 @@ el('cam-flip').addEventListener('click', function () {
 });
 el('cam-guide').addEventListener('click', function () {
   cam.guide = (cam.guide + 1) % CAM_GUIDES.length;
-  el('cam-guide').textContent = 'Guide: ' + CAM_GUIDES[cam.guide][1];
+  camKeep();
+  camButtons();
 });
+el('cam-line').addEventListener('click', function () {
+  cam.line = (cam.line + 1) % CAM_LINES.length;
+  if (CAM_LINES[cam.line][0] === 'subject' && !cam.hole) cam.line = (cam.line + 1) % CAM_LINES.length;
+  camKeep();
+  camButtons();
+});
+/* Black out uses the first photo's removed background when it has one.
+   Otherwise a loop drawn around the subject on the camera view is pulled onto
+   the first photo's edges, as in Draw around it, and kept with that photo. */
+el('cam-black').addEventListener('click', function () {
+  if (cam.drawing) { cam.drawing = null; el('cam-view').classList.remove('drawing'); el('cam-note').textContent = ''; camButtons(); return; }
+  if (cam.black) { cam.black = false; camKeep(); camButtons(); return; }
+  if (cam.hole) { cam.black = true; camKeep(); camButtons(); return; }
+  cam.drawing = { id: null, points: [] };
+  el('cam-view').classList.add('drawing');
+  el('cam-note').textContent = '';
+  el('cam-light').textContent = 'Draw a loop around the subject';
+  camButtons();
+});
+(function () {
+  var view = el('cam-view');
+  var at = function (event) {
+    var r = view.getBoundingClientRect();
+    return { u: (event.clientX - r.left) / r.width, v: (event.clientY - r.top) / r.height };
+  };
+  view.addEventListener('pointerdown', function (event) {
+    if (!cam.drawing || cam.drawing.id !== null) return;
+    event.preventDefault();
+    view.setPointerCapture(event.pointerId);
+    cam.drawing.id = event.pointerId;
+    cam.drawing.points = [at(event)];
+  });
+  view.addEventListener('pointermove', function (event) {
+    if (!cam.drawing || event.pointerId !== cam.drawing.id) return;
+    cam.drawing.points.push(at(event));
+  });
+  var finish = function (event) {
+    if (!cam.drawing || event.pointerId !== cam.drawing.id) return;
+    var loop = cam.drawing.points;
+    cam.drawing = null;
+    view.classList.remove('drawing');
+    var us = loop.map(function (p) { return p.u; }), vs = loop.map(function (p) { return p.v; });
+    if (event.type !== 'pointerup' || loop.length < 12 || Math.max.apply(null, us) - Math.min.apply(null, us) < 0.05 || Math.max.apply(null, vs) - Math.min.apply(null, vs) < 0.05) {
+      el('cam-light').textContent = 'Draw a bigger loop';
+      camButtons();
+      return;
+    }
+    try { SNAP_BANDS.forEach(function (band) { loop = snapLoop(cam.ref, loop, band); }); } catch (error) { /* the loop as drawn */ }
+    var size = maskSize(cam.ref);
+    var hole = camHoleFrom(loopMask(loop, size.w, size.h), size.w, size.h);
+    cam.ref.camHole = hole;
+    camSetHole(hole);
+    cam.black = true;
+    cam.line = 2;
+    camKeep();
+    el('cam-light').textContent = '';
+    camButtons();
+  };
+  view.addEventListener('pointerup', finish);
+  view.addEventListener('pointercancel', finish);
+})();
 el('cam-zoom').addEventListener('input', function () {
   if (!cam.track || !cam.track.applyConstraints) return;
   cam.track.applyConstraints({ advanced: [{ zoom: Number(el('cam-zoom').value) }] }).catch(function () { /* this camera keeps its zoom */ });
