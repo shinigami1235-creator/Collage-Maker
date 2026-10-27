@@ -571,20 +571,6 @@ body.full .hint { display: none !important; }
 
       <section class="panel" id="panel-labels">
         <h3>Labels</h3>
-        <h4 class="sub">Brand kit</h4>
-        <div class="field">
-          <label for="kit">Kit</label>
-          <select id="kit"><option value="">None saved yet</option></select>
-        </div>
-        <div class="field">
-          <label for="kit-name">Kit name</label>
-          <input type="text" id="kit-name" maxlength="40" placeholder="Example: Cygnus Aesthetics Bangkok">
-        </div>
-        <div class="actions">
-          <button class="btn" type="button" id="kit-save">Save as a kit</button>
-          <button class="btn" type="button" id="kit-drop">Delete this kit</button>
-        </div>
-        <p class="note">A kit keeps the credit, the watermark with its logo, the date style, the label setting and the background colour. Pick it to use them all at once, one kit per clinic or branch.</p>
         <p class="note">Tap a label, the credit or the watermark on the picture to pick it, then drag it to move it. Drag the round handle above it to tilt it and the square corner to size it.</p>
         <div class="label-row hidden" id="picked-box">
           <div class="head" id="picked-name"></div>
@@ -677,6 +663,23 @@ body.full .hint { display: none !important; }
           <label for="wm-colour">Watermark colour</label>
           <input type="color" id="wm-colour" value="#ffffff">
         </div>
+
+        <details class="more" id="kit-more">
+          <summary>Brand kit</summary>
+        <div class="field">
+          <label for="kit">Kit</label>
+          <select id="kit"><option value="">None saved yet</option></select>
+        </div>
+        <div class="field">
+          <label for="kit-name">Kit name</label>
+          <input type="text" id="kit-name" maxlength="40" placeholder="Example: Cygnus Aesthetics Bangkok">
+        </div>
+        <div class="actions">
+          <button class="btn" type="button" id="kit-save">Save as a kit</button>
+          <button class="btn" type="button" id="kit-drop">Delete this kit</button>
+        </div>
+        <p class="note">A kit keeps the credit, the watermark with its logo, the date style, the label setting and the background colour, so picking it sets them all at once. Save one per clinic or branch.</p>
+        </details>
       </section>
 
       <section class="panel" id="panel-cover">
@@ -832,7 +835,7 @@ body.full .hint { display: none !important; }
           <li>More under each tool holds the settings you need less often. The app keeps your settings for next time, while the photos, labels and dates are not kept.</li>
           <li>Press Save, or Share on a phone to send the picture straight to another app.</li>
           <li>Light: Matched to the first photo evens out the brightness, contrast and colour of the other photos to the first, measured on the part each one shows, so a darker room or a warmer lamp does not change how the result looks. As taken puts them back.</li>
-          <li>Brand kit: set the credit, the watermark and its logo once, type a name and press Save as a kit. Picking the kit later puts them all back.</li>
+          <li>Brand kit, at the bottom of Labels: open it, set the credit, the watermark and its logo once, type a name and press Save as a kit. Picking the kit later puts them all back.</li>
           <li>The shape picker, beside Size, fits the picture into an Instagram post, a story or reel, a square or a wide video. In Swipe the frame takes that shape from edge to edge, and the swipe video uses it too. In Grid the background colour fills around the photos.</li>
           <li>Clients keeps a folder for each client on this device: dated photos, and the photo consent form signed on screen with two separate answers, one for the record and one for posting online. Take a photo over the latest opens the client's last photo as Before and the camera over it, and the new photo goes into the folder by itself. A PIN locks every folder, and Export as PDF makes one file with the forms and every photo. Batch makes a before and after for each ticked client at once, from their first and latest photo.</li>
           <li>Take a photo opens the camera with the first photo laid faintly over it, for shooting the next photo from the same spot. Photo shows the first photo faint, strong or off. Outline draws its edges, or only the subject's outline, as solid gold lines. Black out turns everything outside the subject black, using the first photo's removed background, or a loop drawn around the subject in the camera. The light reading says when the room is brighter or darker than in the first photo. The photo goes into the next empty cell, or the picked one, and lines up by itself.</li>
