@@ -204,6 +204,12 @@ input[type=date] { min-height: 40px; padding: 0 8px; width: 100%; font: 500 14px
 .sign { width: 100%; height: 180px; border: 1px solid var(--line-strong); border-radius: 8px; touch-action: none; background: #fff; display: block; }
 .top .client-chip { border-color: var(--gold); color: var(--gold); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .top .client-chip.hidden { display: none; }
+.look { position: fixed; inset: 0; z-index: 45; background: rgba(5,8,13,.92); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); }
+.look.hidden { display: none; }
+.look video { max-width: 100%; max-height: calc(100vh - 170px); border-radius: 6px; background: #000; }
+.look-note { margin: 0; max-width: 640px; text-align: center; font: 400 14px/20px var(--font); color: #E6EAF0; }
+.look-bar { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+#tape-pick .switch { min-height: 36px; }
 .cam { position: fixed; inset: 0; z-index: 50; background: #05080d; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .cam.hidden { display: none; }
 .cam video { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
@@ -792,6 +798,8 @@ body.full .hint { display: none !important; }
             <option value="3">3 seconds</option>
           </select>
         </div>
+        <p class="note">Ticked photos go in the video, in this order.</p>
+        <div id="tape-pick"></div>
         <div class="actions">
           <button class="btn" type="button" id="tape-all">Record every photo in order</button>
         </div>
@@ -819,7 +827,7 @@ body.full .hint { display: none !important; }
           <li>Labels: a label and a date for each photo. The date comes from the photo when it holds one, and you can change it. Credit puts a line like "Cygnus Aesthetics" along the top or bottom of the picture, and Watermark lays words, a symbol or your logo over every photo. Only the labels differ from photo to photo. With Labels open, tap a label, the credit or the watermark to pick it, drag it to put it anywhere, and use its round handle to tilt it and its square corner to size it.</li>
           <li>Cover: Cover the eyes finds the eyes on every photo and covers them with the cover picked, a bar, a blur, an oval or a block. Each eye gets its own cover and the bridge of the nose stays clear, unless Eyes is set to Both eyes together. Press it after lining up, since a cover stays where it was put when a photo moves. Or drag over the eyes, a name or an address. A cover lands on the same spot of every photo, or only on its own with This photo only. Drag a cover to move it. The picked cover has a round handle to tilt it and a square corner to size it.</li>
           <li>Mark: drag to draw an arrow, circle, line or box. With Shows on set to Both photos it appears on every photo at the same spot. Drag a mark to move it, or an end to reshape it.</li>
-          <li>Video: Record the swipe runs the divider across by itself. Record while I drag follows what you do until you press Stop. Record every photo in order shows the first photo, then wipes each next one in from the right with its label, for Day 1, Day 2, Day 3 and on. Time on each photo sets how long each one stays.</li>
+          <li>Video: Record the swipe runs the divider across by itself. Record while I drag follows what you do until you press Stop. Record every photo in order shows the first photo, then wipes each next one in from the right with its label, for Day 1, Day 2, Day 3 and on. Time on each photo sets how long each one stays. Untick a photo to leave it out, like a Day 3 that adds nothing. Every video plays back before it is saved: Save the video keeps it, Record again throws it away and records the same kind again, and Throw it away only closes it.</li>
           <li>Full screen: one photo close up, with arrows that move a pixel per tap and buttons that turn it a tenth of a degree.</li>
           <li>More under each tool holds the settings you need less often. The app keeps your settings for next time, while the photos, labels and dates are not kept.</li>
           <li>Press Save, or Share on a phone to send the picture straight to another app.</li>
@@ -914,6 +922,17 @@ body.full .hint { display: none !important; }
       <button class="btn" type="button" id="resume-end">End session</button>
     </div>
     <p class="note" id="resume-note">Adding new photos instead replaces the last set.</p>
+</div>
+
+<div class="look hidden" id="look" role="dialog" aria-label="The video before it is saved">
+  <video id="look-video" playsinline muted loop controls></video>
+  <p class="look-note" id="look-note"></p>
+  <div class="look-bar">
+    <button class="btn" type="button" id="look-again">Record again</button>
+    <button class="btn" type="button" id="look-drop">Throw it away</button>
+    <button class="btn hidden" type="button" id="look-share">Share</button>
+    <button class="btn btn-primary" type="button" id="look-save">Save the video</button>
+  </div>
 </div>
 
 <div class="cam hidden" id="cam" role="dialog" aria-label="Camera">
@@ -3462,6 +3481,7 @@ function pairControls() {
     });
   }
   orderStrip();
+  tapePick();
 }
 
 /* Lines every photo up on the first in turn, so any two of them make a pair
@@ -8309,14 +8329,42 @@ var SEQ_LEAD = 0.75, SEQ_WIPE = 0.45, SEQ_TAIL = 0.3;
 
 function seqSeconds(count, each) { return each * (SEQ_LEAD + (count - 1) + SEQ_TAIL); }
 
+/* The photos ticked for the video, in their order. */
+function tapeList() {
+  return photos.filter(function (photo) { return !photo.skipTape; });
+}
+
+function tapePick() {
+  var box = el('tape-pick');
+  box.textContent = '';
+  photos.forEach(function (photo, index) {
+    var row = document.createElement('label');
+    row.className = 'switch';
+    var tick = document.createElement('input');
+    tick.type = 'checkbox';
+    tick.id = 'tape-pick-' + index;
+    tick.checked = !photo.skipTape;
+    tick.addEventListener('change', function () {
+      photo.skipTape = !tick.checked;
+      tapeButtons();
+      sessionSoon();
+    });
+    row.appendChild(tick);
+    row.appendChild(document.createTextNode(' ' + photoTitle(photo, index)));
+    box.appendChild(row);
+  });
+}
+
 function startSequence() {
-  if (taping || mode !== 'swipe' || photos.length < 2) return;
+  if (taping || mode !== 'swipe' || tapeList().length < 2) return;
   cancelPins();
   cancelArea();
   fitCells();
   keepPose(cells[0]);
   keepPose(cells[1]);
-  var seq = { list: photos.slice(), each: Number(el('tape-each').value) || 2, pair: [cells[0].image, cells[1].image], split: swipePosition, shown: -1 };
+  var list = tapeList();
+  if (list.length < 2) return;
+  var seq = { list: list, each: Number(el('tape-each').value) || 2, pair: [cells[0].image, cells[1].image], split: swipePosition, shown: -1 };
   tapeSeq = true;
   showPair(seq.list[0], seq.list[1]);
   seq.shown = 0;
@@ -8374,7 +8422,8 @@ function startTape(auto, seq) {
     return;
   }
   recorder.ondataavailable = function (event) { if (event.data && event.data.size) chunks.push(event.data); };
-  recorder.onstop = function () { keepTape(chunks, type, canvas.width, canvas.height); };
+  var kind = seq ? 'seq' : auto ? 'swipe' : 'drag';
+  recorder.onstop = function () { keepTape(chunks, type, canvas.width, canvas.height, kind); };
   taping = {
     recorder: recorder, canvas: canvas, out: out, work: work, wide: wide,
     auto: auto, seconds: seq ? seqSeconds(seq.list.length, seq.each) : auto ? Number(el('tape-seconds').value) : MAX_TAPE,
@@ -8431,42 +8480,94 @@ function codecIn(head) {
   return '';
 }
 
-function keepTape(chunks, type, wide, high) {
+/* A finished video plays back first. Save keeps it, Record again throws it
+   away and records the same kind once more, and Throw it away only closes. */
+var looking = null;
+
+function keepTape(chunks, type, wide, high, kind) {
   var mp4 = type.indexOf('mp4') >= 0;
   var blob = new Blob(chunks, { type: type.split(';')[0] });
   var first = cells.filter(function (cell) { return cell.image; })[0];
   var stem = (first ? first.image.stem : 'collage').slice(0, 40);
   var name = stem + '-proofline.' + (mp4 ? 'mp4' : 'webm');
-  save(blob, name);
-  lastTape = { blob: blob, name: name };
-  el('tape-share').classList.toggle('hidden', !canShareType(blob.type, name));
   var size = wide + ' by ' + high + ', ' + readable(blob.size);
+  var url = URL.createObjectURL(blob);
+  looking = { blob: blob, name: name, url: url, kind: kind, note: size + '.' };
+  el('look-video').src = url;
+  el('look-share').classList.toggle('hidden', !canShareType(blob.type, name));
+  el('look-note').textContent = 'MP4, ' + size + '.';
+  el('look').classList.remove('hidden');
+  el('look-video').play().catch(function () { /* the controls start it */ });
+  tapeSay('');
   if (!mp4) {
-    tapeSay('Saved as WebM, ' + size
-      + '. Instagram turns WebM away. Record it in Chrome, Edge or Safari for an MP4.');
+    looking.note = 'WebM, ' + size + '. Instagram turns WebM away. Record it in Chrome, Edge or Safari for an MP4.';
+    el('look-note').textContent = looking.note;
     return;
   }
+  var mine = looking;
   blob.slice(0, 65536).arrayBuffer().then(function (head) {
     var codec = codecIn(new Uint8Array(head));
-    if (codec === 'H.264' || !codec) tapeSay('Saved. ' + size + '.');
-    else tapeSay('Saved as an MP4 holding ' + codec + ', ' + size
-      + '. Instagram wants H.264 and may turn this one away. Chrome, Edge and Safari on a phone all make H.264.');
-  }).catch(function () { tapeSay('Saved. ' + size + '.'); });
+    if (codec && codec !== 'H.264') {
+      mine.note = 'MP4 holding ' + codec + ', ' + size + '. Instagram wants H.264 and may turn this one away. Chrome, Edge and Safari on a phone all make H.264.';
+    } else mine.note = 'MP4, ' + size + '.';
+    if (looking === mine) el('look-note').textContent = mine.note;
+  }).catch(function () { /* the size is enough */ });
 }
+
+function closeLook() {
+  var was = looking;
+  looking = null;
+  el('look').classList.add('hidden');
+  el('look-video').pause();
+  el('look-video').removeAttribute('src');
+  el('look-video').load();
+  if (was) setTimeout(function () { URL.revokeObjectURL(was.url); }, 1000);
+  return was;
+}
+
+el('look-save').addEventListener('click', function () {
+  var was = closeLook();
+  if (!was) return;
+  save(was.blob, was.name);
+  lastTape = { blob: was.blob, name: was.name };
+  el('tape-share').classList.toggle('hidden', !canShareType(was.blob.type, was.name));
+  tapeSay('Saved as ' + was.note);
+});
+el('look-share').addEventListener('click', function () {
+  if (!looking) return;
+  lastTape = { blob: looking.blob, name: looking.name };
+  shareFile(looking.blob, looking.name);
+});
+el('look-drop').addEventListener('click', function () {
+  closeLook();
+  tapeSay('The video was thrown away.');
+});
+el('look-again').addEventListener('click', function () {
+  var was = closeLook();
+  if (!was) return;
+  if (was.kind === 'seq') startSequence();
+  else startTape(was.kind === 'swipe');
+});
+document.addEventListener('keydown', function (event) {
+  if (event.key === 'Escape' && looking) el('look-drop').click();
+});
 
 function tapeButtons() {
   var any = cells.filter(function (cell) { return cell.image; }).length > 0;
-  el('tape-auto').disabled = Boolean(taping) || mode !== 'swipe' || !any;
+  el('tape-auto').disabled = Boolean(taping) || Boolean(looking) || mode !== 'swipe' || !any;
   el('tape-seconds').disabled = Boolean(taping);
-  el('tape-manual').disabled = !any || (taping && taping.auto);
+  el('tape-manual').disabled = !any || Boolean(looking) || (taping && taping.auto);
   el('tape-manual').textContent = taping && !taping.auto ? 'Stop' : 'Record while I drag';
-  el('tape-all').disabled = Boolean(taping) || mode !== 'swipe' || photos.length < 2;
+  var picks = tapeList().length;
+  el('tape-all').disabled = Boolean(taping) || Boolean(looking) || mode !== 'swipe' || picks < 2;
   el('tape-each').disabled = Boolean(taping);
+  el('tape-pick').classList.toggle('hidden', mode !== 'swipe' || photos.length < 2);
   var each = Number(el('tape-each').value) || 2;
   el('tape-all-note').textContent = mode !== 'swipe'
     ? 'Open Swipe to record every photo in order.'
     : photos.length < 2 ? 'Add two photos or more.'
-    : photos.length + ' photos, ' + seqSeconds(photos.length, each).toFixed(1) + ' seconds. Each photo is wiped in from the right with its label, in the order of the photos. Line up every photo on the first under Line up before recording, so they stay still from one to the next.';
+    : picks < 2 ? 'Tick two photos or more.'
+    : picks + ' photos, ' + seqSeconds(picks, each).toFixed(1) + ' seconds. Each photo is wiped in from the right with its label, in the order of the photos. Line up every photo on the first under Line up before recording, so they stay still from one to the next.';
 }
 
 el('tape-auto').addEventListener('click', function () { startTape(true); });
@@ -8814,7 +8915,7 @@ function sessionState(list) {
     nextId: nextId,
     client: clientNow ? clientNow.id : null,
     photos: list.map(function (photo) {
-      return { id: photo.id, name: photo.name, stem: photo.stem, date: photo.date ? +new Date(photo.date) : null, dateFrom: photo.dateFrom || '', pose: photo.pose || null, shot: photo.shot || null };
+      return { id: photo.id, name: photo.name, stem: photo.stem, date: photo.date ? +new Date(photo.date) : null, dateFrom: photo.dateFrom || '', pose: photo.pose || null, shot: photo.shot || null, skipTape: Boolean(photo.skipTape) };
     }),
     cells: cells.map(function (cell) {
       return {
@@ -8930,6 +9031,7 @@ function sessionLoad(rec) {
               file: blob, fileBitmap: bitmap
             };
             if (meta.shot) photo.shot = meta.shot;
+            if (meta.skipTape) photo.skipTape = true;
             if (got[1]) photo.mask = { w: part.mask.w, h: part.mask.h, alpha: new Uint8Array(got[1]) };
             return photo;
           });
