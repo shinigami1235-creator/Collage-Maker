@@ -70,7 +70,21 @@ body {
 .tool-help { margin-top: auto; border-color: transparent; background: transparent; color: var(--primary); }
 .tool-help.on { background: #E6EEF6; border-color: #E6EEF6; color: var(--primary); }
 .controls { min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-.stage-wrap { position: relative; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.stage-wrap { position: relative; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+/* the strip of photos to drag into a new order, on a computer or a tablet */
+.order { display: none; }
+@media (min-width: 700px) {
+  .order.on { display: flex; gap: 8px; margin-top: 8px; max-width: 100%; overflow-x: auto; padding: 2px 2px 4px; flex: 0 0 auto; }
+}
+.order .thumb { position: relative; flex: 0 0 auto; width: 76px; border: 2px solid var(--line-strong); border-radius: 6px;
+  background: var(--surface); cursor: grab; touch-action: none; user-select: none; padding: 0; }
+.order .thumb canvas { display: block; width: 72px; height: 54px; border-radius: 4px 4px 0 0; }
+.order .thumb span { display: block; font: 500 11px/16px var(--font); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+.order .thumb b { position: absolute; top: 3px; left: 3px; font: 600 11px/16px var(--font); background: rgba(16,28,43,.72); color: #fff; border-radius: 3px; padding: 0 4px; }
+.order .thumb.shown { border-color: var(--primary); }
+.order .thumb.lifted { opacity: .55; cursor: grabbing; }
+.order .thumb:focus-visible { outline: 3px solid var(--primary); outline-offset: 1px; }
+.resume input { min-height: 44px; width: 120px; font-size: 16px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; }
 #stage {
   max-width: 100%; max-height: 100%;
   border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface);
@@ -351,6 +365,7 @@ body.full .hint { display: none !important; }
 
     <div class="stage-wrap">
       <canvas id="stage"></canvas>
+      <div class="order" id="order" aria-label="Order of the photos"></div>
       <div class="hint hidden" id="swipe-hint">Drag left and right</div>
       <button class="full-open" type="button" id="full-open">Full screen</button>
     </div>
@@ -364,11 +379,30 @@ body.full .hint { display: none !important; }
           <button class="btn btn-primary" type="button" id="add">Add photos</button>
           <button class="btn" type="button" id="cam-open">Take a photo</button>
           <button class="btn" type="button" id="swap">Swap</button>
-          <button class="btn" type="button" id="clear">New set</button>
+          <button class="btn" type="button" id="restart">Start over</button>
+          <button class="btn" type="button" id="clear">End session</button>
+        </div>
+        <p class="note" id="keep-note"></p>
+        <div class="hidden" id="pair-field">
+          <div class="field">
+            <label for="pair-left">Left photo</label>
+            <select id="pair-left"></select>
+          </div>
+          <div class="field">
+            <label for="pair-right">Right photo</label>
+            <select id="pair-right"></select>
+          </div>
         </div>
         <div class="field" id="layout-field">
           <label for="layout">Layout</label>
           <select id="layout"></select>
+        </div>
+        <div class="field" id="empties-field">
+          <label for="empties">Empty squares</label>
+          <select id="empties">
+            <option value="drop" selected>Taken out, the last row centred</option>
+            <option value="keep">Kept</option>
+          </select>
         </div>
         <div class="field">
           <label for="shape">Cell shape</label>
@@ -462,6 +496,9 @@ body.full .hint { display: none !important; }
         <div class="actions">
           <button class="btn btn-primary" type="button" id="line-auto">Auto line up</button>
           <button class="btn" type="button" id="line-area">Line up on a part</button>
+        </div>
+        <div class="actions hidden" id="line-all-row">
+          <button class="btn" type="button" id="line-all">Line up every photo on the first</button>
         </div>
         <div class="actions">
           <button class="btn" type="button" id="line-pins">Two-point line up</button>
@@ -746,6 +783,19 @@ body.full .hint { display: none !important; }
         <div class="actions">
           <button class="btn" type="button" id="tape-manual">Record while I drag</button>
         </div>
+        <h4 class="sub">Every photo in order</h4>
+        <div class="field">
+          <label for="tape-each">Time on each photo</label>
+          <select id="tape-each">
+            <option value="1.5">1.5 seconds</option>
+            <option value="2" selected>2 seconds</option>
+            <option value="3">3 seconds</option>
+          </select>
+        </div>
+        <div class="actions">
+          <button class="btn" type="button" id="tape-all">Record every photo in order</button>
+        </div>
+        <p class="note" id="tape-all-note"></p>
         <p class="note" id="tape-note"></p>
         <div class="actions">
           <button class="btn hidden" type="button" id="tape-share">Share the video</button>
@@ -756,18 +806,20 @@ body.full .hint { display: none !important; }
       <section class="panel" id="panel-steps">
         <h3>Steps</h3>
         <ol class="steps">
-          <li>Add the photos, or paste one with Ctrl+V. They fill the cells in the order you picked them. Swap trades two over, and Before and After stay on their own side. New set clears the photos with their covers, marks and labels, and needs a second press.</li>
+          <li>Add the photos, or paste one with Ctrl+V. They fill the cells in the order you picked them. Swap trades two over, and Before and After stay on their own side. The set is kept on this device after every change, so closing the app and opening it again brings it back. Start over keeps the photos and takes off the line up, cut-outs, covers, marks and labels. End session clears the photos and the kept set. Both need a second press.</li>
+          <li>Layout: Fits the photos picks the rows from how many photos there are. With a fixed layout and fewer photos than it holds, Empty squares set to Taken out drops the empty cells and centres the last row. On a computer or a tablet, the strip under the picture shows every photo in order. Drag one along it to change the order, or use the arrow keys.</li>
+          <li>Swipe with more than two photos: pick the Left photo and the Right photo under Photos, like Day 1 and Day 3 or Baseline and Day 7. Each photo comes back where it was last put, and a tap on a photo in the strip puts it on the right. Line up every photo on the first, under Line up, matches all of them to the first photo so any two make a pair. Labels then has a row for every photo.</li>
           <li>Pick a tool. It decides what dragging on the picture does and shows only the controls for that job.</li>
           <li>Photos: drag a photo inside its cell to move it, and scroll or pinch to zoom.</li>
           <li>Background: Remove the background finds the person on every photo, or anything that stands apart from a plain background. Draw around it takes a loose loop drawn a little outside the subject and moves it in onto the subject's edge, for a hand, a product or a busy background. The line can keep what is inside, add it back or take it away, and drawing stays on until Done. The Erase and Restore brushes fix small bits by hand, and Undo and Redo step through every change. The removed part shows the background colour, and shows in faint red on screen while the Photos tool is open.</li>
-          <li>Line up: in Swipe, drag a photo to move it or drag the divider to slide it. The photo you touch becomes the one picked under Moves, and the arrows, Size and Turn work on it. Both moves the two together. In Grid, Zoom works on All photos zooms them together to the same spot.</li>
+          <li>Line up: in Swipe, drag a photo to move it or drag the divider to slide it. A press on the divider slides it under every tool, so a label or a cover near it never gets in the way. The photo you touch becomes the one picked under Moves, and the arrows, Size and Turn work on it. Both moves the two together. In Grid, Zoom works on All photos zooms them together to the same spot.</li>
           <li>Auto line up matches small spots across the photos and moves, sizes and turns each photo onto the first, even one taken on its side. It runs by itself when the second photo of a pair goes in. Auto line up works on the main subject, the person or the arm, so a floor or a wall that moved does not pull it off. Line up on a part has you draw around something on the first photo, like a scar or a mole, and finds the same part on the other photos even when they are turned or closer. Two-point line up has you tap the same two spots on each photo instead, like both pupils. Four-point line up takes four spots and also matches the camera angle, for a photo taken from the side. A magnifier shows under your finger while you tap. When the first photo has its background removed, the photos lined up on it get the same cut.</li>
           <li>View: See-through lays the second photo over the first at half strength and Differences shows only where they differ. Both are for checking the line up and never show in the saved picture.</li>
           <li>Fill the frame zooms the photos together until no background shows. Centre both puts the photos back in the middle at their own size. Reset and line up does the same and then runs Auto line up again. Undo or Ctrl+Z takes back the last move, size or turn.</li>
           <li>Labels: a label and a date for each photo. The date comes from the photo when it holds one, and you can change it. Credit puts a line like "Cygnus Aesthetics" along the top or bottom of the picture, and Watermark lays words, a symbol or your logo over every photo. Only the labels differ from photo to photo. With Labels open, tap a label, the credit or the watermark to pick it, drag it to put it anywhere, and use its round handle to tilt it and its square corner to size it.</li>
           <li>Cover: Cover the eyes finds the eyes on every photo and covers them with the cover picked, a bar, a blur, an oval or a block. Each eye gets its own cover and the bridge of the nose stays clear, unless Eyes is set to Both eyes together. Press it after lining up, since a cover stays where it was put when a photo moves. Or drag over the eyes, a name or an address. A cover lands on the same spot of every photo, or only on its own with This photo only. Drag a cover to move it. The picked cover has a round handle to tilt it and a square corner to size it.</li>
           <li>Mark: drag to draw an arrow, circle, line or box. With Shows on set to Both photos it appears on every photo at the same spot. Drag a mark to move it, or an end to reshape it.</li>
-          <li>Video: Record the swipe runs the divider across by itself. Record while I drag follows what you do until you press Stop.</li>
+          <li>Video: Record the swipe runs the divider across by itself. Record while I drag follows what you do until you press Stop. Record every photo in order shows the first photo, then wipes each next one in from the right with its label, for Day 1, Day 2, Day 3 and on. Time on each photo sets how long each one stays.</li>
           <li>Full screen: one photo close up, with arrows that move a pixel per tap and buttons that turn it a tenth of a degree.</li>
           <li>More under each tool holds the settings you need less often. The app keeps your settings for next time, while the photos, labels and dates are not kept.</li>
           <li>Press Save, or Share on a phone to send the picture straight to another app.</li>
@@ -852,6 +904,16 @@ body.full .hint { display: none !important; }
   <p>No photo yet.</p>
   <button class="btn btn-primary" type="button" id="choose">Add photos</button>
   <button class="btn" type="button" id="cam-open-empty">Take a photo</button>
+</div>
+
+<div class="drop resume hidden" id="resume" style="position:fixed; inset:auto 14px 80px; z-index:6">
+    <p>The last set is kept on this device and locked with the PIN. Type the PIN to open it.</p>
+    <div class="actions">
+      <input type="password" inputmode="numeric" autocomplete="off" id="resume-pin" aria-label="PIN">
+      <button class="btn btn-primary" type="button" id="resume-open">Open the last set</button>
+      <button class="btn" type="button" id="resume-end">End session</button>
+    </div>
+    <p class="note" id="resume-note">Adding new photos instead replaces the last set.</p>
 </div>
 
 <div class="cam hidden" id="cam" role="dialog" aria-label="Camera">
@@ -1036,6 +1098,7 @@ if ('serviceWorker' in navigator) {
 /* Layout maths */
 
 var LAYOUTS = {
+  fit: { cols: 2, rows: 1, name: 'Fits the photos' },
   '1x2': { cols: 2, rows: 1, name: 'Side by side' },
   '2x1': { cols: 1, rows: 2, name: 'Top and bottom' },
   '1x3': { cols: 3, rows: 1, name: 'Three across' },
@@ -1056,25 +1119,42 @@ function newCell() {
   return { image: null, zoom: 1, fx: 0.5, fy: 0.5, turn: 0, label: '', flip: false };
 }
 
+/* Fits the photos picks the columns from how many photos there are: one row
+   up to three, then two, three or four across. */
+function boxOf(key) {
+  if (key !== 'fit') return LAYOUTS[key] || LAYOUTS['1x2'];
+  var n = Math.max(1, Math.min(16, photos.length));
+  var cols = n <= 3 ? n : n === 4 ? 2 : n <= 9 ? 3 : 4;
+  return { cols: cols, rows: Math.ceil(n / cols) };
+}
+
+/* count is how many cells show. With fewer photos than the layout holds, the
+   empty squares are taken out: one row shrinks to the photos it has, and a
+   short last row sits in the middle under the rows above it. */
 function layoutOf(settings, width) {
-  var box = LAYOUTS[settings.layout];
+  var box = boxOf(settings.layout);
+  var count = Math.max(1, Math.min(box.cols * box.rows, settings.count || box.cols * box.rows));
+  var rows = Math.ceil(count / box.cols);
+  var cols = rows === 1 ? count : box.cols;
   var gap = Math.round(width * settings.gap / 1000);
   var pad = Math.round(width * settings.pad / 1000);
-  var cellWidth = (width - pad * 2 - gap * (box.cols - 1)) / box.cols;
+  var cellWidth = (width - pad * 2 - gap * (cols - 1)) / cols;
   var cellHeight = cellWidth / (settings.ratio || 1);
-  var height = Math.round(cellHeight * box.rows + gap * (box.rows - 1) + pad * 2);
+  var height = Math.round(cellHeight * rows + gap * (rows - 1) + pad * 2);
   var rects = [];
-  for (var r = 0; r < box.rows; r++) {
-    for (var c = 0; c < box.cols; c++) {
+  for (var r = 0; r < rows; r++) {
+    var inRow = Math.min(cols, count - r * cols);
+    var shift = (cols - inRow) * (cellWidth + gap) / 2;
+    for (var c = 0; c < inRow; c++) {
       rects.push({
-        x: pad + c * (cellWidth + gap),
+        x: pad + shift + c * (cellWidth + gap),
         y: pad + r * (cellHeight + gap),
         width: cellWidth,
         height: cellHeight
       });
     }
   }
-  return { rects: rects, width: width, height: Math.max(1, height), cols: box.cols, rows: box.rows };
+  return { rects: rects, width: width, height: Math.max(1, height), cols: cols, rows: rows };
 }
 
 /* Free move lets a photo go past the edge of its cell and shrink below the
@@ -1424,7 +1504,25 @@ function drawSwipe(ctx, settings, cells, width, position, view) {
   });
   ctx.fillStyle = '#ffffff';
   var bar = Math.max(2, Math.round(width / 400));
-  ctx.fillRect(cut - bar / 2, 0, bar, height);
+  if (cut > 0 && cut < width) ctx.fillRect(cut - bar / 2, 0, bar, height);
+  /* In a sequence every label sits in the same place and is wiped across with
+     its photo, so the label of the photo coming in takes over without a jump
+     when the next pair starts. */
+  if (tapeSeq) {
+    [0, 1].forEach(function (index) {
+      var words = settings.labels && cells[index] && cells[index].image ? labelText(index) : '';
+      if (!words) return;
+      var box = labelBox(ctx, rect, words, width, 'left', cells[0]);
+      ctx.save();
+      ctx.beginPath();
+      if (index === 0) ctx.rect(0, 0, cut, height);
+      else ctx.rect(cut, 0, width - cut, height);
+      ctx.clip();
+      paintLabel(ctx, box, words, 1);
+      ctx.restore();
+    });
+    return { width: width, height: height, cut: cut };
+  }
   /* The labels sit on top, whole. Each one fades as the divider crosses it, so
      Before never shows over the after photo and the video shows both labels
      whenever both sides are in view. */
@@ -2839,7 +2937,7 @@ Object.keys(LAYOUTS).forEach(function (key) {
   var option = document.createElement('option');
   option.value = key;
   option.textContent = LAYOUTS[key].name;
-  if (key === '1x2') option.selected = true;
+  if (key === 'fit') option.selected = true;
   el('layout').appendChild(option);
 });
 Object.keys(SHAPES).forEach(function (key) {
@@ -2870,20 +2968,63 @@ function settings() {
     gap: gap,
     pad: gap,
     background: el('background').value,
-    labels: el('labels').checked
+    labels: el('labels').checked,
+    count: mode === 'swipe' ? 2 : cellCount()
   };
+}
+
+function dropEmpty() {
+  return el('layout').value === 'fit' || el('empties').value === 'drop';
 }
 
 function cellCount() {
   if (mode === 'swipe') return 2;
-  var box = LAYOUTS[el('layout').value];
-  return box.cols * box.rows;
+  var box = boxOf(el('layout').value);
+  var room = box.cols * box.rows;
+  return dropEmpty() && photos.length ? Math.min(room, photos.length) : room;
+}
+
+/* Before and After go on by themselves only where the frame is a pair. */
+function pairLabels() {
+  if (mode === 'swipe') return photos.length <= 2;
+  var key = el('layout').value;
+  return key !== 'fit' && boxOf(key).cols * boxOf(key).rows === 2;
+}
+
+function emptiesField() {
+  el('empties-field').classList.toggle('hidden', mode === 'swipe' || el('layout').value === 'fit');
+}
+
+/* Each photo keeps where it was put, its size, turn and label when it leaves a
+   cell, so a photo picked again for a pair, or put back after a switch to
+   Swipe, comes back lined up as it was. */
+var POSE = ['zoom', 'fx', 'fy', 'turn', 'flip', 'label'];
+function keepPose(cell) {
+  if (!cell || !cell.image) return;
+  var pose = {};
+  POSE.forEach(function (key) { pose[key] = cell[key]; });
+  cell.image.pose = pose;
+}
+
+function putPhoto(cell, photo) {
+  var pose = photo && photo.pose;
+  cell.image = photo;
+  cell.zoom = pose ? pose.zoom : 1;
+  cell.fx = pose ? pose.fx : 0.5;
+  cell.fy = pose ? pose.fy : 0.5;
+  cell.turn = pose ? pose.turn || 0 : 0;
+  cell.flip = pose ? Boolean(pose.flip) : false;
+  cell.label = pose ? pose.label || '' : '';
+  return Boolean(pose);
 }
 
 function fitCells() {
   var wanted = cellCount();
   while (cells.length < wanted) cells.push(newCell());
-  if (cells.length > wanted) cells.length = wanted;
+  if (cells.length > wanted) {
+    cells.slice(wanted).forEach(keepPose);
+    cells.length = wanted;
+  }
   if (picked >= wanted) picked = -1;
 }
 
@@ -2907,7 +3048,8 @@ function place() {
     for (var i = 0; i < cells.length; i++) { if (!cells[i].image) { slot = i; break; } }
     if (slot === -1) return;
     cells[slot].image = photo;
-    if (!cells[slot].label && cellCount() === 2) cells[slot].label = slot === 0 ? 'Before' : 'After';
+    putPhoto(cells[slot], photo);
+    if (!cells[slot].label && pairLabels()) cells[slot].label = slot === 0 ? 'Before' : 'After';
     taken[photo.id] = true;
   });
 }
@@ -2917,7 +3059,8 @@ function stageRoom() {
   var wrap = stage.parentElement;
   var style = window.getComputedStyle(wrap);
   var wide = (wrap.clientWidth || 900) - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-  var high = (wrap.clientHeight || 600) - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+  var strip = el('order').offsetHeight;
+  var high = (wrap.clientHeight || 600) - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - (strip ? strip + 8 : 0);
   return { width: Math.max(280, Math.min(wide, 900)), height: Math.max(200, high) };
 }
 
@@ -2950,6 +3093,7 @@ var frameTall = 0;
 var lastBoxes = { labels: [], credit: null, wm: [] };
 
 function paint() {
+  sessionSoon();
   fitCells();
   if (toneDirty) applyTones();
   var dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -2973,6 +3117,10 @@ function paint() {
   stage.height = Math.round(cssH * dpr);
   stage.style.width = cssW + 'px';
   stage.style.height = cssH + 'px';
+  /* the hint sits on the bottom of the picture, above the strip of photos */
+  var hint = el('swipe-hint');
+  hint.style.bottom = 'auto';
+  hint.style.top = Math.max(0, stage.offsetTop + stage.offsetHeight - 40) + 'px';
   ctx.setTransform(dpr * k, 0, 0, dpr * k, -area.x * dpr * k, -area.y * dpr * k);
   ghost = tool === 'photos' && el('bg-ghost').checked;
   if (mode === 'swipe') {
@@ -3118,7 +3266,9 @@ function addFiles(files) {
         width: bitmap.width,
         height: bitmap.height,
         date: taken || saved,
-        dateFrom: taken ? 'photo' : saved ? 'file' : ''
+        dateFrom: taken ? 'photo' : saved ? 'file' : '',
+        file: file,
+        fileBitmap: bitmap
       };
       finish();
     }).catch(function () {
@@ -3152,18 +3302,19 @@ var clearArmed = 0;
 function disarmClear() {
   clearTimeout(clearArmed);
   clearArmed = 0;
-  el('clear').textContent = 'New set';
+  el('clear').textContent = 'End session';
   el('clear').classList.remove('btn-danger');
 }
 el('clear').addEventListener('click', function () {
   if (!clearArmed) {
-    el('clear').textContent = 'Press again to clear';
+    el('clear').textContent = 'Press again to end';
     el('clear').classList.add('btn-danger');
     clearArmed = setTimeout(disarmClear, 4000);
     return;
   }
   disarmClear();
   newSet();
+  sessionClear();
 });
 
 /* Clears the photos with everything drawn on them, and keeps the settings,
@@ -3199,9 +3350,10 @@ function newSet() {
   refresh();
 }
 
-['layout', 'shape', 'gap', 'background', 'labels'].forEach(function (id) {
+['layout', 'empties', 'shape', 'gap', 'background', 'labels'].forEach(function (id) {
   el(id).addEventListener('change', function () {
-    if (id === 'layout') forgetUndo();
+    if (id === 'layout' || id === 'empties') forgetUndo();
+    if (id === 'layout' || id === 'empties') emptiesField();
     picked = -1;
     place();
     labelRows();
@@ -3226,6 +3378,7 @@ function showMode(next) {
   buildDrag();
   el('swipe-hint').classList.toggle('hidden', next !== 'swipe');
   el('layout-field').classList.toggle('hidden', next === 'swipe');
+  emptiesField();
   setDoing(dragFor(tool));
   picked = -1;
   paint();
@@ -3233,6 +3386,281 @@ function showMode(next) {
 }
 el('tab-grid').addEventListener('click', function () { showMode('grid'); keepSettings(); });
 el('tab-swipe').addEventListener('click', function () { showMode('swipe'); keepSettings(); });
+
+/* ---------- the pair in Swipe and the order of the photos ---------- */
+
+function photoById(id) {
+  for (var i = 0; i < photos.length; i++) if (photos[i].id === id) return photos[i];
+  return null;
+}
+
+function cellOf(photo) {
+  for (var i = 0; i < cells.length; i++) if (cells[i].image === photo) return cells[i];
+  return null;
+}
+
+function photoWords(photo) {
+  var cell = cellOf(photo);
+  return (cell ? cell.label : photo.pose && photo.pose.label) || '';
+}
+
+function photoTitle(photo, index) {
+  var date = photo.date ? dayText(photo.date) : '';
+  return (index + 1) + '. ' + (photoWords(photo) || photo.stem) + (date ? ', ' + date : '');
+}
+
+/* Puts two photos up as the pair, each where it was last put. */
+function showPair(a, b) {
+  fitCells();
+  keepPose(cells[0]);
+  keepPose(cells[1]);
+  putPhoto(cells[0], a);
+  putPhoto(cells[1], b);
+}
+
+/* A photo picked for one side. One already on the other side trades over. A
+   photo shown before comes back where it was, and a new one on the right is
+   lined up on the left one by itself. */
+function pickSide(side, photo) {
+  if (!photo || mode !== 'swipe') return;
+  fitCells();
+  if (cells[side].image === photo) return;
+  cancelPins();
+  cancelArea();
+  forgetUndo();
+  var known = Boolean(photo.pose);
+  if (cells[1 - side].image === photo) swapCells(0, 1);
+  else {
+    keepPose(cells[side]);
+    putPhoto(cells[side], photo);
+  }
+  if ((side === 0 || known) && cells[0].image && cells[1].image) linedPair = [cells[0].image.id, cells[1].image.id].sort().join('|');
+  labelRows();
+  paint();
+  autoLine();
+}
+
+['pair-left', 'pair-right'].forEach(function (id, side) {
+  el(id).addEventListener('change', function () { pickSide(side, photoById(el(id).value)); });
+});
+
+function pairControls() {
+  var many = mode === 'swipe' && photos.length > 2;
+  el('pair-field').classList.toggle('hidden', !many);
+  el('line-all-row').classList.toggle('hidden', !many);
+  if (many) {
+    ['pair-left', 'pair-right'].forEach(function (id, side) {
+      var box = el(id);
+      box.textContent = '';
+      photos.forEach(function (photo, index) {
+        var option = document.createElement('option');
+        option.value = photo.id;
+        option.textContent = photoTitle(photo, index);
+        box.appendChild(option);
+      });
+      box.value = cells[side] && cells[side].image ? cells[side].image.id : '';
+    });
+  }
+  orderStrip();
+}
+
+/* Lines every photo up on the first in turn, so any two of them make a pair
+   that already matches, and the video of every photo runs without a jump. */
+var liningAll = false;
+function lineAll() {
+  if (lining || liningAll || mode !== 'swipe' || photos.length < 2) return;
+  cancelPins();
+  cancelArea();
+  fitCells();
+  var keep = [cells[0].image, cells[1].image];
+  var first = photos[0], rest = photos.slice(1), n = 0;
+  liningAll = true;
+  lineButtons();
+  var next = function () {
+    if (n >= rest.length) {
+      liningAll = false;
+      showPair(keep[0], keep[1]);
+      if (keep[0] && keep[1]) linedPair = [keep[0].id, keep[1].id].sort().join('|');
+      forgetUndo();
+      labelRows();
+      paint();
+      say('Every photo is lined up on ' + (photoWords(first) || first.stem) + '. Pick any two above, or record every photo in order under Video.');
+      return;
+    }
+    showPair(first, rest[n]);
+    linedPair = [first.id, rest[n].id].sort().join('|');
+    paint();
+    lineUp([1]);
+    var wait = function () {
+      if (lining) { setTimeout(wait, 120); return; }
+      keepPose(cells[1]);
+      n++;
+      next();
+    };
+    setTimeout(wait, 60);
+  };
+  next();
+}
+el('line-all').addEventListener('click', lineAll);
+
+/* The strip under the picture on a computer or a tablet. Drag a photo along it
+   to change the order. In Grid the cells follow the order, and in Swipe it is
+   the order the video of every photo runs in. A tap on a photo in Swipe puts it
+   on the right. */
+function stripThumb(photo) {
+  if (photo.strip && photo.strip.from === photo.bitmap) return photo.strip.canvas;
+  var canvas = document.createElement('canvas');
+  canvas.width = 144;
+  canvas.height = 108;
+  var c = canvas.getContext('2d');
+  var k = Math.max(canvas.width / photo.width, canvas.height / photo.height);
+  var w = photo.width * k, h = photo.height * k;
+  c.drawImage(photo.bitmap, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+  photo.strip = { from: photo.bitmap, canvas: canvas };
+  return canvas;
+}
+
+function orderStrip() {
+  var strip = el('order');
+  var on = photos.length >= 2;
+  strip.classList.toggle('on', on);
+  strip.textContent = '';
+  if (!on) return;
+  photos.forEach(function (photo, index) {
+    var item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'thumb';
+    item.dataset.id = photo.id;
+    item.setAttribute('aria-label', 'Photo ' + (index + 1) + ', ' + (photoWords(photo) || photo.stem) + '. Arrow keys move it.');
+    if (mode === 'swipe' && cellOf(photo)) item.classList.add('shown');
+    var view = document.createElement('canvas');
+    view.width = 144;
+    view.height = 108;
+    view.getContext('2d').drawImage(stripThumb(photo), 0, 0);
+    var badge = document.createElement('b');
+    badge.textContent = String(index + 1);
+    var name = document.createElement('span');
+    name.textContent = photoWords(photo) || photo.stem;
+    item.appendChild(view);
+    item.appendChild(badge);
+    item.appendChild(name);
+    strip.appendChild(item);
+  });
+}
+
+function stripIds() {
+  return [].map.call(el('order').querySelectorAll('.thumb'), function (item) { return item.dataset.id; });
+}
+
+/* Puts the photos in a new order. In Grid each cell goes with its photo, with
+   its covers and marks, and in a pair Before and After stay on their side. */
+function commitOrder(ids) {
+  var next = ids.map(photoById).filter(Boolean);
+  if (next.length !== photos.length) return;
+  if (next.every(function (photo, i) { return photo === photos[i]; })) return;
+  cancelPins();
+  cancelArea();
+  forgetUndo();
+  photos = next;
+  if (mode !== 'swipe') {
+    var old = cells.slice();
+    var count = cellCount();
+    var fresh = [];
+    for (var i = 0; i < count; i++) {
+      var photo = photos[i];
+      var cell = photo ? cellOf(photo) : null;
+      if (!cell) {
+        cell = newCell();
+        if (photo) putPhoto(cell, photo);
+      }
+      fresh.push(cell);
+    }
+    old.forEach(function (cell) { if (fresh.indexOf(cell) === -1) keepPose(cell); });
+    if (count === 2) {
+      var sides = old.map(function (cell) { return { label: cell.label, labelAt: cell.labelAt, labelScale: cell.labelScale, labelTurn: cell.labelTurn }; });
+      fresh.forEach(function (cell, i) {
+        if (!sides[i]) return;
+        cell.label = sides[i].label;
+        cell.labelAt = sides[i].labelAt;
+        cell.labelScale = sides[i].labelScale;
+        cell.labelTurn = sides[i].labelTurn;
+      });
+    }
+    var moved = function (index) { var to = fresh.indexOf(old[index]); return to; };
+    marks = marks.filter(function (mark) { var to = moved(mark.cell); if (to < 0) return false; mark.cell = to; return true; });
+    covers = covers.filter(function (cover) {
+      if (cover.every !== false) return true;
+      var to = moved(cover.cell);
+      if (to < 0) return false;
+      cover.cell = to;
+      return true;
+    });
+    markPick = -1;
+    coverPick = -1;
+    cells = fresh;
+    picked = -1;
+  }
+  place();
+  labelRows();
+  paint();
+}
+
+var stripDrag = null;
+el('order').addEventListener('pointerdown', function (event) {
+  var item = event.target.closest('.thumb');
+  if (!item || event.button !== 0) return;
+  stripDrag = { id: event.pointerId, item: item, x: event.clientX, moved: false };
+  item.setPointerCapture(event.pointerId);
+});
+el('order').addEventListener('pointermove', function (event) {
+  if (!stripDrag || event.pointerId !== stripDrag.id) return;
+  if (!stripDrag.moved && Math.abs(event.clientX - stripDrag.x) < 6) return;
+  stripDrag.moved = true;
+  var item = stripDrag.item, strip = el('order');
+  item.classList.add('lifted');
+  var others = [].filter.call(strip.querySelectorAll('.thumb'), function (one) { return one !== item; });
+  var before = null;
+  for (var i = 0; i < others.length; i++) {
+    var box = others[i].getBoundingClientRect();
+    if (event.clientX < box.left + box.width / 2) { before = others[i]; break; }
+  }
+  if (before) { if (item.nextSibling !== before) strip.insertBefore(item, before); }
+  else if (strip.lastChild !== item) strip.appendChild(item);
+  /* the strip scrolls when a photo is held near its end */
+  var edge = strip.getBoundingClientRect();
+  if (event.clientX > edge.right - 30) strip.scrollLeft += 12;
+  else if (event.clientX < edge.left + 30) strip.scrollLeft -= 12;
+});
+function stripUp(event) {
+  if (!stripDrag || event.pointerId !== stripDrag.id) return;
+  var was = stripDrag;
+  stripDrag = null;
+  was.item.classList.remove('lifted');
+  if (was.moved) { commitOrder(stripIds()); return; }
+  if (event.type === 'pointercancel') return;
+  var photo = photoById(was.item.dataset.id);
+  if (!photo) return;
+  if (mode === 'swipe') {
+    if (!cellOf(photo)) pickSide(1, photo);
+    return;
+  }
+  var cell = cellOf(photo);
+  if (cell) { picked = cells.indexOf(cell); paint(); }
+}
+el('order').addEventListener('pointerup', stripUp);
+el('order').addEventListener('pointercancel', stripUp);
+el('order').addEventListener('keydown', function (event) {
+  var item = event.target.closest('.thumb');
+  if (!item || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
+  event.preventDefault();
+  var ids = stripIds(), at = ids.indexOf(item.dataset.id), to = at + (event.key === 'ArrowLeft' ? -1 : 1);
+  if (to < 0 || to >= ids.length) return;
+  ids.splice(to, 0, ids.splice(at, 1)[0]);
+  var id = item.dataset.id;
+  commitOrder(ids);
+  var again = el('order').querySelector('.thumb[data-id="' + id + '"]');
+  if (again) again.focus();
+});
 
 /* Pointer work */
 
@@ -3277,6 +3705,13 @@ stage.addEventListener('pointerdown', function (event) {
     if (pins.down) { pins.down.multi = true; pins.at = null; }
     else { pins.down = { id: event.pointerId, x: event.clientX, y: event.clientY, multi: false }; pins.at = point; }
     paint();
+    return;
+  }
+  /* In Swipe a press on the divider always slides it, whichever tool is open,
+     so a label, a cover or a mark near it never gets in the way. */
+  if (mode === 'swipe' && viewMode === 'split' && nearDivider(point) && cells[0] && cells[0].image && cells[1] && cells[1].image) {
+    remember();
+    drag = { kind: 'swipe', id: event.pointerId, offset: point.x / stageWidth() - swipePosition };
     return;
   }
   if (el('drag-does').value === 'mark') {
@@ -3375,7 +3810,7 @@ function nearDivider(point) {
 /* Over the divider the pointer shows that it slides sideways. */
 stage.addEventListener('pointermove', function (event) {
   if (event.pointerType !== 'mouse' || drag) return;
-  var lining = mode === 'swipe' && !pins && !areaPick && viewMode === 'split' && ['first', 'second', 'both'].indexOf(el('drag-does').value) >= 0;
+  var lining = mode === 'swipe' && !pins && !areaPick && !lasso && !brush && viewMode === 'split';
   stage.style.cursor = lining && nearDivider(stagePoint(event)) ? 'ew-resize' : '';
 });
 
@@ -3699,7 +4134,10 @@ el('photo-turn').addEventListener('input', function () {
    the photo they were drawn on. */
 function swapCells(a, b) {
   if (!cells[a] || !cells[b]) return;
-  ['image', 'zoom', 'fx', 'fy', 'turn', 'flip'].forEach(function (key) {
+  var keys = ['image', 'zoom', 'fx', 'fy', 'turn', 'flip'];
+  /* with more photos than the pair, each label names its photo */
+  if (mode === 'swipe' && photos.length > 2) keys.push('label');
+  keys.forEach(function (key) {
     var keep = cells[a][key];
     cells[a][key] = cells[b][key];
     cells[b][key] = keep;
@@ -3722,6 +4160,9 @@ el('swap').addEventListener('click', function () {
   if (picked < 0) return;
   var next = (picked + 1) % cellCount();
   swapCells(picked, next);
+  /* the order of the photos follows the cells, for the strip and the video */
+  var inCells = cells.map(function (cell) { return cell.image; }).filter(Boolean);
+  photos = inCells.concat(photos.filter(function (photo) { return inCells.indexOf(photo) === -1; }));
   labelRows();
   paint();
 });
@@ -5175,6 +5616,8 @@ function lineButtons() {
   var ready = cells[0] && cells[0].image && lineTargets().some(function (index) { return cells[index] && cells[index].image; });
   el('line-auto').disabled = lining || !ready || Boolean(pins) || Boolean(areaPick);
   el('line-auto').textContent = lining ? 'Lining up' : 'Auto line up';
+  el('line-all').disabled = lining || liningAll || Boolean(pins) || Boolean(areaPick) || photos.length < 2;
+  el('line-all').textContent = liningAll ? 'Lining up every photo' : 'Line up every photo on the first';
   el('line-pins').disabled = lining || Boolean(areaPick) || (!pins && pinTarget() < 1);
   el('line-pins').textContent = pins && pins.count === 2 ? 'Cancel' : 'Two-point line up';
   el('line-pins4').disabled = lining || Boolean(areaPick) || (!pins && pinTarget() < 1);
@@ -5556,6 +5999,11 @@ function camTarget() {
   fitCells();
   if (picked > 0 && cells[picked]) return picked;
   for (var i = 0; i < cells.length; i++) if (!cells[i].image) return i;
+  /* with the empty squares taken out, a new photo gets a new cell */
+  if (mode !== 'swipe' && dropEmpty()) {
+    var box = boxOf(el('layout').value);
+    if (el('layout').value === 'fit' ? photos.length < 16 : photos.length < box.cols * box.rows) return cells.length;
+  }
   return cells.length > 1 ? cells.length - 1 : 0;
 }
 
@@ -5880,6 +6328,17 @@ function camShoot() {
     var stem = 'Camera ' + camStamp(now);
     var photo = { id: 'p' + (nextId++), name: stem + '.jpg', stem: stem, bitmap: bitmap, width: bitmap.width, height: bitmap.height, date: now, dateFrom: 'photo' };
     fitCells();
+    if (cam.target >= cells.length) {
+      photos.push(photo);
+      camClose();
+      forgetUndo();
+      refresh();
+      if (clientNow) {
+        var to = clientNow;
+        saveShot(to.id, photo).then(function () { message('Saved to ' + to.name + '.', true); }, function (error) { message(error.message); });
+      }
+      return;
+    }
     var index = Math.min(cam.target, cells.length - 1);
     var cell = cells[index];
     var old = cell.image;
@@ -5894,7 +6353,7 @@ function camShoot() {
     cell.fy = 0.5;
     cell.turn = 0;
     cell.flip = false;
-    if (!cell.label && cellCount() === 2) cell.label = index === 0 ? 'Before' : 'After';
+    if (!cell.label && pairLabels()) cell.label = index === 0 ? 'Before' : 'After';
     camClose();
     forgetUndo();
     refresh();
@@ -6089,6 +6548,8 @@ function tryPin(pin) {
   return keyFrom(pin, fromBase64(info.salt)).then(function (key) {
     return unseal(key, { iv: fromBase64(info.iv), data: fromBase64(info.check).buffer }).then(function () {
       lockKey = key;
+      sessionKey = key;
+      sessionSoon();
       return true;
     }, function () { return false; });
   });
@@ -6131,6 +6592,8 @@ function rekey(newKey, info) {
         return Promise.all([openBlob(shot.photo), openBlob(shot.thumb), openData(shot)]);
       })).then(function (opened) {
         lockKey = newKey;
+        sessionKey = newKey;
+        sessionWritten = {};
         if (info) localStorage.setItem(LOCK_NAME, JSON.stringify(info));
         else localStorage.removeItem(LOCK_NAME);
         var jobs = clients.map(function (c, i) {
@@ -6141,7 +6604,7 @@ function rekey(newKey, info) {
             return dbPut('shots', Object.assign({ id: shot.id, client: shot.client, date: shot.date, photo: got[0], thumb: got[1] }, got[2]));
           }));
         });
-        return Promise.all(jobs);
+        return Promise.all(jobs).then(function (out) { sessionSoon(); return out; });
       });
     });
   });
@@ -7331,8 +7794,11 @@ function dateText(index) {
   if (!date) return '';
   var style = el('date-style').value;
   if (style === 'month') return MONTHS[date.getMonth()] + ' ' + date.getFullYear();
-  if (style === 'since' && index > 0) {
-    var first = cells[0] && cells[0].image && cells[0].image.date;
+  /* with more photos than the pair, days count from the first photo in the
+     order, so Day 1 stays Day 1 whichever pair is up */
+  var base = mode === 'swipe' && photos.length > 2 ? photos[0] : cells[0] && cells[0].image;
+  if (style === 'since' && base && base !== cell.image) {
+    var first = base.date;
     if (first) {
       var day = function (d) { return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()); };
       var days = Math.round((day(date) - day(first)) / 86400000);
@@ -7371,15 +7837,25 @@ function dateNote(photo) {
 function labelRows() {
   var box = el('label-rows');
   box.textContent = '';
-  cells.forEach(function (cell, index) {
-    if (!cell.image) return;
-    var photo = cell.image;
+  /* in Swipe with more photos than the pair, every photo gets its row, so each
+     can be named Day 1, Day 3 and so on before it is shown */
+  var every = mode === 'swipe' && photos.length > 2;
+  var rows = every
+    ? photos.map(function (photo) { return { photo: photo, cell: cellOf(photo) }; })
+    : cells.filter(function (cell) { return cell.image; }).map(function (cell) { return { photo: cell.image, cell: cell }; });
+  rows.forEach(function (entry, index) {
+    var photo = entry.photo, cell = entry.cell;
+    if (!cell) {
+      if (!photo.pose) photo.pose = { zoom: 1, fx: 0.5, fy: 0.5, turn: 0, flip: false, label: '' };
+      cell = photo.pose;
+    }
+    var side = every && entry.cell ? (entry.cell === cells[0] ? ', on the left' : ', on the right') : '';
     var row = document.createElement('div');
     row.className = 'label-row';
     row.innerHTML = '<div class="head"></div><div class="row">'
       + '<div class="field"><label></label><input type="text" maxlength="40"></div>'
       + '<div class="field"><label></label><input type="date"></div></div><p class="note"></p>';
-    row.querySelector('.head').textContent = 'Photo ' + (index + 1);
+    row.querySelector('.head').textContent = 'Photo ' + (index + 1) + side;
     var labels = row.querySelectorAll('label');
     var words = row.querySelector('input[type=text]');
     var day = row.querySelector('input[type=date]');
@@ -7391,13 +7867,14 @@ function labelRows() {
     labels[1].htmlFor = day.id;
     labels[1].textContent = 'Taken';
     words.value = cell.label || '';
-    words.placeholder = index === 0 ? 'Before' : 'After';
+    words.placeholder = every ? (index === 0 ? 'Baseline' : 'Day ' + index) : index === 0 ? 'Before' : 'After';
     day.value = dateValue(photo.date);
     note.textContent = dateNote(photo);
     words.addEventListener('input', function () {
       cell.label = words.value;
       paint();
     });
+    words.addEventListener('change', pairControls);
     day.addEventListener('change', function () {
       var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day.value);
       photo.date = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12) : null;
@@ -7409,6 +7886,7 @@ function labelRows() {
         keepSettings();
       }
       paint();
+      pairControls();
     });
     box.appendChild(row);
   });
@@ -7416,6 +7894,7 @@ function labelRows() {
   var sample = first || new Date();
   el('date-style').options[0].textContent = dayText(sample);
   el('date-style').options[1].textContent = MONTHS[sample.getMonth()] + ' ' + sample.getFullYear();
+  pairControls();
 }
 
 ['date-place', 'date-style'].forEach(function (id) { el(id).addEventListener('change', paint); });
@@ -7823,7 +8302,59 @@ function even(n) { n = Math.round(n); return n % 2 ? n + 1 : n; }
 
 function tapeSay(words) { el('tape-note').textContent = words; }
 
-function startTape(auto) {
+/* The video of every photo: each one held, then the next wiped in from the
+   right over it, in the order of the photos. */
+var tapeSeq = false;
+var SEQ_LEAD = 0.75, SEQ_WIPE = 0.45, SEQ_TAIL = 0.3;
+
+function seqSeconds(count, each) { return each * (SEQ_LEAD + (count - 1) + SEQ_TAIL); }
+
+function startSequence() {
+  if (taping || mode !== 'swipe' || photos.length < 2) return;
+  cancelPins();
+  cancelArea();
+  fitCells();
+  keepPose(cells[0]);
+  keepPose(cells[1]);
+  var seq = { list: photos.slice(), each: Number(el('tape-each').value) || 2, pair: [cells[0].image, cells[1].image], split: swipePosition, shown: -1 };
+  tapeSeq = true;
+  showPair(seq.list[0], seq.list[1]);
+  seq.shown = 0;
+  swipePosition = 1;
+  paint();
+  startTape(true, seq);
+  if (!taping) {
+    tapeSeq = false;
+    showPair(seq.pair[0], seq.pair[1]);
+    swipePosition = seq.split;
+    paint();
+  }
+}
+
+function seqFrame(seq, gone) {
+  var each = seq.each, n = seq.list.length;
+  var at = gone - each * SEQ_LEAD;
+  var step = 0, split = 1;
+  if (at >= 0) {
+    step = Math.floor(at / each);
+    if (step >= n - 1) { step = n - 2; split = 0; }
+    else {
+      var k = (at - step * each) / (each * SEQ_WIPE);
+      split = k >= 1 ? 0 : 1 - ease(k);
+    }
+  }
+  if (seq.shown !== step) {
+    showPair(seq.list[step], seq.list[step + 1]);
+    seq.shown = step;
+  }
+  swipePosition = split;
+  paint();
+}
+
+el('tape-all').addEventListener('click', startSequence);
+el('tape-each').addEventListener('change', tapeButtons);
+
+function startTape(auto, seq) {
   if (taping) return;
   var type = videoType();
   if (!type) { tapeSay('This browser cannot make a video. Chrome, Edge and Safari can.'); return; }
@@ -7846,8 +8377,8 @@ function startTape(auto) {
   recorder.onstop = function () { keepTape(chunks, type, canvas.width, canvas.height); };
   taping = {
     recorder: recorder, canvas: canvas, out: out, work: work, wide: wide,
-    auto: auto, seconds: auto ? Number(el('tape-seconds').value) : MAX_TAPE,
-    began: 0, split: swipePosition, frame: 0
+    auto: auto, seconds: seq ? seqSeconds(seq.list.length, seq.each) : auto ? Number(el('tape-seconds').value) : MAX_TAPE,
+    began: 0, split: swipePosition, frame: 0, seq: seq || null
   };
   recorder.start();
   taping.began = performance.now();
@@ -7858,7 +8389,8 @@ function startTape(auto) {
 function rollTape() {
   if (!taping) return;
   var gone = (performance.now() - taping.began) / 1000;
-  if (taping.auto) {
+  if (taping.seq) seqFrame(taping.seq, Math.min(gone, taping.seconds));
+  else if (taping.auto) {
     swipePosition = splitAt(Math.min(1, gone / taping.seconds));
     paint();
   }
@@ -7874,7 +8406,13 @@ function stopTape() {
   cancelAnimationFrame(taping.frame);
   var was = taping;
   taping = null;
-  if (was.auto) { swipePosition = was.split; paint(); }
+  if (was.seq) {
+    tapeSeq = false;
+    showPair(was.seq.pair[0], was.seq.pair[1]);
+    swipePosition = was.seq.split;
+    labelRows();
+    paint();
+  } else if (was.auto) { swipePosition = was.split; paint(); }
   tapeSay('Putting the video together.');
   was.recorder.stop();
   tapeButtons();
@@ -7922,6 +8460,13 @@ function tapeButtons() {
   el('tape-seconds').disabled = Boolean(taping);
   el('tape-manual').disabled = !any || (taping && taping.auto);
   el('tape-manual').textContent = taping && !taping.auto ? 'Stop' : 'Record while I drag';
+  el('tape-all').disabled = Boolean(taping) || mode !== 'swipe' || photos.length < 2;
+  el('tape-each').disabled = Boolean(taping);
+  var each = Number(el('tape-each').value) || 2;
+  el('tape-all-note').textContent = mode !== 'swipe'
+    ? 'Open Swipe to record every photo in order.'
+    : photos.length < 2 ? 'Add two photos or more.'
+    : photos.length + ' photos, ' + seqSeconds(photos.length, each).toFixed(1) + ' seconds. Each photo is wiped in from the right with its label, in the order of the photos. Line up every photo on the first under Line up before recording, so they stay still from one to the next.';
 }
 
 el('tape-auto').addEventListener('click', function () { startTape(true); });
@@ -8050,9 +8595,9 @@ document.addEventListener('paste', function (event) {
 
 /* The choices are kept in this browser so the app opens the way it was left.
    Photos, labels and dates are never kept. */
-var KEPT = ['layout', 'shape', 'gap', 'background', 'labels', 'size', 'format', 'zoom-scope', 'free-move',
+var KEPT = ['layout', 'empties', 'shape', 'gap', 'background', 'labels', 'size', 'format', 'zoom-scope', 'free-move',
   'cover-kind', 'cover-on', 'cover-eyes-how', 'bg-how', 'bg-on', 'bg-size', 'bg-soft', 'bg-ghost', 'bg-carry', 'tone', 'post', 'cover-colour', 'cover-strength', 'mark-kind', 'mark-colour', 'mark-width', 'mark-show',
-  'tape-seconds', 'date-place', 'date-style', 'credit-text', 'credit-place',
+  'tape-seconds', 'tape-each', 'date-place', 'date-style', 'credit-text', 'credit-place',
   'wm-text', 'wm-place', 'wm-size', 'wm-strength', 'wm-colour'];
 var KEPT_NAME = 'collage-maker-settings';
 var keeping = false;
@@ -8184,6 +8729,377 @@ el('kit-drop').addEventListener('click', function () {
   kitList('');
 });
 
+/* ---------- keeping the set between visits ---------- */
+
+/* The photos on screen are kept in this browser on this device after every
+   change, with their cut-outs, line up, covers, marks and labels, so closing
+   the app and opening it again brings the set back. End session clears it.
+   With a PIN set, the kept set is locked with the same key as the folders. */
+var SESSION_DB = 'proofline-session';
+var sessionOpen = null;
+var sessionKey = null;
+var sessionReady = false;
+var sessionTimer = 0;
+var sessionBusy = false;
+var sessionAgain = false;
+var sessionWritten = {};
+var sessionWaiting = null;
+var sessionAsked = false;
+
+function sessionDb() {
+  if (sessionOpen) return sessionOpen;
+  sessionOpen = new Promise(function (done, fail) {
+    var ask = indexedDB.open(SESSION_DB, 1);
+    ask.onupgradeneeded = function () {
+      if (!ask.result.objectStoreNames.contains('parts')) ask.result.createObjectStore('parts', { keyPath: 'id' });
+    };
+    ask.onsuccess = function () { done(ask.result); };
+    ask.onerror = function () { fail(ask.error); };
+  });
+  sessionOpen.catch(function () { sessionOpen = null; });
+  return sessionOpen;
+}
+
+function sessionDo(how, job) {
+  return sessionDb().then(function (base) {
+    return new Promise(function (done, fail) {
+      var t = base.transaction('parts', how);
+      var result;
+      var ask = job(t.objectStore('parts'));
+      if (ask) ask.onsuccess = function () { result = ask.result; };
+      t.oncomplete = function () { done(result); };
+      t.onerror = function () { fail(t.error); };
+      t.onabort = function () { fail(t.error); };
+    });
+  });
+}
+
+function sessionLock() { return lockInfo() ? lockKey || sessionKey : null; }
+
+function closePart(key, buffer) {
+  if (!key) return Promise.resolve({ raw: buffer });
+  return seal(key, buffer).then(function (box) { return { iv: box.iv, data: box.data, sealed: true }; });
+}
+
+function openPart(part) {
+  if (!part.sealed) return Promise.resolve(part.raw);
+  return unseal(lockKey || sessionKey, part);
+}
+
+/* A quick check of whether a cut-out changed since it was last kept. */
+function maskSum(mask) {
+  if (!mask) return 0;
+  var sum = mask.w * 7919 + mask.h, a = mask.alpha;
+  for (var i = 0; i < a.length; i += 53) sum = (sum * 31 + a[i]) >>> 0;
+  return sum;
+}
+
+/* The photo as it was opened, or as Four-point line up redrew it. */
+function photoBytes(photo) {
+  if (photo.file && photo.bitmap === photo.fileBitmap) {
+    return photo.file.arrayBuffer().then(function (bytes) { return { bytes: bytes, type: photo.file.type || 'image/jpeg' }; });
+  }
+  return jpegOf(photo.bitmap, photo.width, photo.height, 4000, 0.92).then(function (blob) {
+    return blob.arrayBuffer().then(function (bytes) { return { bytes: bytes, type: 'image/jpeg' }; });
+  });
+}
+
+function sessionState(list) {
+  var kept = {};
+  list.forEach(function (photo) { kept[photo.id] = true; });
+  return {
+    v: 1,
+    mode: mode,
+    split: swipePosition,
+    nextId: nextId,
+    client: clientNow ? clientNow.id : null,
+    photos: list.map(function (photo) {
+      return { id: photo.id, name: photo.name, stem: photo.stem, date: photo.date ? +new Date(photo.date) : null, dateFrom: photo.dateFrom || '', pose: photo.pose || null, shot: photo.shot || null };
+    }),
+    cells: cells.map(function (cell) {
+      return {
+        image: cell.image && kept[cell.image.id] ? cell.image.id : null,
+        zoom: cell.zoom, fx: cell.fx, fy: cell.fy, turn: cell.turn || 0, flip: Boolean(cell.flip), label: cell.label || '',
+        labelAt: cell.labelAt || null, labelScale: cell.labelScale || 1, labelTurn: cell.labelTurn || 0
+      };
+    }),
+    covers: covers,
+    marks: marks
+  };
+}
+
+function keepNote(state) {
+  var words = '';
+  if (state === 'saved') words = 'This set is kept on this device and comes back when the app opens again. End session clears it.';
+  else if (state === 'locked') words = 'This set is not being kept, since the PIN locks every kept photo. Type the PIN in Clients to keep it.';
+  else if (state === 'failed') words = 'This set could not be kept on this device, since the browser turned the storage down. Save the picture before closing.';
+  el('keep-note').textContent = words;
+}
+
+function sessionSoon() {
+  if (sessionWaiting && photos.length) {
+    /* new photos went in instead of the locked set, so they take its place */
+    sessionWaiting = null;
+    el('resume').classList.add('hidden');
+    sessionReady = true;
+  }
+  if (!sessionReady) return;
+  clearTimeout(sessionTimer);
+  sessionTimer = setTimeout(sessionSave, 1500);
+}
+
+function sessionSave() {
+  clearTimeout(sessionTimer);
+  sessionTimer = 0;
+  if (!sessionReady) return;
+  if (sessionBusy) { sessionAgain = true; return; }
+  if (!photos.length) { sessionClear(); return; }
+  if (lockInfo() && !sessionLock()) { keepNote('locked'); return; }
+  if (!sessionAsked && navigator.storage && navigator.storage.persist) {
+    sessionAsked = true;
+    navigator.storage.persist().catch(function () { /* the browser decides */ });
+  }
+  var key = sessionLock();
+  var list = photos.slice();
+  sessionBusy = true;
+  Promise.all(list.map(function (photo) {
+    var sum = maskSum(photo.mask);
+    var was = sessionWritten[photo.id];
+    if (was && was.bitmap === photo.bitmap && was.sum === sum && was.key === key) return null;
+    var mask = photo.mask;
+    return photoBytes(photo).then(function (got) {
+      return Promise.all([closePart(key, got.bytes), mask ? closePart(key, mask.alpha.slice().buffer) : null]).then(function (parts) {
+        return {
+          id: photo.id,
+          mark: { bitmap: photo.bitmap, sum: sum, key: key },
+          record: { id: 'photo:' + photo.id, type: got.type, photo: parts[0], mask: parts[1] ? { w: mask.w, h: mask.h, part: parts[1] } : null }
+        };
+      });
+    });
+  })).then(function (done) {
+    return closePart(key, new TextEncoder().encode(JSON.stringify(sessionState(list))).buffer).then(function (state) {
+      var keep = {};
+      list.forEach(function (photo) { keep['photo:' + photo.id] = true; });
+      return sessionDo('readwrite', function (store) {
+        done.forEach(function (one) { if (one) store.put(one.record); });
+        store.put({ id: 'state', state: state, saved: Date.now() });
+        var keys = store.getAllKeys();
+        keys.onsuccess = function () {
+          keys.result.forEach(function (id) { if (id !== 'state' && !keep[id]) store.delete(id); });
+        };
+        return null;
+      }).then(function () {
+        done.forEach(function (one) { if (one) sessionWritten[one.id] = one.mark; });
+      });
+    });
+  }).then(function () { keepNote('saved'); }, function () { keepNote('failed'); }).then(function () {
+    sessionBusy = false;
+    if (sessionAgain) { sessionAgain = false; sessionSoon(); }
+  });
+}
+
+function sessionClear() {
+  clearTimeout(sessionTimer);
+  sessionTimer = 0;
+  sessionWritten = {};
+  keepNote('');
+  return sessionDo('readwrite', function (store) { store.clear(); return null; }).catch(function () { /* nothing kept */ });
+}
+
+/* Closing the app or switching away keeps the last change straight away. */
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden && sessionTimer) sessionSave();
+});
+window.addEventListener('pagehide', function () { if (sessionTimer) sessionSave(); });
+
+function sessionLoad(rec) {
+  return openPart(rec.state).then(function (bytes) {
+    var state = JSON.parse(new TextDecoder().decode(bytes));
+    return sessionDo('readonly', function (store) { return store.getAll(); }).then(function (all) {
+      var parts = {};
+      all.forEach(function (one) { parts[one.id] = one; });
+      return Promise.all(state.photos.map(function (meta) {
+        var part = parts['photo:' + meta.id];
+        if (!part) return null;
+        return Promise.all([openPart(part.photo), part.mask ? openPart(part.mask.part) : null]).then(function (got) {
+          var blob = new Blob([got[0]], { type: part.type || 'image/jpeg' });
+          return createImageBitmap(blob, { imageOrientation: 'from-image' }).then(function (bitmap) {
+            var photo = {
+              id: meta.id, name: meta.name, stem: meta.stem, bitmap: bitmap, width: bitmap.width, height: bitmap.height,
+              date: meta.date ? new Date(meta.date) : null, dateFrom: meta.dateFrom || '', pose: meta.pose || null,
+              file: blob, fileBitmap: bitmap
+            };
+            if (meta.shot) photo.shot = meta.shot;
+            if (got[1]) photo.mask = { w: part.mask.w, h: part.mask.h, alpha: new Uint8Array(got[1]) };
+            return photo;
+          });
+        }).catch(function () { return null; });
+      })).then(function (list) {
+        list = list.filter(Boolean);
+        if (!list.length) { sessionReady = true; sessionClear(); return; }
+        var byId = {};
+        list.forEach(function (photo) { byId[photo.id] = photo; });
+        photos = list;
+        nextId = Math.max(nextId, state.nextId || 1);
+        cells = (state.cells || []).map(function (saved) {
+          var cell = newCell();
+          cell.image = saved.image && byId[saved.image] || null;
+          cell.zoom = saved.zoom || 1;
+          cell.fx = typeof saved.fx === 'number' ? saved.fx : 0.5;
+          cell.fy = typeof saved.fy === 'number' ? saved.fy : 0.5;
+          cell.turn = saved.turn || 0;
+          cell.flip = Boolean(saved.flip);
+          cell.label = saved.label || '';
+          if (saved.labelAt) cell.labelAt = saved.labelAt;
+          if (saved.labelScale && saved.labelScale !== 1) cell.labelScale = saved.labelScale;
+          if (saved.labelTurn) cell.labelTurn = saved.labelTurn;
+          return cell;
+        });
+        covers = state.covers || [];
+        marks = state.marks || [];
+        swipePosition = typeof state.split === 'number' ? state.split : 0.5;
+        var key = sessionLock();
+        list.forEach(function (photo) {
+          if (photo.mask) buildCut(photo);
+          sessionWritten[photo.id] = { bitmap: photo.bitmap, sum: maskSum(photo.mask), key: key };
+        });
+        if (cells[0] && cells[0].image && cells[1] && cells[1].image) linedPair = [cells[0].image.id, cells[1].image.id].sort().join('|');
+        showMode(state.mode === 'swipe' ? 'swipe' : 'grid');
+        if (cells[0] && cells[0].image && cells[1] && cells[1].image) linedPair = [cells[0].image.id, cells[1].image.id].sort().join('|');
+        refresh();
+        coverControls();
+        markControls();
+        sessionReady = true;
+        keepNote('saved');
+        message('The last set is back. End session under Photos clears it.', true);
+        if (state.client && !locked()) {
+          getClient(state.client).then(function (client) {
+            if (client) { clientNow = { id: client.id, name: client.name }; clientChip(); }
+          }).catch(function () { /* the folder is gone */ });
+        }
+      });
+    });
+  });
+}
+
+function sessionStart() {
+  if (!window.indexedDB) { sessionReady = true; return; }
+  sessionDo('readonly', function (store) { return store.get('state'); }).then(function (rec) {
+    if (!rec || photos.length) { sessionReady = true; return null; }
+    if (rec.state.sealed && !lockInfo()) { sessionReady = true; return sessionClear(); }
+    if (rec.state.sealed && !lockKey) {
+      sessionWaiting = rec;
+      el('resume').classList.remove('hidden');
+      return null;
+    }
+    return sessionLoad(rec);
+  }).catch(function () {
+    sessionReady = true;
+    message('The last set could not be opened, so the app starts empty.');
+  });
+}
+
+el('resume-open').addEventListener('click', function () {
+  var pin = el('resume-pin').value;
+  if (!pin || !sessionWaiting) return;
+  el('resume-open').disabled = true;
+  tryPin(pin).then(function (ok) {
+    el('resume-open').disabled = false;
+    if (!ok) { el('resume-note').textContent = 'That PIN is not right.'; return; }
+    var rec = sessionWaiting;
+    sessionWaiting = null;
+    el('resume-pin').value = '';
+    el('resume').classList.add('hidden');
+    sessionLoad(rec).catch(function () {
+      sessionReady = true;
+      message('The last set could not be opened, so the app starts empty.');
+    });
+  });
+});
+el('resume-pin').addEventListener('keydown', function (event) { if (event.key === 'Enter') el('resume-open').click(); });
+el('resume-end').addEventListener('click', function () {
+  sessionWaiting = null;
+  el('resume').classList.add('hidden');
+  sessionReady = true;
+  sessionClear();
+});
+
+/* Start over keeps the photos and their dates and puts everything else back
+   as it was when they were added: the line up, cut-outs, covers, marks and
+   labels. It needs a second press, like End session. */
+var restartArmed = 0;
+function disarmRestart() {
+  clearTimeout(restartArmed);
+  restartArmed = 0;
+  el('restart').textContent = 'Start over';
+  el('restart').classList.remove('btn-danger');
+}
+function startOver() {
+  cancelPins();
+  cancelArea();
+  cancelLasso();
+  cancelBrush();
+  photos.forEach(function (photo) {
+    if (photo.unwarped) {
+      var keep = photo.unwarped;
+      photo.bitmap = keep.bitmap;
+      photo.width = keep.width;
+      photo.height = keep.height;
+      photo.unwarped = null;
+      photo.warp = null;
+    }
+    photo.mask = null;
+    photo.cut = null;
+    photo.toned = null;
+    photo.edges = null;
+    photo.subject = undefined;
+    photo.pose = null;
+    photo.camHole = null;
+  });
+  cells.forEach(function (cell) {
+    cell.zoom = 1;
+    cell.fx = 0.5;
+    cell.fy = 0.5;
+    cell.turn = 0;
+    cell.flip = false;
+    cell.label = '';
+    delete cell.labelAt;
+    delete cell.labelScale;
+    delete cell.labelTurn;
+  });
+  if (pairLabels()) {
+    if (cells[0] && cells[0].image) cells[0].label = 'Before';
+    if (cells[1] && cells[1].image) cells[1].label = 'After';
+  }
+  covers = [];
+  coverPick = -1;
+  marks = [];
+  markPick = -1;
+  picked = -1;
+  linedPair = '';
+  swipePosition = 0.5;
+  viewMode = 'split';
+  bgPast = [];
+  bgAhead = [];
+  forgetUndo();
+  say('');
+  coverControls();
+  markControls();
+  refresh();
+  message('The photos are back as they were added.', true);
+}
+el('restart').addEventListener('click', function () {
+  if (!photos.length) return;
+  if (!restartArmed) {
+    el('restart').textContent = 'Press again to start over';
+    el('restart').classList.add('btn-danger');
+    restartArmed = setTimeout(disarmRestart, 4000);
+    return;
+  }
+  disarmRestart();
+  startOver();
+});
+
 var keptAtStart = loadSettings();
 kitList('');
 symbolButtons();
@@ -8192,7 +9108,9 @@ fitCells();
 buildDrag();
 pickTool('photos');
 if (keptAtStart && keptAtStart.mode === 'swipe') showMode('swipe');
+emptiesField();
 report();
+sessionStart();
 </script>
 </body>
 </html>
