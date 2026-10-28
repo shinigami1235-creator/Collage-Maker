@@ -1,0 +1,1 @@
+ONNX Runtime Web 1.22.0 by Microsoft, from the npm package onnxruntime-web. MIT License, see LICENSE.

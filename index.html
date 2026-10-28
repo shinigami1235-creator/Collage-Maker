@@ -86,6 +86,7 @@ body {
 .order .thumb:focus-visible { outline: 3px solid var(--primary); outline-offset: 1px; }
 .locked { opacity: .45; }
 [data-plan-box].locked { pointer-events: none; user-select: none; }
+.pc-tag { font: 600 11px/16px var(--font); color: var(--primary); border: 1px solid var(--primary); border-radius: 999px; padding: 0 6px; margin-left: 4px; }
 .plan-tag { display: none; margin: 0 0 8px; font: 600 12px/18px var(--font); color: var(--primary); }
 .plan-tag.on { display: block; }
 #resume input { min-height: 44px; width: 120px; font-size: 16px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; }
@@ -234,6 +235,10 @@ input[type=date] { min-height: 40px; padding: 0 8px; width: 100%; font: 500 14px
 .cam-light.off { color: #F2C14E; }
 .cam-zoom { display: flex; align-items: center; gap: 8px; font: 600 13px/18px var(--font); background: rgba(16,28,43,.78); border-radius: 999px; padding: 6px 12px; }
 .cam-zoom.hidden { visibility: hidden; }
+.cam-say { position: absolute; left: 50%; transform: translateX(-50%); top: calc(64px + env(safe-area-inset-top)); max-width: calc(100% - 32px); margin: 0; text-align: center;
+  font: 600 16px/22px var(--font); padding: 8px 16px; border-radius: 999px; background: rgba(16,28,43,.82); color: #fff; }
+.cam-say:empty { display: none; }
+.cam-say.ok { background: #1F7A4D; }
 .cam-note { position: absolute; left: 16px; right: 16px; top: 50%; text-align: center; font: 15px/22px var(--font); margin: 0; }
 .cam-note:empty { display: none; }
 .full-open {
@@ -468,6 +473,7 @@ body.full .hint { display: none !important; }
             </select>
           </div>
         </div>
+        <label class="switch locked" title="Comes with the PC version"><input type="checkbox" id="bg-fine" disabled> Fine hair edges <span class="pc-tag">PC only</span></label>
         <label class="switch"><input type="checkbox" id="bg-ghost" checked> Show the removed part in faint red on screen</label>
         <div class="actions">
           <button class="btn" type="button" id="bg-copy">Use the first photo's cut on the others</button>
@@ -509,6 +515,9 @@ body.full .hint { display: none !important; }
         <div class="actions">
           <button class="btn btn-primary" type="button" id="line-auto">Auto line up</button>
           <button class="btn" type="button" id="line-area" data-plan="basic">Line up on a part</button>
+        </div>
+        <div class="actions hidden" id="line-closer-row">
+          <button class="btn btn-primary" type="button" id="line-closer" data-plan="basic">Try the closer match</button>
         </div>
         <div class="actions hidden" id="line-all-row">
           <button class="btn" type="button" id="line-all" data-plan="plus">Line up every photo on the first</button>
@@ -570,6 +579,8 @@ body.full .hint { display: none !important; }
             <button class="btn" type="button" id="reset">Reset view</button>
           </div>
           <label class="switch"><input type="checkbox" id="flip-cell"> Mirror this photo</label>
+          <label class="switch" data-plan="basic"><input type="checkbox" id="line-closer-always"> Closer match on every line up</label>
+          <p class="note">The closer match holds up when the light, the angle or the background changed a lot. It is about 40 MB, downloads the first time it is used and is slower on a phone. ALIKED, LightGlue and ONNX Runtime Web make it.</p>
           <div class="actions">
             <button class="btn" type="button" id="drop-photo">Remove</button>
           </div>
@@ -850,11 +861,11 @@ body.full .hint { display: none !important; }
           <li>Photos: drag a photo inside its cell to move it, and scroll or pinch to zoom.</li>
           <li>Background: Remove the background finds the person on every photo, or anything that stands apart from a plain background. Draw around it takes a loose loop drawn a little outside the subject and moves it in onto the subject's edge, for a hand, a product or a busy background. The line can keep what is inside, add it back or take it away, and drawing stays on until Done. The Erase and Restore brushes fix small bits by hand, and Undo and Redo step through every change. The removed part shows the background colour, and shows in faint red on screen while the Photos tool is open.</li>
           <li>Line up: in Swipe, drag a photo to move it or drag the divider to slide it. A press on the divider slides it under every tool, so a label or a cover near it never gets in the way. The photo you touch becomes the one picked under Moves, and the arrows, Size and Turn work on it. Both moves the two together. In Grid, Zoom works on All photos zooms them together to the same spot.</li>
-          <li>Auto line up matches small spots across the photos and moves, sizes and turns each photo onto the first, even one taken on its side. It runs by itself when the second photo of a pair goes in. Auto line up works on the main subject, the person or the arm, so a floor or a wall that moved does not pull it off. Line up on a part has you draw around something on the first photo, like a scar or a mole, and finds the same part on the other photos even when they are turned or closer. Two-point line up has you tap the same two spots on each photo instead, like both pupils. Four-point line up takes four spots and also matches the camera angle, for a photo taken from the side. A magnifier shows under your finger while you tap. When the first photo has its background removed, the photos lined up on it get the same cut.</li>
+          <li>Auto line up matches small spots across the photos and moves, sizes and turns each photo onto the first, even one taken on its side. It runs by itself when the second photo of a pair goes in. Auto line up works on the main subject, the person or the arm, so a floor or a wall that moved does not pull it off. Line up on a part has you draw around something on the first photo, like a scar or a mole, and finds the same part on the other photos even when they are turned or closer. Two-point line up has you tap the same two spots on each photo instead, like both pupils. Four-point line up takes four spots and also matches the camera angle, for a photo taken from the side. A magnifier shows under your finger while you tap. When the first photo has its background removed, the photos lined up on it get the same cut. When the spots don't match, Auto line up uses the points of the face or the body instead. When nothing works, Try the closer match shows under Line up. It downloads about 40 MB the first time and holds up when the light, the angle or the background changed a lot, like a cup shot on two different tables. Closer match on every line up, under More, uses it every time.</li>
           <li>View: See-through lays the second photo over the first at half strength and Differences shows only where they differ. Both are for checking the line up and never show in the saved picture.</li>
           <li>Fill the frame zooms the photos together until no background shows. Centre both puts the photos back in the middle at their own size. Reset and line up does the same and then runs Auto line up again. Undo or Ctrl+Z takes back the last move, size or turn.</li>
           <li>Labels: a label and a date for each photo. The date comes from the photo when it holds one, and you can change it. Credit puts a line like "Cygnus Aesthetics" along the top or bottom of the picture, and Watermark lays words, a symbol or your logo over every photo. Only the labels differ from photo to photo. With Labels open, tap a label, the credit or the watermark to pick it, drag it to put it anywhere, and use its round handle to tilt it and its square corner to size it.</li>
-          <li>Cover: Cover the eyes finds the eyes on every photo and covers them with the cover picked, a bar, a blur, an oval or a block. Each eye gets its own cover and the bridge of the nose stays clear, unless Eyes is set to Both eyes together. Press it after lining up, since a cover stays where it was put when a photo moves. Or drag over the eyes, a name or an address. A cover lands on the same spot of every photo, or only on its own with This photo only. Drag a cover to move it. The picked cover has a round handle to tilt it and a square corner to size it.</li>
+          <li>Cover: Cover the eyes finds the eyes on every photo and covers them with the cover picked, a bar, a blur, an oval or a block. Each eye gets its own cover, from corner to corner and as tall as the eye is open, and the bridge of the nose stays clear, unless Eyes is set to Both eyes together. Press it after lining up, since a cover stays where it was put when a photo moves. Or drag over the eyes, a name or an address. A cover lands on the same spot of every photo, or only on its own with This photo only. Drag a cover to move it. The picked cover has a round handle to tilt it and a square corner to size it.</li>
           <li>Mark: drag to draw an arrow, circle, line or box. With Shows on set to Both photos it appears on every photo at the same spot. Drag a mark to move it, or an end to reshape it.</li>
           <li>Video: Record the swipe runs the divider across by itself. Record while I drag follows what you do until you press Stop. Record every photo in order shows the first photo, then wipes each next one in from the right with its label, for Day 1, Day 2, Day 3 and on. Time on each photo sets how long each one stays. Untick a photo to leave it out, like a Day 3 that adds nothing. Every video plays back before it is saved: Save the video keeps it, Record again throws it away and records the same kind again, and Throw it away only closes it.</li>
           <li>Full screen: one photo close up, with arrows that move a pixel per tap and buttons that turn it a tenth of a degree.</li>
@@ -864,7 +875,7 @@ body.full .hint { display: none !important; }
           <li>Brand kit, at the bottom of Labels: open it, set the credit, the watermark and its logo once, type a name and press Save as a kit. Picking the kit later puts them all back.</li>
           <li>The shape picker, beside Size, fits the picture into an Instagram post, a story or reel, a square or a wide video. In Swipe the frame takes that shape from edge to edge, and the swipe video uses it too. In Grid the background colour fills around the photos.</li>
           <li>Clients keeps a folder for each client on this device: dated photos, and the photo consent form signed on screen with two separate answers, one for the record and one for posting online. Take a photo over the latest opens the client's last photo as Before and the camera over it, and the new photo goes into the folder by itself. A PIN locks every folder, and Export as PDF makes one file with the forms and every photo. Batch makes a before and after for each ticked client at once, from their first and latest photo.</li>
-          <li>Take a photo opens the camera with the first photo laid faintly over it, for shooting the next photo from the same spot. Photo shows the first photo faint, strong or off. Outline draws its edges, or only the subject's outline, as solid gold lines. Black out turns everything outside the subject black, using the first photo's removed background, or a loop drawn around the subject in the camera. The light reading says when the room is brighter or darker than in the first photo. The photo goes into the next empty cell, or the picked one, and lines up by itself.</li>
+          <li>Take a photo opens the camera with the first photo laid faintly over it, for shooting the next photo from the same spot. Photo shows the first photo faint, strong or off. Outline draws its edges, or only the subject's outline, as solid gold lines. Black out turns everything outside the subject black, using the first photo's removed background, or a loop drawn around the subject in the camera. The light reading says when the room is brighter or darker than in the first photo. When the first photo shows a face or a body, the camera finds the same points live: the first photo's in light blue and the live ones in white, with one line at the top saying what to change, like Move closer, Move the camera left or Chin up a little. Guide set to Auto shot takes the photo by itself once everything matches and holds still for a moment. Hints only gives the lines without taking the photo, and Off hides them. The photo goes into the next empty cell, or the picked one, and lines up by itself.</li>
         </ol>
         <p class="note">Proofline is powered by Cygnus Solutions.</p>
       </section>
@@ -972,10 +983,12 @@ body.full .hint { display: none !important; }
     <span class="cam-light" id="cam-light"></span>
     <button class="cam-btn" type="button" id="cam-flip">Flip</button>
   </div>
+  <p class="cam-say" id="cam-say"></p>
   <div class="cam-tools">
     <button class="cam-btn" type="button" id="cam-guide">Photo: Faint</button>
     <button class="cam-btn" type="button" id="cam-line">Outline: Edges</button>
     <button class="cam-btn" type="button" id="cam-black">Black out</button>
+    <button class="cam-btn" type="button" id="cam-auto" style="display:none">Guide: Auto shot</button>
   </div>
   <div class="cam-bottom">
     <span class="cam-spacer"></span>
@@ -2601,6 +2614,48 @@ function eyeCovers(kind, index, rect, a, b) {
     d * (kind === 'bar' ? 2.1 : 2.25), d * (kind === 'bar' ? 0.6 : 0.85), angle)];
 }
 
+/* With the face's points, each cover follows the eye itself: from corner to
+   corner a little past each, as tall as the lids are open, on the line of
+   that eye. */
+function meshEyeCovers(kind, index, rect, cell, face) {
+  var at = function (i) { return imageToCanvas(cell, rect, face[i].x, face[i].y); };
+  var eye = function (outer, inner, top, bottom) {
+    var a = at(outer), b = at(inner), t = at(top), u = at(bottom);
+    var wide = Math.hypot(b.x - a.x, b.y - a.y);
+    var angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+    if (angle > 90) angle -= 180;
+    if (angle <= -90) angle += 180;
+    var open = Math.hypot(u.x - t.x, u.y - t.y);
+    return { cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2, w: wide * 1.5, h: Math.max(open * 2.6, wide * (kind === 'bar' ? 0.5 : 0.62)), angle: angle };
+  };
+  var one = eye(33, 133, 159, 145), two = eye(362, 263, 386, 374);
+  if (el('cover-eyes-how').value === 'each') {
+    var out = [one, two].map(function (e) { return coverAround(kind, index, rect, e.cx, e.cy, e.w, e.h, e.angle); });
+    out.forEach(function (cover) { cover.strength = Math.max(4, Math.round(Number(el('cover-strength').value) * 0.4)); });
+    return out;
+  }
+  var a = at(33), b = at(263);
+  var span = Math.hypot(b.x - a.x, b.y - a.y);
+  var angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+  if (angle > 90) angle -= 180;
+  if (angle <= -90) angle += 180;
+  return [coverAround(kind, index, rect, (a.x + b.x) / 2, (a.y + b.y) / 2, span * 1.25, Math.max(one.h, two.h) * 1.1, angle)];
+}
+
+/* The face's points, when they sit on the same eyes the face finder found. */
+function meshFor(cell, faces) {
+  if (faces.length !== 1) return Promise.resolve(null);
+  return photoPoints(cell.image, false).then(function (got) {
+    var face = got && got.face;
+    if (!face) return null;
+    var f = faces[0];
+    var gap = Math.hypot((f.b.u - f.a.u) * cell.image.width, (f.b.v - f.a.v) * cell.image.height);
+    var mid = { x: (f.a.u + f.b.u) / 2 * cell.image.width, y: (f.a.v + f.b.v) / 2 * cell.image.height };
+    var meshMid = { x: (face[468] ? (face[468].x + face[473].x) / 2 : (face[33].x + face[263].x) / 2) * cell.image.width, y: ((face[33].y + face[263].y) / 2) * cell.image.height };
+    return Math.hypot(mid.x - meshMid.x, mid.y - meshMid.y) < gap * 0.5 ? face : null;
+  }, function () { return null; });
+}
+
 var findingEyes = false;
 
 el('cover-eyes').addEventListener('click', function () {
@@ -2618,14 +2673,19 @@ el('cover-eyes').addEventListener('click', function () {
       if (n >= spots.length) return Promise.resolve();
       var spot = spots[n], cell = cells[spot.index];
       return eyesOf(found, cell.image).then(function (faces) {
-        if (!faces.length) missed.push(spot.index);
-        faces.forEach(function (face) {
-          var a = imageToCanvas(cell, spot.rect, face.a.u, face.a.v);
-          var b = imageToCanvas(cell, spot.rect, face.b.u, face.b.v);
-          eyeCovers(kind, spot.index, spot.rect, a, b).forEach(function (cover) { covers.push(cover); });
+        return meshFor(cell, faces).then(function (mesh) {
+          if (!faces.length) missed.push(spot.index);
+          if (mesh) meshEyeCovers(kind, spot.index, spot.rect, cell, mesh).forEach(function (cover) { covers.push(cover); });
+          else {
+            faces.forEach(function (face) {
+              var a = imageToCanvas(cell, spot.rect, face.a.u, face.a.v);
+              var b = imageToCanvas(cell, spot.rect, face.b.u, face.b.v);
+              eyeCovers(kind, spot.index, spot.rect, a, b).forEach(function (cover) { covers.push(cover); });
+            });
+          }
+          if (faces.length) covered++;
+          return next(n + 1);
         });
-        if (faces.length) covered++;
-        return next(n + 1);
       });
     };
     return next(0);
@@ -5209,7 +5269,7 @@ function lineUp(list, area) {
   lining = true;
   lineButtons();
   if (area) say('Looking for the part on ' + list.map(photoName).join(' and ') + '.');
-  var placed = [], missed = [], unsure = [], spots = 0, parts = 0, opened = false;
+  var placed = [], missed = [], unsure = [], spots = 0, parts = 0, opened = false, ways = {};
   var pause = function () { return new Promise(function (done) { setTimeout(done, 30); }); };
   /* the subject of each photo first, so a floor or a wall that moved does not
      win over the person or the arm */
@@ -5227,11 +5287,15 @@ function lineUp(list, area) {
     var refSub = subs[0];
     var step = function (n) {
       if (n >= list.length) return Promise.resolve();
-      return pause().then(function () {
+      var early = !area && closerAlways()
+        ? pause().then(function () { say('Matching ' + photoName(list[n]) + ' closely.'); return closerFit(ref, cells[list[n]]); }).then(null, function () { return null; })
+        : pause().then(function () { return null; });
+      return early.then(function (closer) {
         var index = list[n], cell = cells[index];
         var from = matchImage(cell);
         var fit = null, sure = true, found, part;
-        if (area) {
+        if (closer) { fit = closer; spots = closer.count; ways.closer = true; }
+        else if (area) {
           found = findFit(from, to, box);
           part = findPart(ref, cell, area.loop, found ? inPixels(found, from, to) : null);
           if (part && part.fit && (part.how === 'spots' || part.score >= PART_PLACE)) {
@@ -5271,14 +5335,19 @@ function lineUp(list, area) {
             spots = found.count;
           }
         }
-        if (fit && placeBy(ref, lineRect(0), cell, lineRect(index), fit)) {
-          placed.push(index);
-          if (!sure) unsure.push(index);
-          if (!opened) opened = allowEdges();
-          carryCut(index);
-          paint();
-        } else missed.push(index);
-        return step(n + 1);
+        /* with no match from the spots, the points of the face or the body */
+        var backup = fit || area ? Promise.resolve(null) : pointsFit(ref, cell).then(null, function () { return null; });
+        return backup.then(function (more) {
+          if (more && !fit) { fit = more; sure = true; ways[more.how] = true; }
+          if (fit && placeBy(ref, lineRect(0), cell, lineRect(index), fit)) {
+            placed.push(index);
+            if (!sure) unsure.push(index);
+            if (!opened) opened = allowEdges();
+            carryCut(index);
+            paint();
+          } else missed.push(index);
+          return step(n + 1);
+        });
       });
     };
     return step(0);
@@ -5293,12 +5362,15 @@ function lineUp(list, area) {
     paint();
     var edges = opened ? ' Move past the edges is now on.' : '';
     var how = area ? ' by the part you drew' : '';
-    if (placed.length === 1 && !missed.length && !parts) message('Lined up on ' + spots + ' matching spots' + (area ? ' inside the part' : '') + '.' + edges, true);
+    lineMissed = area ? [] : missed.slice();
+    closerButton();
+    if (placed.length === 1 && !missed.length && (ways.face || ways.body)) message('Lined up by the points of the ' + (ways.face ? 'face' : 'body') + '.' + edges, true);
+    else if (placed.length === 1 && !missed.length && !parts) message('Lined up on ' + spots + ' matching spots' + (ways.closer ? ' with the closer match' : '') + (area ? ' inside the part' : '') + '.' + edges, true);
     else if (placed.length) message('Lined up ' + placed.map(photoName).join(' and ') + ' on ' + photoName(0) + how + '.' + edges, true);
     if (unsure.length) message('Check ' + unsure.map(photoName).join(' and ') + ', since the match there is weak. Two-point or Four-point line up can fix it.');
     if (missed.length) {
       message((area ? 'Could not find the part for sure on ' : 'Could not line up ') + missed.map(photoName).join(' and ')
-        + (area ? '' : ' for sure') + ', so it stays where it was. Tap the same two spots on both photos with Two-point line up, like both ends of the scar. When the photos were taken from different angles, Four-point line up matches the angle too.');
+        + (area ? '' : ' for sure') + ', so it stays where it was.' + (area ? '' : ' Try the closer match under Line up.') + ' Two-point line up works on any pair: tap the same two spots on both photos, like both ends of a scar. When the photos were taken from different angles, Four-point line up matches the angle too.');
     }
   });
 }
@@ -5675,6 +5747,7 @@ function lineButtons() {
   el('line-auto').textContent = lining ? 'Lining up' : 'Auto line up';
   el('line-all').disabled = lining || liningAll || Boolean(pins) || Boolean(areaPick) || photos.length < 2;
   el('line-all').textContent = liningAll ? 'Lining up every photo' : 'Line up every photo on the first';
+  closerButton();
   el('line-pins').disabled = lining || Boolean(areaPick) || (!pins && pinTarget() < 1);
   el('line-pins').textContent = pins && pins.count === 2 ? 'Cancel' : 'Two-point line up';
   el('line-pins4').disabled = lining || Boolean(areaPick) || (!pins && pinTarget() < 1);
@@ -6049,7 +6122,7 @@ var CAM_LINES = [['off', 'Off'], ['edges', 'Edges'], ['subject', 'Subject']];
   } catch (error) { /* first time */ }
 })();
 function camKeep() {
-  try { localStorage.setItem('proofline-camera', JSON.stringify({ guide: cam.guide, line: cam.line, black: cam.black })); } catch (error) { /* private windows keep nothing */ }
+  try { localStorage.setItem('proofline-camera', JSON.stringify({ guide: cam.guide, line: cam.line, black: cam.black, auto: aim.mode })); } catch (error) { /* private windows keep nothing */ }
 }
 
 function camTarget() {
@@ -6253,6 +6326,7 @@ function camDraw() {
     c.restore();
   }
   if (line === 'subject' && cam.subject) c.drawImage(cam.subject, 0, 0, bw, bh);
+  guideDraw(c, bw, bh);
   if (cam.drawing && cam.drawing.points.length > 1) {
     var k = bw / view.width;
     c.save();
@@ -6354,9 +6428,13 @@ function camOpen() {
   el('cam-light').textContent = '';
   el('cam').classList.remove('hidden');
   camStart();
+  guideStart();
 }
 
 function camClose() {
+  guideStop();
+  aim.kind = '';
+  el('cam-say').textContent = '';
   camStop();
   el('cam').classList.add('hidden');
 }
@@ -7324,6 +7402,524 @@ el('pin-drop').addEventListener('click', function () {
   dropPin().then(function () {
     el('pin-note').textContent = 'The PIN is removed.';
     showClients();
+  });
+});
+
+/* ---------- face and body points ---------- */
+
+/* The face mesh finds 468 points on a face and the pose finder 33 on a body.
+   Both load only when first needed, after the other finders, and are kept by
+   the app's own cache once downloaded. */
+var meshTool = null, meshAnswer = null;
+function loadMesh() {
+  if (meshTool) return meshTool;
+  meshTool = loadFinders().then(function () {
+    return new Promise(function (done, fail) {
+      var script = document.createElement('script');
+      script.src = './vendor/mediapipe-mesh/face_mesh.js';
+      script.onload = function () {
+        try {
+          var mesh = new window.FaceMesh({ locateFile: function (file) { return './vendor/mediapipe-mesh/' + file; } });
+          mesh.setOptions({ maxNumFaces: 1, refineLandmarks: false, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+          mesh.onResults(function (results) {
+            if (!meshAnswer) return;
+            var answer = meshAnswer;
+            meshAnswer = null;
+            answer(results.multiFaceLandmarks && results.multiFaceLandmarks[0] || null);
+          });
+          mesh.initialize().then(function () { done(mesh); }, fail);
+        } catch (error) { fail(error); }
+      };
+      script.onerror = function () { fail(new Error('missing')); };
+      document.head.appendChild(script);
+    });
+  });
+  meshTool.catch(function () { meshTool = null; });
+  return meshTool;
+}
+
+var poseTool = null, poseAnswer = null;
+function loadPose() {
+  if (poseTool) return poseTool;
+  poseTool = loadMesh().then(null, function () { return null; }).then(function () {
+    return new Promise(function (done, fail) {
+      var script = document.createElement('script');
+      script.src = './vendor/mediapipe-pose/pose.js';
+      script.onload = function () {
+        try {
+          var pose = new window.Pose({ locateFile: function (file) { return './vendor/mediapipe-pose/' + file; } });
+          pose.setOptions({ modelComplexity: 0, smoothLandmarks: true, enableSegmentation: false, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+          pose.onResults(function (results) {
+            if (!poseAnswer) return;
+            var answer = poseAnswer;
+            poseAnswer = null;
+            answer(results.poseLandmarks || null);
+          });
+          pose.initialize().then(function () { done(pose); }, fail);
+        } catch (error) { fail(error); }
+      };
+      script.onerror = function () { fail(new Error('missing')); };
+      document.head.appendChild(script);
+    });
+  });
+  poseTool.catch(function () { poseTool = null; });
+  return poseTool;
+}
+
+/* One picture through a finder. still is true for a photo, so tracking from
+   the live camera does not carry over onto it. */
+function pointsOf(kind, canvas, still) {
+  var load = kind === 'face' ? loadMesh() : loadPose();
+  return load.then(function (tool) {
+    return inTurn(function () {
+      if (still && tool.reset) tool.reset();
+      return new Promise(function (done) {
+        if (kind === 'face') meshAnswer = done; else poseAnswer = done;
+        tool.send({ image: canvas }).catch(function () {
+          if (kind === 'face') meshAnswer = null; else poseAnswer = null;
+          done(null);
+        });
+      });
+    });
+  });
+}
+
+/* A photo drawn up to 960 pixels long, as it shows, mirror included. */
+function photoCanvas(image, flip) {
+  var k = Math.min(1, 960 / Math.max(image.width, image.height));
+  var canvas = document.createElement('canvas');
+  canvas.width = Math.round(image.width * k);
+  canvas.height = Math.round(image.height * k);
+  var c = canvas.getContext('2d');
+  if (flip) { c.translate(canvas.width, 0); c.scale(-1, 1); }
+  c.drawImage(image.bitmap, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+/* The points of the face that hold their place whatever the expression: eye
+   corners, the nose, the brow, the chin and the sides of the face. */
+var FACE_KEYS = [33, 133, 362, 263, 1, 4, 6, 168, 10, 152, 234, 454, 61, 291, 199, 9];
+/* Shoulders, elbows, wrists, hips, knees and ankles. */
+var BODY_KEYS = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+
+function seen(point) { return point && (point.visibility === undefined || point.visibility > 0.6); }
+
+/* The points a photo shows, from 0 to 1 across and down, worked out once. */
+function photoPoints(image, flip) {
+  var key = flip ? 'pointsFlip' : 'points';
+  if (image[key] !== undefined) return Promise.resolve(image[key]);
+  var canvas = photoCanvas(image, flip);
+  var out = { face: null, body: null };
+  return pointsOf('face', canvas, true).then(function (face) {
+    out.face = face;
+    return pointsOf('body', canvas, true).then(null, function () { return null; });
+  }, function () { return null; }).then(function (body) {
+    out.body = body && body.filter(seen).length >= 4 ? body : null;
+    image[key] = out;
+    return out;
+  });
+}
+
+/* How tall a face is on its photo, from the brow to the chin. */
+function faceHeight(face) { return face ? Math.abs(face[152].y - face[10].y) : 0; }
+
+/* Lines a photo up on the first by the points both show: the face when both
+   have one big enough, else the body. The fit is in pixels of the two photos
+   as they show. */
+function pointsFit(ref, cell) {
+  return Promise.all([photoPoints(ref.image, ref.flip), photoPoints(cell.image, cell.flip)]).then(function (got) {
+    var a = got[0], b = got[1];
+    var pairs = [];
+    var add = function (keys, from, to, test) {
+      keys.forEach(function (i) {
+        if (!test(from[i]) || !test(to[i])) return;
+        pairs.push({ p: { x: from[i].x * cell.image.width, y: from[i].y * cell.image.height }, q: { x: to[i].x * ref.image.width, y: to[i].y * ref.image.height } });
+      });
+    };
+    var how = '';
+    if (a.face && b.face && faceHeight(a.face) > 0.08 && faceHeight(b.face) > 0.08) {
+      add(FACE_KEYS, b.face, a.face, function (point) { return Boolean(point); });
+      how = 'face';
+    } else if (a.body && b.body) {
+      add(BODY_KEYS, b.body, a.body, seen);
+      how = 'body';
+    }
+    if (pairs.length < 3) return null;
+    var fit = fitMany(pairs);
+    if (!fit) return null;
+    fit.how = how;
+    fit.count = pairs.length;
+    return fit;
+  });
+}
+
+/* ---------- the camera guide ---------- */
+
+/* With a face or a body on the first photo, the camera finds the same points
+   on the live picture a few times a second and says what to change: closer or
+   back, where to move the camera, which way to turn or tilt. Auto shot takes
+   the photo once everything matches and holds for a moment. */
+var CAM_AUTO = [['shot', 'Auto shot'], ['hints', 'Hints only'], ['off', 'Off']];
+var aim = { kind: '', ref: null, live: null, busy: false, timer: 0, held: 0, mode: 0, say: '', canvas: null };
+(function () {
+  try {
+    var kept = JSON.parse(localStorage.getItem('proofline-camera') || 'null');
+    if (kept && typeof kept.auto === 'number') aim.mode = kept.auto % CAM_AUTO.length;
+  } catch (error) { /* first time */ }
+})();
+
+function guideButton() {
+  var button = el('cam-auto');
+  button.textContent = 'Guide: ' + CAM_AUTO[aim.mode][1];
+  button.style.display = aim.kind ? '' : 'none';
+  button.classList.toggle('on', CAM_AUTO[aim.mode][0] === 'shot');
+}
+
+/* Works out which points the first photo has, before the camera starts
+   reading the live picture. */
+function guideStart() {
+  guideStop();
+  aim.kind = '';
+  aim.ref = null;
+  aim.live = null;
+  el('cam-say').textContent = '';
+  guideButton();
+  if (!cam.ref) return;
+  var ref = cam.ref;
+  el('cam-say').textContent = 'Finding the face or body on ' + photoName(0) + '.';
+  photoPoints(ref, false).then(function (got) {
+    if (cam.ref !== ref) return;
+    var body = got.body && got.body.filter(seen);
+    var bodyTall = body && body.length >= 4 ? Math.max.apply(null, body.map(function (p) { return p.y; })) - Math.min.apply(null, body.map(function (p) { return p.y; })) : 0;
+    if (got.face && faceHeight(got.face) > 0.15) { aim.kind = 'face'; aim.ref = got.face; }
+    else if (got.body && bodyTall > 0.25) { aim.kind = 'body'; aim.ref = got.body; }
+    else if (got.face) { aim.kind = 'face'; aim.ref = got.face; }
+    el('cam-say').textContent = '';
+    guideButton();
+    if (aim.kind) aim.timer = setInterval(guideLook, 150);
+  }, function () {
+    el('cam-say').textContent = '';
+  });
+}
+
+function guideStop() {
+  clearInterval(aim.timer);
+  aim.timer = 0;
+  aim.held = 0;
+  aim.busy = false;
+}
+
+/* The live picture as the screen shows it, cropped to the first photo's shape. */
+function guideFrame() {
+  var video = el('cam-video');
+  if (!video.videoWidth) return null;
+  var crop = camCrop(video.videoWidth, video.videoHeight);
+  var k = Math.min(1, 480 / Math.max(crop.w, crop.h));
+  var canvas = aim.canvas || (aim.canvas = document.createElement('canvas'));
+  canvas.width = Math.round(crop.w * k);
+  canvas.height = Math.round(crop.h * k);
+  var c = canvas.getContext('2d');
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  if (cam.front) { c.translate(canvas.width, 0); c.scale(-1, 1); }
+  c.drawImage(video, crop.x, crop.y, crop.w, crop.h, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+function guideLook() {
+  if (aim.busy || !aim.kind || !cam.stream || cam.drawing || el('cam-shoot').disabled) return;
+  var canvas = guideFrame();
+  if (!canvas) return;
+  aim.busy = true;
+  pointsOf(aim.kind, canvas, false).then(function (points) {
+    aim.busy = false;
+    if (!aim.kind) return;
+    aim.live = points && (aim.kind === 'face' || points.filter(seen).length >= 4) ? points : null;
+    guideJudge();
+  }, function () { aim.busy = false; });
+}
+
+/* The same points of the first photo and the live picture, in one scale where
+   a unit is the picture's height, so a turn is measured the same both ways. */
+function guidePairs() {
+  var ratio = camShape();
+  var keys = aim.kind === 'face' ? FACE_KEYS : BODY_KEYS;
+  var out = [];
+  keys.forEach(function (i) {
+    var a = aim.live[i], b = aim.ref[i];
+    if (!a || !b) return;
+    if (aim.kind === 'body' && (!seen(a) || !seen(b))) return;
+    out.push({ p: { x: a.x * ratio, y: a.y }, q: { x: b.x * ratio, y: b.y } });
+  });
+  return out;
+}
+
+function guideJudge() {
+  var box = el('cam-say');
+  var auto = CAM_AUTO[aim.mode][0];
+  if (auto === 'off') { box.textContent = ''; box.className = 'cam-say'; aim.held = 0; return; }
+  if (!aim.live) {
+    aim.held = 0;
+    box.textContent = aim.kind === 'face' ? 'No face in view yet' : 'No body in view yet';
+    box.className = 'cam-say';
+    return;
+  }
+  var pairs = guidePairs();
+  var fit = pairs.length >= 3 ? fitMany(pairs) : null;
+  if (!fit) { box.textContent = ''; return; }
+  var ratio = camShape();
+  var size = Math.hypot(fit.a, fit.b);
+  var cx = 0, cy = 0, rx = 0, ry = 0;
+  pairs.forEach(function (m) { cx += m.p.x; cy += m.p.y; rx += m.q.x; ry += m.q.y; });
+  cx /= pairs.length * ratio; cy /= pairs.length; rx /= pairs.length * ratio; ry /= pairs.length;
+  var checks = [];
+  /* how much bigger the live face or body must get to match */
+  var far = Math.log(size);
+  checks.push({ off: Math.abs(far) / 0.07, words: far > 0 ? 'Move closer' : 'Move back a little' });
+  var dx = cx - rx, dy = cy - ry;
+  checks.push({ off: Math.abs(dx) / 0.04, words: dx > 0 ? 'Move the camera right' : 'Move the camera left' });
+  checks.push({ off: Math.abs(dy) / 0.04, words: dy > 0 ? 'Move the camera down' : 'Move the camera up' });
+  var L = aim.live, R = aim.ref;
+  if (aim.kind === 'face') {
+    var turn = function (f) { return (f[1].x - f[234].x) / Math.max(1e-6, f[454].x - f[234].x); };
+    var yaw = turn(L) - turn(R);
+    checks.push({ off: Math.abs(yaw) / 0.05, words: yaw > 0 ? 'Turn the face toward the left of the screen' : 'Turn the face toward the right of the screen' });
+    var nod = function (f) { var eyes = (f[33].y + f[263].y) / 2; return (f[1].y - eyes) / Math.max(1e-6, f[152].y - eyes); };
+    var pitch = nod(L) - nod(R);
+    checks.push({ off: Math.abs(pitch) / 0.05, words: pitch > 0 ? 'Chin up a little' : 'Chin down a little' });
+    var tilt = function (f) { return Math.atan2(f[263].y - f[33].y, (f[263].x - f[33].x) * ratio) * 180 / Math.PI; };
+    var roll = tilt(L) - tilt(R);
+    checks.push({ off: Math.abs(roll) / 3, words: roll > 0 ? 'Tilt the head toward the left of the screen' : 'Tilt the head toward the right of the screen' });
+  } else {
+    /* the shoulder line from the one on the left of the screen to the other */
+    var lean = function (f) {
+      var a = f[11].x <= f[12].x ? f[11] : f[12], b = a === f[11] ? f[12] : f[11];
+      return Math.atan2(b.y - a.y, (b.x - a.x) * ratio) * 180 / Math.PI;
+    };
+    if (seen(L[11]) && seen(L[12]) && seen(R[11]) && seen(R[12])) {
+      var roll2 = lean(L) - lean(R);
+      checks.push({ off: Math.abs(roll2) / 4, words: roll2 > 0 ? 'Raise the shoulder on the right of the screen' : 'Raise the shoulder on the left of the screen' });
+    }
+    /* each arm and leg, by how far its far end sits from where it was */
+    [[13, 15, 'arm'], [14, 16, 'arm'], [25, 27, 'leg'], [26, 28, 'leg']].forEach(function (limb) {
+      var end = limb[1];
+      if (!seen(L[end]) || !seen(R[end])) return;
+      var px = fit.a * L[end].x * ratio - fit.b * L[end].y + fit.tx, py = fit.b * L[end].x * ratio + fit.a * L[end].y + fit.ty;
+      var miss = Math.hypot(px - R[end].x * ratio, py - R[end].y);
+      var side = (L[end].x < 0.5) ? 'left' : 'right';
+      checks.push({ off: miss / 0.05, words: 'Move the ' + limb[2] + ' on the ' + side + ' of the screen to its outline' });
+    });
+  }
+  var worst = checks.reduce(function (m, c) { return c.off > m.off ? c : m; }, { off: 0 });
+  var matched = worst.off <= 1;
+  if (!matched) {
+    aim.held = 0;
+    box.textContent = worst.words;
+    box.className = 'cam-say';
+    return;
+  }
+  if (auto !== 'shot') {
+    box.textContent = 'Matched. Take the photo.';
+    box.className = 'cam-say ok';
+    return;
+  }
+  aim.held += 1;
+  box.className = 'cam-say ok';
+  if (aim.held < 4) { box.textContent = 'Matched. Hold still.'; return; }
+  box.textContent = 'Taking the photo.';
+  aim.held = 0;
+  camShoot();
+}
+
+/* The first photo's points in light blue and the live ones in white, joined the way
+   the finder joins them, so the outline to fill is plain to see. */
+function guideDraw(c, w, h) {
+  if (!aim.kind || CAM_AUTO[aim.mode][0] === 'off') return;
+  var lines = aim.kind === 'face'
+    ? [].concat(window.FACEMESH_FACE_OVAL || [], window.FACEMESH_LEFT_EYE || [], window.FACEMESH_RIGHT_EYE || [], window.FACEMESH_LIPS || [], window.FACEMESH_LEFT_EYEBROW || [], window.FACEMESH_RIGHT_EYEBROW || [])
+    : (window.POSE_CONNECTIONS || []).filter(function (pair) { return pair[0] >= 11 && pair[1] >= 11; });
+  var stroke = function (points, colour, width, dash) {
+    if (!points) return;
+    c.save();
+    c.strokeStyle = colour;
+    c.lineWidth = width;
+    c.setLineDash(dash);
+    c.lineCap = 'round';
+    c.beginPath();
+    lines.forEach(function (pair) {
+      var a = points[pair[0]], b = points[pair[1]];
+      if (!a || !b) return;
+      if (aim.kind === 'body' && (!seen(a) || !seen(b))) return;
+      c.moveTo(a.x * w, a.y * h);
+      c.lineTo(b.x * w, b.y * h);
+    });
+    c.stroke();
+    c.restore();
+  };
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  stroke(aim.ref, '#5BD1E6', 3 * dpr, [8 * dpr, 6 * dpr]);
+  stroke(aim.live, 'rgba(255,255,255,.9)', 2 * dpr, []);
+}
+
+el('cam-auto').addEventListener('click', function () {
+  aim.mode = (aim.mode + 1) % CAM_AUTO.length;
+  aim.held = 0;
+  guideButton();
+  camKeep();
+  guideJudge();
+});
+
+/* ---------- the closer match ---------- */
+
+/* ALIKED finds spots on both photos and LightGlue pairs them, which holds up
+   when the light, the angle or the background has changed more than Auto line
+   up can follow. It is about 40 MB, so it downloads only when first asked for
+   and is kept on the device after that. ALIKED is (c) 2022 Zhao Xiaoming under
+   the BSD 3-Clause License, LightGlue and RaCo are under the Apache License 2.0,
+   and ONNX Runtime Web is under the MIT License; the notices are in
+   vendor/aliked/LICENSE-NOTICE.md and vendor/onnxruntime. */
+var closerTool = null;
+var CLOSER_SIDE = 640;
+
+function closerAlways() { return el('line-closer-always').checked; }
+
+function loadCloser() {
+  if (closerTool) return closerTool;
+  closerTool = new Promise(function (done, fail) {
+    if (window.ort) { done(); return; }
+    var script = document.createElement('script');
+    script.src = './vendor/onnxruntime/ort.wasm.min.js';
+    script.onload = function () { done(); };
+    script.onerror = function () { fail(new Error('The closer match could not be downloaded. Check the connection and try again.')); };
+    document.head.appendChild(script);
+  }).then(function () {
+    var ort = window.ort;
+    ort.env.wasm.wasmPaths = new URL('./vendor/onnxruntime/', location.href).href;
+    /* GitHub Pages can't turn on the shared memory that threads need */
+    ort.env.wasm.numThreads = 1;
+    ort.env.logLevel = 'error';
+    var options = { executionProviders: ['wasm'] };
+    return Promise.all([
+      ort.InferenceSession.create('./vendor/aliked/aliked-extractor.onnx', options),
+      ort.InferenceSession.create('./vendor/aliked/lightglue-matcher.onnx', options)
+    ]).then(function (sessions) { return { ort: ort, extract: sessions[0], match: sessions[1] }; });
+  });
+  closerTool.catch(function () { closerTool = null; });
+  return closerTool;
+}
+
+/* A photo as it shows, fitted inside a W by H box with black around it. */
+function closerPicture(cell, W, H) {
+  var image = cell.image;
+  var k = Math.min(W / image.width, H / image.height);
+  var w = image.width * k, h = image.height * k, ox = (W - w) / 2, oy = (H - h) / 2;
+  var canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  var c = canvas.getContext('2d', { willReadFrequently: true });
+  c.fillStyle = '#000';
+  c.fillRect(0, 0, W, H);
+  c.save();
+  if (cell.flip) { c.translate(ox * 2 + w, 0); c.scale(-1, 1); }
+  c.drawImage(image.toned || image.bitmap, ox, oy, w, h);
+  c.restore();
+  return { data: c.getImageData(0, 0, W, H).data, k: k, ox: ox, oy: oy, w: w, h: h };
+}
+
+/* Lines a photo up on the first with the closer match. The fit is in pixels of
+   the two photos as they show, like every other fit. */
+function closerFit(ref, cell) {
+  return loadCloser().then(function (tool) {
+    var long = Math.max(ref.image.width, ref.image.height);
+    var W = Math.max(32, Math.round(ref.image.width / long * CLOSER_SIDE / 32) * 32);
+    var H = Math.max(32, Math.round(ref.image.height / long * CLOSER_SIDE / 32) * 32);
+    var a = closerPicture(ref, W, H), b = closerPicture(cell, W, H);
+    var plane = W * H;
+    var input = new Float32Array(2 * 3 * plane);
+    [a, b].forEach(function (pic, n) {
+      for (var i = 0; i < plane; i++) {
+        input[n * 3 * plane + i] = pic.data[i * 4] / 255;
+        input[n * 3 * plane + plane + i] = pic.data[i * 4 + 1] / 255;
+        input[n * 3 * plane + 2 * plane + i] = pic.data[i * 4 + 2] / 255;
+      }
+    });
+    var ort = tool.ort;
+    return tool.extract.run({ images: new ort.Tensor('float32', input, [2, 3, H, W]) }).then(function (got) {
+      var kp = got.keypoints, nk = got.normalized_keypoints, de = got.descriptors;
+      var K = kp.dims[1];
+      return tool.match.run({
+        normalized_keypoints: new ort.Tensor('float32', nk.data, [2, 1, K, 2]),
+        descriptors: new ort.Tensor('float32', de.data, [2, 1, K, 128])
+      }).then(function (out) {
+        var matches = out.matches0.data, points = kp.data;
+        var pairs = [];
+        for (var i = 0; i < K; i++) {
+          var j = Number(matches[i]);
+          if (j < 0) continue;
+          var qx = points[i * 2], qy = points[i * 2 + 1];
+          var px = points[(K + j) * 2], py = points[(K + j) * 2 + 1];
+          if (px < b.ox || py < b.oy || px > b.ox + b.w || py > b.oy + b.h) continue;
+          pairs.push({
+            p: { x: (px - b.ox) / b.k, y: (py - b.oy) / b.k },
+            q: { x: (qx - a.ox) / a.k, y: (qy - a.oy) / a.k }
+          });
+        }
+        if (pairs.length < 12) return null;
+        var found = bestFit(pairs, 4 / a.k);
+        if (!found || found.agree.length < 12) return null;
+        found.fit.count = found.agree.length;
+        found.fit.how = 'closer';
+        return found.fit;
+      });
+    });
+  });
+}
+
+/* The photos the last line up could not place, for Try the closer match. */
+var lineMissed = [];
+
+function closerButton() {
+  el('line-closer-row').classList.toggle('hidden', !(lineMissed && lineMissed.length) || lining);
+}
+
+el('line-closer').addEventListener('click', function () {
+  if (lining || !lineMissed.length) return;
+  var list = lineMissed.filter(function (index) { return cells[index] && cells[index].image; });
+  var ref = cells[0];
+  if (!ref || !ref.image || !list.length) return;
+  lining = true;
+  lineButtons();
+  closerButton();
+  say(closerTool ? 'Matching closely.' : 'Downloading the closer match, about 40 MB. This happens once.');
+  remember();
+  var placed = [], missed = [];
+  var step = function (n) {
+    if (n >= list.length) return Promise.resolve();
+    var index = list[n], cell = cells[index];
+    return loadCloser().then(function () {
+      say('Matching ' + photoName(index) + ' closely. This can take half a minute on a phone.');
+      return closerFit(ref, cell);
+    }).then(function (fit) {
+      if (fit && placeBy(ref, lineRect(0), cell, lineRect(index), fit)) {
+        placed.push(index);
+        allowEdges();
+        carryCut(index);
+        paint();
+      } else missed.push(index);
+      return step(n + 1);
+    });
+  };
+  step(0).catch(function (error) {
+    message(error.message);
+    missed = list;
+  }).then(function () {
+    lining = false;
+    lineMissed = missed;
+    say('');
+    lineButtons();
+    closerButton();
+    paint();
+    if (placed.length) message('Lined up ' + placed.map(photoName).join(' and ') + ' with the closer match.', true);
+    if (missed.length) message('The closer match could not place ' + missed.map(photoName).join(' and ') + ' either. Two-point line up works on any pair, like both ends of a scar.');
   });
 });
 
@@ -8847,7 +9443,7 @@ function drawFreeMark(c, width, height) {
    The set itself is kept apart, under keeping the set between visits. */
 var KEPT = ['layout', 'empties', 'shape', 'gap', 'background', 'labels', 'size', 'format', 'zoom-scope', 'free-move',
   'cover-kind', 'cover-on', 'cover-eyes-how', 'bg-how', 'bg-on', 'bg-size', 'bg-soft', 'bg-ghost', 'bg-carry', 'tone', 'post', 'cover-colour', 'cover-strength', 'mark-kind', 'mark-colour', 'mark-width', 'mark-show',
-  'tape-seconds', 'tape-each', 'date-place', 'date-style', 'credit-text', 'credit-place',
+  'tape-seconds', 'tape-each', 'line-closer-always', 'date-place', 'date-style', 'credit-text', 'credit-place',
   'wm-text', 'wm-place', 'wm-size', 'wm-strength', 'wm-colour'];
 var KEPT_NAME = 'collage-maker-settings';
 var keeping = false;

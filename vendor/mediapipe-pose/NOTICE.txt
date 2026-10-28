@@ -1,0 +1,2 @@
+MediaPipe Pose 0.5.1675469404 by Google, from the npm package @mediapipe/pose. Only the lite model is included.
+Licensed under the Apache License, Version 2.0: https://www.apache.org/licenses/LICENSE-2.0

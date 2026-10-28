@@ -1,7 +1,12 @@
 /* Bump CACHE_VERSION on every deploy, since that is what tells browsers a new
    version exists. */
-const CACHE_VERSION = 'v38';
+const CACHE_VERSION = 'v39';
 const CACHE = `collage-maker-${CACHE_VERSION}`;
+/* The face and body finders and the closer match are downloaded only when
+   first used. They are kept in their own cache, so a new version of the app
+   does not download them again. */
+const MODELS = 'proofline-models-1';
+const ON_DEMAND = ['/vendor/mediapipe-mesh/', '/vendor/mediapipe-pose/', '/vendor/onnxruntime/', '/vendor/aliked/'];
 
 const FILES = [
   './',
@@ -44,7 +49,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE && key !== MODELS).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
@@ -79,7 +84,8 @@ self.addEventListener('fetch', (event) => {
       return fetch(request).then((response) => {
         if (response && response.status === 200 && response.type === 'basic') {
           const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, copy));
+          const store = ON_DEMAND.some((part) => request.url.indexOf(part) >= 0) ? MODELS : CACHE;
+          caches.open(store).then((cache) => cache.put(request, copy));
         }
         return response;
       });
