@@ -84,6 +84,10 @@ body {
 .order .thumb.shown { border-color: var(--primary); }
 .order .thumb.lifted { opacity: .55; cursor: grabbing; }
 .order .thumb:focus-visible { outline: 3px solid var(--primary); outline-offset: 1px; }
+.locked { opacity: .45; }
+[data-plan-box].locked { pointer-events: none; user-select: none; }
+.plan-tag { display: none; margin: 0 0 8px; font: 600 12px/18px var(--font); color: var(--primary); }
+.plan-tag.on { display: block; }
 .resume input { min-height: 44px; width: 120px; font-size: 16px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; }
 #stage {
   max-width: 100%; max-height: 100%;
@@ -343,8 +347,8 @@ body.full .hint { display: none !important; }
       <button class="tab-mode on" type="button" id="tab-grid">Grid</button>
       <button class="tab-mode" type="button" id="tab-swipe">Swipe</button>
     </div>
-    <button class="tab-mode" type="button" id="clients-open">Clients</button>
-    <button class="tab-mode client-chip hidden" type="button" id="client-chip"></button>
+    <button class="tab-mode" type="button" id="clients-open" data-plan="pro">Clients</button>
+    <button class="tab-mode client-chip hidden" type="button" id="client-chip" data-plan="pro"></button>
     <span class="count" id="out-size"></span>
     <span class="grow"></span>
     <button class="btn btn-install hidden" type="button" id="install">Install</button>
@@ -363,9 +367,9 @@ body.full .hint { display: none !important; }
       <button class="tool on" type="button" id="tool-photos">Photos</button>
       <button class="tool" type="button" id="tool-line">Line up</button>
       <button class="tool" type="button" id="tool-labels">Labels</button>
-      <button class="tool" type="button" id="tool-cover">Cover</button>
-      <button class="tool" type="button" id="tool-mark">Mark</button>
-      <button class="tool" type="button" id="tool-video">Video</button>
+      <button class="tool" type="button" id="tool-cover" data-plan="basic">Cover</button>
+      <button class="tool" type="button" id="tool-mark" data-plan="basic">Mark</button>
+      <button class="tool" type="button" id="tool-video" data-plan="basic">Video</button>
       <button class="tool tool-help" type="button" id="tool-steps">Steps</button>
     </nav>
 
@@ -383,7 +387,7 @@ body.full .hint { display: none !important; }
         <h3>Photos</h3>
         <div class="actions">
           <button class="btn btn-primary" type="button" id="add">Add photos</button>
-          <button class="btn" type="button" id="cam-open">Take a photo</button>
+          <button class="btn" type="button" id="cam-open" data-plan="camera">Take a photo</button>
           <button class="btn" type="button" id="swap">Swap</button>
           <button class="btn" type="button" id="restart">Start over</button>
           <button class="btn" type="button" id="clear">End session</button>
@@ -423,6 +427,8 @@ body.full .hint { display: none !important; }
         </div>
 
         <h4 class="sub">Background</h4>
+        <p class="plan-tag" data-plan-tag="basic">Comes with Basic, Plus and Professional.</p>
+        <div data-plan="basic" data-plan-box>
         <div class="actions">
           <button class="btn btn-primary" type="button" id="bg-auto">Remove the background</button>
           <button class="btn" type="button" id="bg-draw">Draw around it</button>
@@ -461,10 +467,6 @@ body.full .hint { display: none !important; }
               <option value="5">Soft</option>
             </select>
           </div>
-          <div class="field">
-            <label for="background">Background colour</label>
-            <input type="color" id="background" value="#ffffff">
-          </div>
         </div>
         <label class="switch"><input type="checkbox" id="bg-ghost" checked> Show the removed part in faint red on screen</label>
         <div class="actions">
@@ -477,9 +479,14 @@ body.full .hint { display: none !important; }
           <button class="btn" type="button" id="bg-back">Put the background back</button>
         </div>
         <p class="note">Draw a loose loop a little outside the subject and the line moves in onto its edge, like the outline in Camera Overlay. Drawing stays on until you press Done. Set The line to add back or take away for each loop after the first. The brushes fix small bits the line missed.</p>
+        </div>
 
         <details class="more">
           <summary>More</summary>
+          <div class="field">
+            <label for="background">Background colour</label>
+            <input type="color" id="background" value="#ffffff">
+          </div>
           <div class="field">
             <label for="gap">Gap</label>
             <select id="gap">
@@ -501,14 +508,14 @@ body.full .hint { display: none !important; }
         </div>
         <div class="actions">
           <button class="btn btn-primary" type="button" id="line-auto">Auto line up</button>
-          <button class="btn" type="button" id="line-area">Line up on a part</button>
+          <button class="btn" type="button" id="line-area" data-plan="basic">Line up on a part</button>
         </div>
         <div class="actions hidden" id="line-all-row">
-          <button class="btn" type="button" id="line-all">Line up every photo on the first</button>
+          <button class="btn" type="button" id="line-all" data-plan="plus">Line up every photo on the first</button>
         </div>
         <div class="actions">
-          <button class="btn" type="button" id="line-pins">Two-point line up</button>
-          <button class="btn" type="button" id="line-pins4">Four-point line up</button>
+          <button class="btn" type="button" id="line-pins" data-plan="basic">Two-point line up</button>
+          <button class="btn" type="button" id="line-pins4" data-plan="basic">Four-point line up</button>
         </div>
         <div class="actions">
           <button class="btn" type="button" id="line-reline">Reset and line up</button>
@@ -607,6 +614,8 @@ body.full .hint { display: none !important; }
         </div>
 
         <div id="label-rows"></div>
+        <p class="plan-tag" data-plan-tag="basic">The credit, the watermark and brand kits come with Basic, Plus and Professional.</p>
+        <div data-plan="basic" data-plan-box>
         <h4 class="sub">Credit</h4>
         <div class="field">
           <label for="credit-text">Credit</label>
@@ -680,6 +689,7 @@ body.full .hint { display: none !important; }
         </div>
         <p class="note">A kit keeps the credit, the watermark with its logo, the date style, the label setting and the background colour, so picking it sets them all at once. Save one per clinic or branch.</p>
         </details>
+        </div>
       </section>
 
       <section class="panel" id="panel-cover">
@@ -793,6 +803,8 @@ body.full .hint { display: none !important; }
           <button class="btn" type="button" id="tape-manual">Record while I drag</button>
         </div>
         <h4 class="sub">Every photo in order</h4>
+        <p class="plan-tag" data-plan-tag="plus">Comes with Plus and Professional.</p>
+        <div data-plan="plus" data-plan-box>
         <div class="field">
           <label for="tape-each">Time on each photo</label>
           <select id="tape-each">
@@ -807,6 +819,7 @@ body.full .hint { display: none !important; }
           <button class="btn" type="button" id="tape-all">Record every photo in order</button>
         </div>
         <p class="note" id="tape-all-note"></p>
+        </div>
         <p class="note" id="tape-note"></p>
         <div class="actions">
           <button class="btn hidden" type="button" id="tape-share">Share the video</button>
@@ -816,6 +829,19 @@ body.full .hint { display: none !important; }
 
       <section class="panel" id="panel-steps">
         <h3>Steps</h3>
+        <h4 class="sub">Plan</h4>
+        <div class="field">
+          <label for="plan-tier">Plan for this test</label>
+          <select id="plan-tier">
+            <option value="free">Free</option>
+            <option value="basic">Basic</option>
+            <option value="plus">Plus</option>
+            <option value="pro" selected>Professional</option>
+          </select>
+        </div>
+        <label class="switch" id="plan-camera-row"><input type="checkbox" id="plan-camera"> Camera add-on</label>
+        <p class="note" id="plan-note"></p>
+        <h4 class="sub">How to use it</h4>
         <ol class="steps">
           <li>Add the photos, or paste one with Ctrl+V. They fill the cells in the order you picked them. Swap trades two over, and Before and After stay on their own side. The set is kept on this device after every change, so closing the app and opening it again brings it back. Start over keeps the photos and takes off the line up, cut-outs, covers, marks and labels. End session clears the photos and the kept set. Both need a second press.</li>
           <li>Layout: Fits the photos picks the rows from how many photos there are. With a fixed layout and fewer photos than it holds, Empty squares set to Taken out drops the empty cells and centres the last row. On a computer or a tablet, the strip under the picture shows every photo in order. Drag one along it to change the order, or use the arrow keys.</li>
@@ -914,7 +940,7 @@ body.full .hint { display: none !important; }
 <div class="drop hidden" id="empty" style="position:fixed; inset:auto 14px 80px; z-index:5">
   <p>No photo yet.</p>
   <button class="btn btn-primary" type="button" id="choose">Add photos</button>
-  <button class="btn" type="button" id="cam-open-empty">Take a photo</button>
+  <button class="btn" type="button" id="cam-open-empty" data-plan="camera">Take a photo</button>
 </div>
 
 <div class="drop resume hidden" id="resume" style="position:fixed; inset:auto 14px 80px; z-index:6">
@@ -3264,6 +3290,14 @@ function looksLikeImage(file) {
 function addFiles(files) {
   var list = Array.prototype.slice.call(files).filter(looksLikeImage);
   if (!list.length) return;
+  var room = photoLimit() - photos.length;
+  if (list.length > room) {
+    message(room > 0
+      ? 'Only ' + room + ' of these went in, since this plan holds ' + photoLimit() + ' photos. Plus and Professional hold 16.'
+      : 'This plan holds ' + photoLimit() + ' photos. Plus and Professional hold 16, and the plan is picked under Steps.');
+    list = list.slice(0, Math.max(0, room));
+    if (!list.length) return;
+  }
   /* Keep a slot per file so the photos land in the order they were picked,
      whatever order the decoding finishes in. */
   var slots = list.map(function () { return null; });
@@ -6025,7 +6059,7 @@ function camTarget() {
   /* with the empty squares taken out, a new photo gets a new cell */
   if (mode !== 'swipe' && dropEmpty()) {
     var box = boxOf(el('layout').value);
-    if (el('layout').value === 'fit' ? photos.length < 16 : photos.length < box.cols * box.rows) return cells.length;
+    if (photos.length < photoLimit() && (el('layout').value === 'fit' ? photos.length < 16 : photos.length < box.cols * box.rows)) return cells.length;
   }
   return cells.length > 1 ? cells.length - 1 : 0;
 }
@@ -8137,8 +8171,11 @@ function stampArea(c, area, text) {
 }
 
 function drawBrand(c, width, height) {
-  drawWatermark(c, width, height);
-  drawCredit(c, width, height);
+  if (allows('basic')) {
+    drawWatermark(c, width, height);
+    drawCredit(c, width, height);
+  }
+  if (plan && plan.tier === 'free') drawFreeMark(c, width, height);
 }
 
 function brandReads() {
@@ -8695,10 +8732,111 @@ document.addEventListener('paste', function (event) {
   addFiles(files);
 });
 
+/* ---------- the plan for this test ---------- */
+
+/* Testers pick a plan under Steps, and the app works as that plan would once
+   it is sold: Free, Basic, Plus or Professional, with the camera as an add-on
+   below Professional. The pick is kept on this device. */
+var PLAN_NAME = 'proofline-plan';
+var PLAN_RANK = { free: 0, basic: 1, plus: 2, pro: 3 };
+var PLAN_WORDS = {
+  free: 'Free has two photos, Grid and Swipe, auto line up and labels. Every saved picture and video carries "Made with Proofline".',
+  basic: 'Basic has two photos with no mark, every line up tool, background removal, covers, marks, the swipe video, the credit, the watermark and brand kits.',
+  plus: 'Plus has everything in Basic with up to 16 photos, the Left and Right photo pickers, Line up every photo and the video of every photo in order.',
+  pro: 'Professional has everything in Plus with client folders, consent forms, the PIN lock, PDF records and the guided camera.'
+};
+var NEEDS = {
+  basic: 'This comes with Basic, Plus and Professional.',
+  plus: 'This comes with Plus and Professional.',
+  pro: 'This comes with Professional.',
+  camera: 'The camera comes with Professional, or as the Camera add-on on the other plans.'
+};
+var plan = { tier: 'pro', camera: false };
+try {
+  var keptPlan = JSON.parse(localStorage.getItem(PLAN_NAME) || 'null');
+  if (keptPlan && PLAN_RANK[keptPlan.tier] !== undefined) plan = { tier: keptPlan.tier, camera: Boolean(keptPlan.camera) };
+} catch (error) { /* private windows keep nothing */ }
+
+function allows(need) {
+  /* before the plan is read everything is open, as on Professional */
+  if (!plan) return true;
+  if (need === 'camera') return plan.tier === 'pro' || plan.camera;
+  return PLAN_RANK[plan.tier] >= PLAN_RANK[need];
+}
+
+function photoLimit() { return allows('plus') ? 16 : 2; }
+
+function planApply() {
+  [].forEach.call(document.querySelectorAll('[data-plan]'), function (node) {
+    var ok = allows(node.dataset.plan);
+    node.classList.toggle('locked', !ok);
+    if (node.hasAttribute('data-plan-box')) node.inert = !ok;
+  });
+  [].forEach.call(document.querySelectorAll('[data-plan-tag]'), function (node) {
+    node.classList.toggle('on', !allows(node.getAttribute('data-plan-tag')));
+  });
+  el('plan-tier').value = plan.tier;
+  el('plan-camera').checked = plan.camera;
+  el('plan-camera-row').classList.toggle('hidden', plan.tier === 'pro');
+  el('plan-note').textContent = PLAN_WORDS[plan.tier] + (plan.tier !== 'pro' && plan.camera ? ' The Camera add-on is on.' : '');
+  var open = el('tool-' + tool);
+  if (open && open.dataset.plan && !allows(open.dataset.plan)) pickTool('photos');
+  if (!allows('pro') && !el('clients').classList.contains('hidden')) clientsHide();
+  if (!allows('camera') && !el('cam').classList.contains('hidden')) camClose();
+}
+
+function planKeep() {
+  try { localStorage.setItem(PLAN_NAME, JSON.stringify(plan)); } catch (error) { /* private windows keep nothing */ }
+}
+
+el('plan-tier').addEventListener('change', function () {
+  var next = el('plan-tier').value;
+  var room = PLAN_RANK[next] >= PLAN_RANK.plus ? 16 : 2;
+  if (photos.length > room) {
+    el('plan-tier').value = plan.tier;
+    message('This set has ' + photos.length + ' photos and ' + (next === 'free' ? 'Free' : 'Basic') + ' holds 2. Press End session under Photos first, or remove photos down to 2.');
+    return;
+  }
+  plan.tier = next;
+  planKeep();
+  planApply();
+  refresh();
+});
+el('plan-camera').addEventListener('change', function () {
+  plan.camera = el('plan-camera').checked;
+  planKeep();
+  planApply();
+});
+
+/* A press on a locked button or tab says which plan it comes with instead. */
+document.addEventListener('click', function (event) {
+  var node = event.target.closest && event.target.closest('[data-plan]');
+  if (!node || node.hasAttribute('data-plan-box') || allows(node.dataset.plan)) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  message(NEEDS[node.dataset.plan] + ' The plan for this test is picked under Steps.');
+}, true);
+
+/* Free saves carry the app's name in the corner. */
+function drawFreeMark(c, width, height) {
+  var size = Math.max(11, Math.round(width / 55));
+  var words = 'Made with Proofline';
+  c.save();
+  c.font = '600 ' + size + 'px "IBM Plex Sans", system-ui, sans-serif';
+  var w = c.measureText(words).width + size * 1.2, h = size * 1.9;
+  var x = width - w - size * 0.8, y = height - h - size * 0.8;
+  c.fillStyle = 'rgba(16, 28, 43, .62)';
+  c.fillRect(x, y, w, h);
+  c.fillStyle = '#ffffff';
+  c.textBaseline = 'middle';
+  c.fillText(words, x + size * 0.6, y + h / 2);
+  c.restore();
+}
+
 /* ---------- settings kept between visits ---------- */
 
 /* The choices are kept in this browser so the app opens the way it was left.
-   Photos, labels and dates are never kept. */
+   The set itself is kept apart, under keeping the set between visits. */
 var KEPT = ['layout', 'empties', 'shape', 'gap', 'background', 'labels', 'size', 'format', 'zoom-scope', 'free-move',
   'cover-kind', 'cover-on', 'cover-eyes-how', 'bg-how', 'bg-on', 'bg-size', 'bg-soft', 'bg-ghost', 'bg-carry', 'tone', 'post', 'cover-colour', 'cover-strength', 'mark-kind', 'mark-colour', 'mark-width', 'mark-show',
   'tape-seconds', 'tape-each', 'date-place', 'date-style', 'credit-text', 'credit-place',
@@ -9214,6 +9352,7 @@ buildDrag();
 pickTool('photos');
 if (keptAtStart && keptAtStart.mode === 'swipe') showMode('swipe');
 emptiesField();
+planApply();
 report();
 sessionStart();
 </script>
