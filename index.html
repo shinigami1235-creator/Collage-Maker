@@ -88,7 +88,7 @@ body {
 [data-plan-box].locked { pointer-events: none; user-select: none; }
 .plan-tag { display: none; margin: 0 0 8px; font: 600 12px/18px var(--font); color: var(--primary); }
 .plan-tag.on { display: block; }
-.resume input { min-height: 44px; width: 120px; font-size: 16px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; }
+#resume input { min-height: 44px; width: 120px; font-size: 16px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; }
 #stage {
   max-width: 100%; max-height: 100%;
   border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface);
@@ -142,7 +142,7 @@ body {
 .btn-danger, .btn-danger:hover:not(:disabled) { background: var(--danger-tint); border-color: var(--danger); color: var(--danger); }
 .btn-install { background: var(--gold); border-color: var(--gold); color: var(--navy); font-weight: 600; min-height: 32px; font-size: 13px; }
 
-select, input[type=text], input[type=number] {
+select, input[type=text], input[type=number], input[type=search], input[type=password] {
   min-height: 40px; padding: 0 8px; width: 100%;
   font: 500 14px/20px var(--font);
   border: 1px solid var(--line-strong); border-radius: 6px;
@@ -280,7 +280,7 @@ body.full .hint { display: none !important; }
 }
 
 @media (pointer: coarse) {
-  .btn, select, input[type=text], input[type=number], input[type=date] { min-height: 44px; font-size: 16px; }
+  .btn, select, input[type=text], input[type=number], input[type=date], input[type=search], input[type=password] { min-height: 44px; font-size: 16px; }
   .tool { min-height: 44px; }
   .btn-install { min-height: 36px; font-size: 14px; }
   .tab-mode { min-height: 44px; font-size: 15px; padding: 0 16px; }
@@ -1040,7 +1040,7 @@ body.full .hint { display: none !important; }
       <p class="note" id="client-empty">No photos yet. Take a photo here, or add the photos open in the editor.</p>
       <div class="actions">
         <button class="btn" type="button" id="client-open">Open the picked photo</button>
-        <button class="btn" type="button" id="client-shot-drop">Delete the picked photos</button>
+        <button class="btn" type="button" id="client-shot-drop">Delete the picked photo</button>
       </div>
       <div class="actions">
         <button class="btn" type="button" id="client-export">Export as PDF</button>
@@ -6860,6 +6860,7 @@ function clientButtons(total) {
   el('client-open').disabled = n === 0;
   el('client-open').textContent = n > 1 ? 'Open the ' + n + ' picked photos' : 'Open the picked photo';
   el('client-shot-drop').disabled = n === 0;
+  if (!dropArmed.shots) el('client-shot-drop').textContent = n > 1 ? 'Delete the ' + n + ' picked photos' : 'Delete the picked photo';
   el('client-export').disabled = total === 0;
   el('client-save').disabled = photos.length === 0;
   el('client-camera').textContent = total ? 'Take a photo over the latest' : 'Take a photo';
@@ -7238,7 +7239,13 @@ el('client-title').addEventListener('change', function () {
 });
 el('client-sign').addEventListener('click', showConsent);
 el('client-open').addEventListener('click', function () {
-  openShots(clientView.id, clientView.picked).then(function () { clientsHide(); });
+  var ids = clientView.picked.slice();
+  if (ids.length > photoLimit()) { message('Up to ' + photoLimit() + ' photos open at once, so pick ' + photoLimit() + ' or fewer.'); return; }
+  openShots(clientView.id, ids).then(function () {
+    /* the picks are done with, so a later delete only takes what is picked then */
+    clientView.picked = [];
+    clientsHide();
+  });
 });
 el('client-save').addEventListener('click', function () {
   var id = clientView.id;
@@ -7292,7 +7299,8 @@ el('client-drop').addEventListener('click', function () {
   });
 });
 el('client-shot-drop').addEventListener('click', function () {
-  if (!armed('shots', el('client-shot-drop'), 'Press again to delete', 'Delete the picked photos')) return;
+  var many = clientView.picked.length;
+  if (!armed('shots', el('client-shot-drop'), 'Press again to delete ' + (many > 1 ? many + ' photos' : 'the photo'), many > 1 ? 'Delete the ' + many + ' picked photos' : 'Delete the picked photo')) return;
   Promise.all(clientView.picked.map(function (sid) { return dbDrop('shots', sid); })).then(function () {
     clientView.picked = [];
     showClient(clientView.id);
