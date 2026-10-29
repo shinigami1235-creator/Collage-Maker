@@ -73,9 +73,10 @@ body {
 .stage-wrap { position: relative; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 /* the strip of photos to drag into a new order, on a computer or a tablet */
 .order { display: none; }
-@media (min-width: 700px) {
-  .order.on { display: flex; gap: 8px; margin-top: 8px; max-width: 100%; overflow-x: auto; padding: 2px 2px 4px; flex: 0 0 auto; }
-}
+.order.on { display: flex; gap: 8px; margin-top: 8px; max-width: 100%; overflow-x: auto; padding: 6px 2px 4px; flex: 0 0 auto; }
+.order .drop { position: absolute; top: -6px; right: -6px; width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; background: #101C2B; color: #fff;
+  font: 600 15px/1 var(--font); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; z-index: 1; }
+.order .drop.armed { width: auto; padding: 0 8px; border-radius: 999px; background: #B42318; font-size: 12px; white-space: nowrap; }
 .order .thumb { position: relative; flex: 0 0 auto; width: 76px; border: 2px solid var(--line-strong); border-radius: 6px;
   background: var(--surface); cursor: grab; touch-action: none; user-select: none; padding: 0; }
 .order .thumb canvas { display: block; width: 72px; height: 54px; border-radius: 4px 4px 0 0; }
@@ -84,6 +85,33 @@ body {
 .order .thumb.shown { border-color: var(--primary); }
 .order .thumb.lifted { opacity: .55; cursor: grabbing; }
 .order .thumb:focus-visible { outline: 3px solid var(--primary); outline-offset: 1px; }
+@media (max-width: 699px) {
+  .order.on { gap: 6px; margin-top: 4px; }
+  .order .thumb { width: 56px; }
+  .order .thumb canvas { width: 52px; height: 40px; }
+  .order .thumb span { display: none; }
+}
+/* a group of settings that opens only when wanted */
+.group { border: 1px solid var(--line); border-radius: 8px; margin-top: 10px; background: var(--surface); }
+.group > summary { list-style: none; display: flex; flex-direction: column; gap: 1px; padding: 10px 40px 10px 12px; margin: 0; min-height: 0; position: relative; color: var(--text); }
+.group > summary::-webkit-details-marker { display: none; }
+.group > summary::after { content: ""; position: absolute; right: 16px; top: 50%; width: 8px; height: 8px; margin-top: -6px;
+  border-right: 2px solid var(--primary); border-bottom: 2px solid var(--primary); transform: rotate(45deg); transition: transform .15s; }
+.group[open] > summary::after { transform: rotate(-135deg); margin-top: -2px; }
+.group .g-name { font: 600 15px/20px var(--font); color: var(--primary); }
+.group .g-hint { font: 400 13px/18px var(--font); color: var(--muted); }
+.group .g-name[data-needs]::after { content: attr(data-needs); font: 600 11px/16px var(--font); color: var(--muted); border: 1px solid var(--line-strong); border-radius: 999px; padding: 0 6px; margin-left: 8px; vertical-align: 1px; }
+.group[open] > summary { border-bottom: 1px solid var(--line); }
+.group > .g-body { padding: 10px 12px 12px; }
+.group > .g-body > .more:first-child { margin-top: 0; }
+.new-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.new-row input { flex: 1 1 auto; min-width: 0; }
+.new-row .btn { flex: 0 0 auto; }
+.client-steps { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.cstep { border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.cstep-head { display: flex; align-items: center; gap: 10px; font: 600 16px/22px var(--font); margin-bottom: 8px; }
+.cstep-num { width: 26px; height: 26px; border-radius: 50%; background: var(--primary); color: #fff; display: inline-flex; align-items: center; justify-content: center; font: 600 14px/1 var(--font); flex: none; }
+.cstep .actions:last-child, .cstep .note:last-child { margin-bottom: 0; }
 .locked { opacity: .45; }
 [data-plan-box].locked { pointer-events: none; user-select: none; }
 .pc-tag { font: 600 11px/16px var(--font); color: var(--primary); border: 1px solid var(--primary); border-radius: 999px; padding: 0 6px; margin-left: 4px; }
@@ -96,11 +124,13 @@ body {
   touch-action: none; cursor: grab; user-select: none; box-shadow: 0 2px 10px rgba(16,28,43,.08);
 }
 #stage:active { cursor: grabbing; }
+/* the line above the picture: what dragging does, and Full screen */
+.stage-top { order: -1; flex: 0 0 auto; display: flex; align-items: center; gap: 8px; width: 100%; max-width: 900px; margin-bottom: 6px; }
 .hint {
-  position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); white-space: nowrap;
-  font: 600 12px/16px var(--font); color: #fff;
-  background: rgba(16,28,43,.72); border-radius: 999px; padding: 5px 12px; pointer-events: none;
+  flex: 1 1 auto; min-width: 0; height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font: 600 13px/22px var(--font); color: var(--muted); pointer-events: none;
 }
+.hint.hidden { display: block !important; visibility: hidden; }
 
 .panel { display: none; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
 .panel.on { display: block; }
@@ -242,7 +272,7 @@ input[type=date] { min-height: 40px; padding: 0 8px; width: 100%; font: 500 14px
 .cam-note { position: absolute; left: 16px; right: 16px; top: 50%; text-align: center; font: 15px/22px var(--font); margin: 0; }
 .cam-note:empty { display: none; }
 .full-open {
-  position: absolute; top: 8px; right: 8px; z-index: 2;
+  flex: 0 0 auto;
   font: 600 13px/18px var(--font); min-height: 36px; padding: 0 12px;
   border: none; border-radius: 999px; background: rgba(16,28,43,.78); color: #fff; cursor: pointer;
 }
@@ -262,7 +292,7 @@ body.full .fine-bar {
 .fine-row .btn { padding: 0 10px; min-width: 44px; }
 .fine-row .seg { margin: 0; flex: 1 1 auto; }
 .fine-row .seg .btn { min-width: 0; padding: 0 2px; font-size: 14px; }
-body.full .hint { display: none !important; }
+body.full .hint, body.full .stage-top { display: none !important; }
 .fine-read { font: 600 14px/20px var(--font); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fine-pad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .fine-pad .btn { font-size: 18px; padding: 0; }
@@ -280,7 +310,7 @@ body.full .hint { display: none !important; }
   body.full #fine-moves:not(.hidden) ~ #full-done { flex: 1 1 100%; }
 }
 @media (pointer: coarse) {
-  .full-open { min-height: 44px; font-size: 15px; padding: 0 16px; }
+  .full-open { min-height: 38px; font-size: 15px; padding: 0 16px; }
   .fine-row .btn, .fine-pad .btn { min-height: 48px; }
 }
 
@@ -381,8 +411,10 @@ body.full .hint { display: none !important; }
     <div class="stage-wrap">
       <canvas id="stage"></canvas>
       <div class="order" id="order" aria-label="Order of the photos"></div>
-      <div class="hint hidden" id="swipe-hint">Drag left and right</div>
-      <button class="full-open" type="button" id="full-open">Full screen</button>
+      <div class="stage-top">
+        <div class="hint hidden" id="swipe-hint">Drag left and right</div>
+        <button class="full-open" type="button" id="full-open">Full screen</button>
+      </div>
     </div>
 
     <div class="controls" id="controls">
@@ -393,11 +425,8 @@ body.full .hint { display: none !important; }
         <div class="actions">
           <button class="btn btn-primary" type="button" id="add">Add photos</button>
           <button class="btn" type="button" id="cam-open" data-plan="camera">Take a photo</button>
-          <button class="btn" type="button" id="swap">Swap</button>
-          <button class="btn" type="button" id="restart">Start over</button>
-          <button class="btn" type="button" id="clear">End session</button>
         </div>
-        <p class="note" id="keep-note"></p>
+        <p class="note">Tap the cross on a photo in the strip under the picture to take it out.</p>
         <div class="hidden" id="pair-field">
           <div class="field">
             <label for="pair-left">Left photo</label>
@@ -408,113 +437,140 @@ body.full .hint { display: none !important; }
             <select id="pair-right"></select>
           </div>
         </div>
-        <div class="field" id="layout-field">
-          <label for="layout">Layout</label>
-          <select id="layout"></select>
-        </div>
-        <div class="field" id="empties-field">
-          <label for="empties">Empty squares</label>
-          <select id="empties">
+
+        <details class="group" data-group="layout">
+          <summary><span class="g-name">Layout</span><span class="g-hint">How the photos sit in the picture</span></summary>
+          <div class="g-body">
+            <div class="field" id="layout-field">
+              <label for="layout">Layout</label>
+              <select id="layout"></select>
+            </div>
+            <div class="field" id="empties-field">
+              <label for="empties">Empty squares</label>
+              <select id="empties">
             <option value="drop" selected>Taken out, the last row centred</option>
             <option value="keep">Kept</option>
           </select>
-        </div>
-        <div class="field">
-          <label for="shape">Cell shape</label>
-          <select id="shape"></select>
-        </div>
-        <div class="field">
-          <label for="tone">Light</label>
-          <select id="tone">
-            <option value="off" selected>As taken</option>
-            <option value="match">Matched to the first photo</option>
-          </select>
-        </div>
-
-        <h4 class="sub">Background</h4>
-        <p class="plan-tag" data-plan-tag="basic">Comes with Basic, Plus and Professional.</p>
-        <div data-plan="basic" data-plan-box>
-        <div class="actions">
-          <button class="btn btn-primary" type="button" id="bg-auto">Remove the background</button>
-          <button class="btn" type="button" id="bg-draw">Draw around it</button>
-        </div>
-        <div class="row">
-          <div class="field">
-            <label for="bg-how">The line</label>
-            <select id="bg-how">
-              <option value="keep" selected>Keeps what is inside</option>
-              <option value="add">Adds back what is inside</option>
-              <option value="take">Takes away what is inside</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="bg-on">Works on</label>
-            <select id="bg-on">
-              <option value="every" selected>Every photo</option>
-              <option value="one">This photo only</option>
-            </select>
-          </div>
-        </div>
-        <div class="actions">
-          <button class="btn" type="button" id="bg-erase">Erase brush</button>
-          <button class="btn" type="button" id="bg-restore">Restore brush</button>
-        </div>
-        <div class="field">
-          <label for="bg-size">Brush size <span id="bg-size-read">40</span></label>
-          <input type="range" id="bg-size" min="6" max="160" step="1" value="40">
-        </div>
-        <div class="row">
-          <div class="field">
-            <label for="bg-soft">Edge</label>
-            <select id="bg-soft">
-              <option value="0" selected>Sharp</option>
-              <option value="2">A little soft</option>
-              <option value="5">Soft</option>
-            </select>
-          </div>
-        </div>
-        <label class="switch locked" title="Comes with the PC version"><input type="checkbox" id="bg-fine" disabled> Fine hair edges <span class="pc-tag">PC only</span></label>
-        <label class="switch"><input type="checkbox" id="bg-ghost" checked> Show the removed part in faint red on screen</label>
-        <div class="actions">
-          <button class="btn" type="button" id="bg-copy">Use the first photo's cut on the others</button>
-        </div>
-        <label class="switch"><input type="checkbox" id="bg-carry" checked> Carry the first photo's cut over when lining up</label>
-        <div class="actions">
-          <button class="btn" type="button" id="bg-undo">Undo</button>
-          <button class="btn" type="button" id="bg-redo">Redo</button>
-          <button class="btn" type="button" id="bg-back">Put the background back</button>
-        </div>
-        <p class="note">Draw a loose loop a little outside the subject and the line moves in onto its edge, like the outline in Camera Overlay. Drawing stays on until you press Done. Set The line to add back or take away for each loop after the first. The brushes fix small bits the line missed.</p>
-        </div>
-
-        <details class="more">
-          <summary>More</summary>
-          <div class="field">
-            <label for="background">Background colour</label>
-            <input type="color" id="background" value="#ffffff">
-          </div>
-          <div class="field">
-            <label for="gap">Gap</label>
-            <select id="gap">
+            </div>
+            <div class="field">
+              <label for="shape">Cell shape</label>
+              <select id="shape"></select>
+            </div>
+            <div class="row">
+              <div class="field">
+                <label for="gap">Gap</label>
+                <select id="gap">
               <option value="0">None</option>
               <option value="10" selected>Thin</option>
               <option value="25">Wide</option>
             </select>
+              </div>
+              <div class="field">
+                <label for="background">Background colour</label>
+                <input type="color" id="background" value="#ffffff">
+              </div>
+            </div>
+            <div class="actions">
+              <button class="btn" type="button" id="swap">Swap</button>
+            </div>
+          </div>
+        </details>
+
+        <details class="group" data-group="light">
+          <summary><span class="g-name">Light</span><span class="g-hint">Match the brightness and colour to the first photo</span></summary>
+          <div class="g-body">
+            <div class="field">
+              <label for="tone">Light</label>
+              <select id="tone">
+            <option value="off" selected>As taken</option>
+            <option value="match">Matched to the first photo</option>
+          </select>
+            </div>
+          </div>
+        </details>
+
+        <details class="group" data-group="background" data-plan-group="basic">
+          <summary><span class="g-name">Remove the background</span><span class="g-hint">Cut the person or the subject out</span></summary>
+          <div class="g-body">
+            <p class="plan-tag" data-plan-tag="basic">Comes with Basic, Plus and Professional.</p>
+            <div data-plan="basic" data-plan-box>
+            <div class="actions">
+              <button class="btn btn-primary" type="button" id="bg-auto">Remove the background</button>
+              <button class="btn" type="button" id="bg-draw">Draw around it</button>
+            </div>
+            <div class="actions">
+              <button class="btn" type="button" id="bg-undo">Undo</button>
+              <button class="btn" type="button" id="bg-redo">Redo</button>
+              <button class="btn" type="button" id="bg-back">Put the background back</button>
+            </div>
+            <details class="more">
+              <summary>Fix the edges by hand</summary>
+              <p class="note">Draw a loose loop a little outside the subject and the line moves in onto its edge, like the outline in Camera Overlay. Drawing stays on until you press Done. Set The line to add back or take away for each loop after the first. The brushes fix small bits the line missed.</p>
+              <div class="row">
+                <div class="field">
+                  <label for="bg-how">The line</label>
+                  <select id="bg-how">
+              <option value="keep" selected>Keeps what is inside</option>
+              <option value="add">Adds back what is inside</option>
+              <option value="take">Takes away what is inside</option>
+            </select>
+                </div>
+                <div class="field">
+                  <label for="bg-on">Works on</label>
+                  <select id="bg-on">
+              <option value="every" selected>Every photo</option>
+              <option value="one">This photo only</option>
+            </select>
+                </div>
+              </div>
+              <div class="actions">
+                <button class="btn" type="button" id="bg-erase">Erase brush</button>
+                <button class="btn" type="button" id="bg-restore">Restore brush</button>
+              </div>
+              <div class="field">
+                <label for="bg-size">Brush size <span id="bg-size-read">40</span></label>
+                <input type="range" id="bg-size" min="6" max="160" step="1" value="40">
+              </div>
+              <div class="field">
+                <label for="bg-soft">Edge</label>
+                <select id="bg-soft">
+              <option value="0" selected>Sharp</option>
+              <option value="2">A little soft</option>
+              <option value="5">Soft</option>
+            </select>
+              </div>
+              <label class="switch locked" title="Comes with the PC version"><input type="checkbox" id="bg-fine" disabled> Fine hair edges <span class="pc-tag">PC only</span></label>
+            </details>
+            <details class="more">
+              <summary>More</summary>
+              <label class="switch"><input type="checkbox" id="bg-ghost" checked> Show the removed part in faint red on screen</label>
+              <div class="actions">
+                <button class="btn" type="button" id="bg-copy">Use the first photo's cut on the others</button>
+              </div>
+              <label class="switch"><input type="checkbox" id="bg-carry" checked> Carry the first photo's cut over when lining up</label>
+            </details>
+            </div>
+          </div>
+        </details>
+
+        <details class="group" data-group="session">
+          <summary><span class="g-name">Start over or end</span><span class="g-hint">Clear the work, or the whole set</span></summary>
+          <div class="g-body">
+            <p class="note" id="keep-note"></p>
+            <div class="actions">
+              <button class="btn" type="button" id="restart">Start over</button>
+              <button class="btn" type="button" id="clear">End session</button>
+            </div>
+            <p class="note">Start over keeps the photos and takes off the line up, cut-outs, covers, marks and labels. End session clears the photos and the kept set.</p>
           </div>
         </details>
       </section>
 
       <section class="panel" id="panel-line">
         <h3>Line up</h3>
-        <div class="seg" id="moves" role="group" aria-label="Moves">
-          <button class="btn" type="button" id="moves-move">Divider</button>
-          <button class="btn" type="button" id="moves-first">First</button>
-          <button class="btn" type="button" id="moves-second">Second</button>
-          <button class="btn" type="button" id="moves-both">Both</button>
-        </div>
         <div class="actions">
           <button class="btn btn-primary" type="button" id="line-auto">Auto line up</button>
-          <button class="btn" type="button" id="line-area" data-plan="basic">Line up on a part</button>
+          <button class="btn" type="button" id="line-undo">Undo</button>
         </div>
         <div class="actions hidden" id="line-closer-row">
           <button class="btn btn-primary" type="button" id="line-closer" data-plan="basic">Try the closer match</button>
@@ -522,55 +578,81 @@ body.full .hint { display: none !important; }
         <div class="actions hidden" id="line-all-row">
           <button class="btn" type="button" id="line-all" data-plan="plus">Line up every photo on the first</button>
         </div>
-        <div class="actions">
-          <button class="btn" type="button" id="line-pins" data-plan="basic">Two-point line up</button>
-          <button class="btn" type="button" id="line-pins4" data-plan="basic">Four-point line up</button>
-        </div>
-        <div class="actions">
-          <button class="btn" type="button" id="line-reline">Reset and line up</button>
-          <button class="btn" type="button" id="line-centre">Centre both</button>
-        </div>
-        <div class="actions">
-          <button class="btn" type="button" id="line-undo">Undo</button>
-          <button class="btn" type="button" id="line-fill">Fill the frame</button>
-        </div>
         <div class="field" id="view-field">
-          <label>View</label>
+          <label>Check it</label>
           <div class="seg seg3" id="view" role="group" aria-label="View">
             <button class="btn on" type="button" data-value="split">Split</button>
             <button class="btn" type="button" data-value="see">See-through</button>
             <button class="btn" type="button" data-value="diff">Differences</button>
           </div>
         </div>
-        <div class="field" id="zoom-field">
-          <label for="zoom-scope">Zoom works on</label>
-          <select id="zoom-scope">
+
+        <details class="group" data-group="by-hand">
+          <summary><span class="g-name">Line up by hand</span><span class="g-hint">When Auto line up gets it wrong</span></summary>
+          <div class="g-body">
+            <div class="actions">
+              <button class="btn" type="button" id="line-area" data-plan="basic">Line up on a part</button>
+            </div>
+            <div class="actions">
+              <button class="btn" type="button" id="line-pins" data-plan="basic">Two-point line up</button>
+              <button class="btn" type="button" id="line-pins4" data-plan="basic">Four-point line up</button>
+            </div>
+            <p class="note">Line up on a part: draw around a scar or a mole on the first photo. Two-point: tap the same two spots on each photo. Four-point also matches a photo taken from the side.</p>
+          </div>
+        </details>
+
+        <details class="group" data-group="move">
+          <summary><span class="g-name">Move and size</span><span class="g-hint">Nudge, size and turn a photo</span></summary>
+          <div class="g-body">
+            <div class="seg" id="moves" role="group" aria-label="Moves">
+              <button class="btn" type="button" id="moves-move">Divider</button>
+              <button class="btn" type="button" id="moves-first">First</button>
+              <button class="btn" type="button" id="moves-second">Second</button>
+              <button class="btn" type="button" id="moves-both">Both</button>
+            </div>
+            <div class="field" id="zoom-field">
+              <label for="zoom-scope">Zoom works on</label>
+              <select id="zoom-scope">
             <option value="all" selected>All photos</option>
             <option value="one">One photo</option>
           </select>
-        </div>
-        <span class="count" id="picked"></span>
-        <div class="field" style="margin-top:8px">
-          <label for="photo-size">Size <span class="count" id="photo-size-read">100%</span></label>
-          <input type="range" id="photo-size" min="20" max="400" step="1" value="100">
-        </div>
-        <div class="field">
-          <label for="photo-turn">Turn <span class="count" id="photo-turn-read">0.0 degrees</span></label>
-          <input type="range" id="photo-turn" min="-180" max="180" step="0.1" value="0">
-        </div>
-        <label class="switch"><input type="checkbox" id="free-move" checked> Move past the edges</label>
-        <p class="note" id="nudge-note"></p>
-        <div class="nudge" id="swipe-tools">
-          <button class="btn" type="button" id="nudge-left">Left</button>
-          <button class="btn" type="button" id="nudge-up">Up</button>
-          <button class="btn" type="button" id="nudge-in">Bigger</button>
-          <button class="btn" type="button" id="nudge-right">Right</button>
-          <button class="btn" type="button" id="nudge-down">Down</button>
-          <button class="btn" type="button" id="nudge-out">Smaller</button>
-        </div>
-        <div class="actions hidden" id="split-tools" style="margin-top:10px">
-          <button class="btn" type="button" id="split-centre">Put the divider back in the middle</button>
-        </div>
+            </div>
+            <span class="count" id="picked"></span>
+            <div class="field" style="margin-top:8px">
+              <label for="photo-size">Size <span class="count" id="photo-size-read">100%</span></label>
+              <input type="range" id="photo-size" min="20" max="400" step="1" value="100">
+            </div>
+            <div class="field">
+              <label for="photo-turn">Turn <span class="count" id="photo-turn-read">0.0 degrees</span></label>
+              <input type="range" id="photo-turn" min="-180" max="180" step="0.1" value="0">
+            </div>
+            <p class="note" id="nudge-note"></p>
+            <div class="nudge" id="swipe-tools">
+              <button class="btn" type="button" id="nudge-left">Left</button>
+              <button class="btn" type="button" id="nudge-up">Up</button>
+              <button class="btn" type="button" id="nudge-in">Bigger</button>
+              <button class="btn" type="button" id="nudge-right">Right</button>
+              <button class="btn" type="button" id="nudge-down">Down</button>
+              <button class="btn" type="button" id="nudge-out">Smaller</button>
+            </div>
+            <label class="switch"><input type="checkbox" id="free-move" checked> Move past the edges</label>
+            <div class="actions hidden" id="split-tools" style="margin-top:10px">
+              <button class="btn" type="button" id="split-centre">Put the divider back in the middle</button>
+            </div>
+          </div>
+        </details>
+
+        <details class="group" data-group="reset">
+          <summary><span class="g-name">Reset</span><span class="g-hint">Put the photos back and try again</span></summary>
+          <div class="g-body">
+            <div class="actions">
+              <button class="btn" type="button" id="line-reline">Reset and line up</button>
+              <button class="btn" type="button" id="line-centre">Centre both</button>
+              <button class="btn" type="button" id="line-fill">Fill the frame</button>
+            </div>
+          </div>
+        </details>
+
         <details class="more">
           <summary>More</summary>
           <div class="actions">
@@ -589,7 +671,6 @@ body.full .hint { display: none !important; }
 
       <section class="panel" id="panel-labels">
         <h3>Labels</h3>
-        <p class="note">Tap a label, the credit or the watermark on the picture to pick it, then drag it to move it. Drag the round handle above it to tilt it and the square corner to size it.</p>
         <div class="label-row hidden" id="picked-box">
           <div class="head" id="picked-name"></div>
           <div class="field">
@@ -605,36 +686,45 @@ body.full .hint { display: none !important; }
           </div>
         </div>
         <label class="switch"><input type="checkbox" id="labels" checked> Show labels</label>
-        <div class="row">
-          <div class="field">
-            <label for="date-place">Date</label>
-            <select id="date-place">
+        <div id="label-rows"></div>
+        <p class="note">Drag a label on the picture to move it. Its round handle tilts it and its square corner sizes it.</p>
+
+        <details class="group" data-group="dates">
+          <summary><span class="g-name">Dates</span><span class="g-hint">Show the day each photo was taken</span></summary>
+          <div class="g-body">
+            <div class="row">
+              <div class="field">
+                <label for="date-place">Date</label>
+                <select id="date-place">
               <option value="off" selected>Off</option>
               <option value="before">Before the label</option>
               <option value="after">After the label</option>
             </select>
-          </div>
-          <div class="field">
-            <label for="date-style">Date shows</label>
-            <select id="date-style">
+              </div>
+              <div class="field">
+                <label for="date-style">Date shows</label>
+                <select id="date-style">
               <option value="day" selected>Day</option>
               <option value="month">Month</option>
               <option value="since">Time since photo 1</option>
             </select>
+              </div>
+            </div>
           </div>
-        </div>
+        </details>
 
-        <div id="label-rows"></div>
-        <p class="plan-tag" data-plan-tag="basic">The credit, the watermark and brand kits come with Basic, Plus and Professional.</p>
-        <div data-plan="basic" data-plan-box>
-        <h4 class="sub">Credit</h4>
-        <div class="field">
-          <label for="credit-text">Credit</label>
-          <input type="text" id="credit-text" maxlength="60" placeholder="Example: Cygnus Aesthetics">
-        </div>
-        <div class="field">
-          <label for="credit-place">Credit sits</label>
-          <select id="credit-place">
+        <details class="group" data-group="credit" data-plan-group="basic">
+          <summary><span class="g-name">Credit</span><span class="g-hint">A line like "Cygnus Aesthetics" on the picture</span></summary>
+          <div class="g-body">
+            <p class="plan-tag" data-plan-tag="basic">Comes with Basic, Plus and Professional.</p>
+            <div data-plan="basic" data-plan-box>
+            <div class="field">
+              <label for="credit-text">Credit</label>
+              <input type="text" id="credit-text" maxlength="60" placeholder="Example: Cygnus Aesthetics">
+            </div>
+            <div class="field">
+              <label for="credit-place">Credit sits</label>
+              <select id="credit-place">
             <option value="bottom-middle" selected>Bottom middle</option>
             <option value="top-middle">Top middle</option>
             <option value="top-left">Top left</option>
@@ -643,25 +733,32 @@ body.full .hint { display: none !important; }
             <option value="bottom-right">Bottom right</option>
             <option value="free">Where you dragged it</option>
           </select>
-        </div>
+            </div>
+            </div>
+          </div>
+        </details>
 
-        <h4 class="sub">Watermark</h4>
-        <div class="field">
-          <label for="wm-text">Watermark text</label>
-          <input type="text" id="wm-text" maxlength="60" placeholder="Example: Dr. Gid">
-        </div>
-        <div class="field">
-          <label>Symbol</label>
-          <div class="symbols" id="wm-symbols" role="group" aria-label="Symbol"></div>
-        </div>
-        <div class="actions">
-          <button class="btn" type="button" id="wm-logo-add">Add a logo</button>
-          <button class="btn hidden" type="button" id="wm-logo-drop">Remove the logo</button>
-          <span class="count" id="wm-logo-name"></span>
-        </div>
-        <div class="field">
-          <label for="wm-place">Watermark sits</label>
-          <select id="wm-place">
+        <details class="group" data-group="watermark" data-plan-group="basic">
+          <summary><span class="g-name">Watermark</span><span class="g-hint">Words, a symbol or your logo over every photo</span></summary>
+          <div class="g-body">
+            <p class="plan-tag" data-plan-tag="basic">Comes with Basic, Plus and Professional.</p>
+            <div data-plan="basic" data-plan-box>
+            <div class="field">
+              <label for="wm-text">Watermark text</label>
+              <input type="text" id="wm-text" maxlength="60" placeholder="Example: Dr. Gid">
+            </div>
+            <div class="field">
+              <label>Symbol</label>
+              <div class="symbols" id="wm-symbols" role="group" aria-label="Symbol"></div>
+            </div>
+            <div class="actions">
+              <button class="btn" type="button" id="wm-logo-add">Add a logo</button>
+              <button class="btn hidden" type="button" id="wm-logo-drop">Remove the logo</button>
+              <span class="count" id="wm-logo-name"></span>
+            </div>
+            <div class="field">
+              <label for="wm-place">Watermark sits</label>
+              <select id="wm-place">
             <option value="middle" selected>Middle</option>
             <option value="tiled">Repeated across</option>
             <option value="top-left">Top left</option>
@@ -670,86 +767,95 @@ body.full .hint { display: none !important; }
             <option value="bottom-right">Bottom right</option>
             <option value="free">Where you dragged it</option>
           </select>
-        </div>
-        <div class="field">
-          <label for="wm-size">Size <span class="count" id="wm-size-read">6%</span></label>
-          <input type="range" id="wm-size" min="2" max="30" step="0.5" value="6">
-        </div>
-        <div class="field">
-          <label for="wm-strength">Strength <span class="count" id="wm-strength-read">35%</span></label>
-          <input type="range" id="wm-strength" min="10" max="100" step="5" value="35">
-        </div>
-        <div class="field">
-          <label for="wm-colour">Watermark colour</label>
-          <input type="color" id="wm-colour" value="#ffffff">
-        </div>
-
-        <details class="more" id="kit-more">
-          <summary>Brand kit</summary>
-        <div class="field">
-          <label for="kit">Kit</label>
-          <select id="kit"><option value="">None saved yet</option></select>
-        </div>
-        <div class="field">
-          <label for="kit-name">Kit name</label>
-          <input type="text" id="kit-name" maxlength="40" placeholder="Example: Cygnus Aesthetics Bangkok">
-        </div>
-        <div class="actions">
-          <button class="btn" type="button" id="kit-save">Save as a kit</button>
-          <button class="btn" type="button" id="kit-drop">Delete this kit</button>
-        </div>
-        <p class="note">A kit keeps the credit, the watermark with its logo, the date style, the label setting and the background colour, so picking it sets them all at once. Save one per clinic or branch.</p>
+            </div>
+            <div class="field">
+              <label for="wm-size">Size <span class="count" id="wm-size-read">6%</span></label>
+              <input type="range" id="wm-size" min="2" max="30" step="0.5" value="6">
+            </div>
+            <div class="field">
+              <label for="wm-strength">Strength <span class="count" id="wm-strength-read">35%</span></label>
+              <input type="range" id="wm-strength" min="10" max="100" step="5" value="35">
+            </div>
+            <div class="field">
+              <label for="wm-colour">Watermark colour</label>
+              <input type="color" id="wm-colour" value="#ffffff">
+            </div>
+            </div>
+          </div>
         </details>
-        </div>
+
+        <details class="group" data-group="kit" data-plan-group="basic" id="kit-more">
+          <summary><span class="g-name">Brand kit</span><span class="g-hint">Save the credit and watermark for each clinic</span></summary>
+          <div class="g-body">
+            <p class="plan-tag" data-plan-tag="basic">Comes with Basic, Plus and Professional.</p>
+            <div data-plan="basic" data-plan-box>
+            <div class="field">
+              <label for="kit">Kit</label>
+              <select id="kit"><option value="">None saved yet</option></select>
+            </div>
+            <div class="field">
+              <label for="kit-name">Kit name</label>
+              <input type="text" id="kit-name" maxlength="40" placeholder="Example: Cygnus Aesthetics Bangkok">
+            </div>
+            <div class="actions">
+              <button class="btn" type="button" id="kit-save">Save as a kit</button>
+              <button class="btn" type="button" id="kit-drop">Delete this kit</button>
+            </div>
+            <p class="note">A kit keeps the credit, the watermark with its logo, the date style, the label setting and the background colour, so picking it sets them all at once. Save one per clinic or branch.</p>
+            </div>
+          </div>
+        </details>
       </section>
 
       <section class="panel" id="panel-cover">
         <h3>Cover</h3>
-        <div class="field">
-          <label for="cover-kind">Cover with</label>
-          <select id="cover-kind">
-            <option value="bar">Eye bar</option>
-            <option value="blur">Blur</option>
-            <option value="oval">Oval blur</option>
-            <option value="block">Solid block</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="cover-on">Covers</label>
-          <select id="cover-on">
-            <option value="every" selected>Every photo</option>
-            <option value="one">This photo only</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="cover-eyes-how">Eyes</label>
-          <select id="cover-eyes-how">
-            <option value="each" selected>Each eye</option>
-            <option value="both">Both eyes together</option>
-          </select>
-        </div>
         <div class="actions">
           <button class="btn btn-primary" type="button" id="cover-eyes">Cover the eyes</button>
         </div>
-        <p class="note">Cover the eyes finds the eyes on every photo and covers them with the cover picked above. Or drag over the eyes, a name or an address.</p>
+        <p class="note">Or drag over the eyes, a name or an address to cover it.</p>
         <div class="actions">
           <button class="btn" type="button" id="cover-undo">Undo</button>
           <button class="btn" type="button" id="cover-clear">Clear</button>
           <span class="count" id="cover-count">None.</span>
         </div>
-        <details class="more">
-          <summary>More</summary>
-          <div class="field">
-            <label for="cover-colour">Bar colour</label>
-            <input type="color" id="cover-colour" value="#101C2B">
-          </div>
-          <div class="field">
-            <label for="cover-strength">Blur <span class="count" id="cover-strength-value">14 blocks</span></label>
-            <input type="range" id="cover-strength" min="4" max="30" value="14">
-          </div>
-          <div class="field">
-            <label for="cover-angle">Angle <span class="count" id="cover-angle-value">0 degrees</span></label>
-            <input type="range" id="cover-angle" min="-180" max="180" value="0">
+        <details class="group" data-group="cover-style">
+          <summary><span class="g-name">Cover style</span><span class="g-hint">Bar, blur, oval or block, and where it goes</span></summary>
+          <div class="g-body">
+            <div class="field">
+              <label for="cover-kind">Cover with</label>
+              <select id="cover-kind">
+            <option value="bar">Eye bar</option>
+            <option value="blur">Blur</option>
+            <option value="oval">Oval blur</option>
+            <option value="block">Solid block</option>
+          </select>
+            </div>
+            <div class="field">
+              <label for="cover-eyes-how">Eyes</label>
+              <select id="cover-eyes-how">
+            <option value="each" selected>Each eye</option>
+            <option value="both">Both eyes together</option>
+          </select>
+            </div>
+            <div class="field">
+              <label for="cover-on">Covers</label>
+              <select id="cover-on">
+            <option value="every" selected>Every photo</option>
+            <option value="one">This photo only</option>
+          </select>
+            </div>
+            <div class="field">
+              <label for="cover-colour">Bar colour</label>
+              <input type="color" id="cover-colour" value="#101C2B">
+            </div>
+            <div class="field">
+              <label for="cover-strength">Blur <span class="count" id="cover-strength-value">14 blocks</span></label>
+              <input type="range" id="cover-strength" min="4" max="30" value="14">
+            </div>
+            <div class="field">
+              <label for="cover-angle">Angle <span class="count" id="cover-angle-value">0 degrees</span></label>
+              <input type="range" id="cover-angle" min="-180" max="180" value="0">
+            </div>
           </div>
         </details>
       </section>
@@ -773,32 +879,38 @@ body.full .hint { display: none !important; }
         </div>
         <p class="note">Drag on the photo to draw. Drag a mark to move it, or either end to reshape it.</p>
         <div class="actions">
-          <button class="btn" type="button" id="mark-copy">Copy to the other photo</button>
-        </div>
-        <div class="actions">
           <button class="btn" type="button" id="mark-undo">Undo</button>
           <button class="btn" type="button" id="mark-clear">Clear</button>
           <span class="count" id="mark-count">None.</span>
         </div>
-        <details class="more">
-          <summary>More</summary>
-          <div class="field">
-            <label for="mark-width">Thickness <span class="count" id="mark-width-value">8px</span></label>
-            <input type="range" id="mark-width" min="2" max="24" value="8">
-          </div>
-          <div class="field">
-            <label for="mark-show">Shows on</label>
-            <select id="mark-show">
+        <details class="group" data-group="mark-more">
+          <summary><span class="g-name">Mark settings</span><span class="g-hint">Thickness, and which photos show it</span></summary>
+          <div class="g-body">
+            <div class="field">
+              <label for="mark-width">Thickness <span class="count" id="mark-width-value">8px</span></label>
+              <input type="range" id="mark-width" min="2" max="24" value="8">
+            </div>
+            <div class="field">
+              <label for="mark-show">Shows on</label>
+              <select id="mark-show">
               <option value="both">Both photos</option>
               <option value="first">The first photo</option>
               <option value="second">The second photo</option>
             </select>
+            </div>
+            <div class="actions">
+              <button class="btn" type="button" id="mark-copy">Copy to the other photo</button>
+            </div>
           </div>
         </details>
       </section>
 
       <section class="panel" id="panel-video">
         <h3>Video</h3>
+        <div class="actions">
+          <button class="btn btn-primary" type="button" id="tape-auto">Record the swipe</button>
+          <button class="btn" type="button" id="tape-manual">Record while I drag</button>
+        </div>
         <div class="field">
           <label for="tape-seconds">Length</label>
           <select id="tape-seconds">
@@ -807,34 +919,32 @@ body.full .hint { display: none !important; }
             <option value="8">8 seconds</option>
           </select>
         </div>
-        <div class="actions">
-          <button class="btn btn-primary" type="button" id="tape-auto">Record the swipe</button>
-        </div>
-        <div class="actions">
-          <button class="btn" type="button" id="tape-manual">Record while I drag</button>
-        </div>
-        <h4 class="sub">Every photo in order</h4>
-        <p class="plan-tag" data-plan-tag="plus">Comes with Plus and Professional.</p>
-        <div data-plan="plus" data-plan-box>
-        <div class="field">
-          <label for="tape-each">Time on each photo</label>
-          <select id="tape-each">
-            <option value="1.5">1.5 seconds</option>
-            <option value="2" selected>2 seconds</option>
-            <option value="3">3 seconds</option>
-          </select>
-        </div>
-        <p class="note">Ticked photos go in the video, in this order.</p>
-        <div id="tape-pick"></div>
-        <div class="actions">
-          <button class="btn" type="button" id="tape-all">Record every photo in order</button>
-        </div>
-        <p class="note" id="tape-all-note"></p>
-        </div>
         <p class="note" id="tape-note"></p>
         <div class="actions">
           <button class="btn hidden" type="button" id="tape-share">Share the video</button>
         </div>
+        <details class="group" data-group="every-photo" data-plan-group="plus">
+          <summary><span class="g-name">Every photo in order</span><span class="g-hint">Day 1, Day 2, Day 3 and on, one after another</span></summary>
+          <div class="g-body">
+            <p class="plan-tag" data-plan-tag="plus">Comes with Plus and Professional.</p>
+            <div data-plan="plus" data-plan-box>
+            <div class="field">
+              <label for="tape-each">Time on each photo</label>
+              <select id="tape-each">
+            <option value="1.5">1.5 seconds</option>
+            <option value="2" selected>2 seconds</option>
+            <option value="3">3 seconds</option>
+          </select>
+            </div>
+            <p class="note">Ticked photos go in the video, in this order.</p>
+            <div id="tape-pick"></div>
+            <div class="actions">
+              <button class="btn" type="button" id="tape-all">Record every photo in order</button>
+            </div>
+            <p class="note" id="tape-all-note"></p>
+            </div>
+          </div>
+        </details>
         <p class="note">The video holds the picture on its own, none of the buttons around it. Instagram wants 3 seconds or more.</p>
       </section>
 
@@ -869,12 +979,13 @@ body.full .hint { display: none !important; }
           <li>Mark: drag to draw an arrow, circle, line or box. With Shows on set to Both photos it appears on every photo at the same spot. Drag a mark to move it, or an end to reshape it.</li>
           <li>Video: Record the swipe runs the divider across by itself. Record while I drag follows what you do until you press Stop. Record every photo in order shows the first photo, then wipes each next one in from the right with its label, for Day 1, Day 2, Day 3 and on. Time on each photo sets how long each one stays. Untick a photo to leave it out, like a Day 3 that adds nothing. Every video plays back before it is saved: Save the video keeps it, Record again throws it away and records the same kind again, and Throw it away only closes it.</li>
           <li>Full screen: one photo close up, with arrows that move a pixel per tap and buttons that turn it a tenth of a degree.</li>
-          <li>More under each tool holds the settings you need less often. The app keeps your settings for next time, while the photos, labels and dates are not kept.</li>
+          <li>Each tool shows its main buttons first. The rest sit in groups, like Layout, Light or Remove the background, that open with a tap and stay open for next time. The app keeps your settings on this device.</li>
+          <li>The strip under the picture shows every photo. Tap the cross on one, then Take out, to remove it from the set.</li>
           <li>Press Save, or Share on a phone to send the picture straight to another app.</li>
           <li>Light: Matched to the first photo evens out the brightness, contrast and colour of the other photos to the first, measured on the part each one shows, so a darker room or a warmer lamp does not change how the result looks. As taken puts them back.</li>
           <li>Brand kit, at the bottom of Labels: open it, set the credit, the watermark and its logo once, type a name and press Save as a kit. Picking the kit later puts them all back.</li>
           <li>The shape picker, beside Size, fits the picture into an Instagram post, a story or reel, a square or a wide video. In Swipe the frame takes that shape from edge to edge, and the swipe video uses it too. In Grid the background colour fills around the photos.</li>
-          <li>Clients keeps a folder for each client on this device: dated photos, and the photo consent form signed on screen with two separate answers, one for the record and one for posting online. Take a photo over the latest opens the client's last photo as Before and the camera over it, and the new photo goes into the folder by itself. A PIN locks every folder, and Export as PDF makes one file with the forms and every photo. Batch makes a before and after for each ticked client at once, from their first and latest photo.</li>
+          <li>Clients keeps a folder for each client on this device, and each folder goes in three steps: 1 Consent, 2 Photos, 3 Before and after. Each folder holds dated photos, and the photo consent form signed on screen with two separate answers, one for the record and one for posting online. Take a photo over the latest opens the client's last photo as Before and the camera over it, and the new photo goes into the folder by itself. A PIN locks every folder, and Export as PDF makes one file with the forms and every photo. Batch makes a before and after for each ticked client at once, from their first and latest photo.</li>
           <li>Take a photo opens the camera with the first photo laid faintly over it, for shooting the next photo from the same spot. Photo shows the first photo faint, strong or off. Outline draws its edges, or only the subject's outline, as solid gold lines. Black out turns everything outside the subject black, using the first photo's removed background, or a loop drawn around the subject in the camera. The light reading says when the room is brighter or darker than in the first photo. When the first photo shows a face or a body, the camera finds the same points live: the first photo's in light blue and the live ones in white, with one line at the top saying what to change, like Move closer, Move the camera left or Chin up a little. Guide set to Auto shot takes the photo by itself once everything matches and holds still for a moment. Hints only gives the lines without taking the photo, and Off hides them. The photo goes into the next empty cell, or the picked one, and lines up by itself.</li>
         </ol>
         <p class="note">Proofline is powered by Cygnus Solutions.</p>
@@ -1008,57 +1119,85 @@ body.full .hint { display: none !important; }
     </div>
     <div id="clients-list" class="hidden">
       <div class="sheet-head"><h2>Clients</h2><button class="btn" type="button" id="clients-close2">Close</button></div>
-      <div class="field"><label for="client-new">New client</label><input type="text" id="client-new" maxlength="60" placeholder="Example: Maria Santos"></div>
-      <div class="actions"><button class="btn btn-primary" type="button" id="client-add">Add the client</button></div>
-      <div class="field"><label for="client-find">Find</label><input type="search" id="client-find" placeholder="Type part of a name"></div>
+      <div class="new-row">
+        <input type="text" id="client-new" maxlength="60" placeholder="New client's name, like Maria Santos" aria-label="New client's name">
+        <button class="btn btn-primary" type="button" id="client-add">Add</button>
+      </div>
+      <div class="field"><label for="client-find">Find a client</label><input type="search" id="client-find" placeholder="Type part of a name"></div>
       <div class="client-rows" id="client-rows"></div>
-      <p class="note" id="client-none">No clients yet. Type a name under New client to make the first folder.</p>
-      <h4 class="sub">Batch</h4>
-      <p class="note">Makes a before and after for each client you tick, from their first and latest photo, with the layout, labels, watermark, credit and light set in the editor.</p>
-      <div class="client-rows" id="batch-rows"></div>
-      <label class="switch"><input type="checkbox" id="batch-eyes"> Cover the eyes, with the cover set under Cover</label>
-      <label class="switch"><input type="checkbox" id="batch-bg"> Remove the background</label>
-      <div class="field">
-        <label for="batch-as">Save as</label>
-        <select id="batch-as">
-          <option value="pdf" selected>One PDF with a page each</option>
-          <option value="files">A picture for each client</option>
-        </select>
-      </div>
-      <div class="actions"><button class="btn btn-primary" type="button" id="batch-go">Make the before and afters</button></div>
-      <p class="note" id="batch-note"></p>
-      <h4 class="sub">Lock</h4>
-      <p class="note" id="pin-state"></p>
-      <div class="row">
-        <div class="field"><label for="pin-new">New PIN</label><input type="password" id="pin-new" inputmode="numeric" maxlength="8" autocomplete="new-password"></div>
-        <div class="field"><label for="pin-again">The PIN again</label><input type="password" id="pin-again" inputmode="numeric" maxlength="8" autocomplete="new-password"></div>
-      </div>
-      <div class="actions">
-        <button class="btn" type="button" id="pin-set">Set a PIN</button>
-        <button class="btn hidden" type="button" id="pin-drop">Remove the PIN</button>
-      </div>
-      <p class="note" id="pin-note"></p>
+      <p class="note" id="client-none">No clients yet. Type a name above and press Add to make the first folder.</p>
+
+      <details class="group" data-group="client-batch">
+        <summary><span class="g-name">Batch</span><span class="g-hint">A before and after for many clients at once</span></summary>
+        <div class="g-body">
+          <p class="note">Makes a before and after for each client you tick, from their first and latest photo, with the layout, labels, watermark, credit and light set in the editor.</p>
+          <div class="client-rows" id="batch-rows"></div>
+          <label class="switch"><input type="checkbox" id="batch-eyes"> Cover the eyes, with the cover set under Cover</label>
+          <label class="switch"><input type="checkbox" id="batch-bg"> Remove the background</label>
+          <div class="field">
+            <label for="batch-as">Save as</label>
+            <select id="batch-as">
+              <option value="pdf" selected>One PDF with a page each</option>
+              <option value="files">A picture for each client</option>
+            </select>
+          </div>
+          <div class="actions"><button class="btn btn-primary" type="button" id="batch-go">Make the before and afters</button></div>
+          <p class="note" id="batch-note"></p>
+        </div>
+      </details>
+
+      <details class="group" data-group="client-lock">
+        <summary><span class="g-name">PIN lock</span><span class="g-hint" id="pin-state"></span></summary>
+        <div class="g-body">
+          <div class="row">
+            <div class="field"><label for="pin-new">New PIN</label><input type="password" id="pin-new" inputmode="numeric" maxlength="8" autocomplete="new-password"></div>
+            <div class="field"><label for="pin-again">The PIN again</label><input type="password" id="pin-again" inputmode="numeric" maxlength="8" autocomplete="new-password"></div>
+          </div>
+          <div class="actions">
+            <button class="btn" type="button" id="pin-set">Set a PIN</button>
+            <button class="btn hidden" type="button" id="pin-drop">Remove the PIN</button>
+          </div>
+          <p class="note" id="pin-note"></p>
+        </div>
+      </details>
       <p class="note">The folders stay in this browser on this device. Export as PDF keeps a copy somewhere else.</p>
     </div>
     <div id="clients-one" class="hidden">
       <div class="sheet-head"><button class="btn" type="button" id="client-back">All clients</button><button class="btn" type="button" id="clients-close3">Close</button></div>
       <div class="field"><label for="client-title">Name</label><input type="text" id="client-title" maxlength="60"></div>
-      <p class="consent-line" id="client-consent"></p>
-      <div class="actions"><button class="btn" type="button" id="client-sign">Sign the consent form</button></div>
-      <div class="actions">
-        <button class="btn btn-primary" type="button" id="client-camera">Take a photo</button>
-        <button class="btn" type="button" id="client-save">Add the editor's photos</button>
-      </div>
-      <div class="shots" id="client-shots"></div>
-      <p class="note" id="client-empty">No photos yet. Take a photo here, or add the photos open in the editor.</p>
-      <div class="actions">
-        <button class="btn" type="button" id="client-open">Open the picked photo</button>
-        <button class="btn" type="button" id="client-shot-drop">Delete the picked photo</button>
-      </div>
-      <div class="actions">
-        <button class="btn" type="button" id="client-export">Export as PDF</button>
-        <button class="btn" type="button" id="client-drop">Delete this client</button>
-      </div>
+      <ol class="client-steps">
+        <li class="cstep">
+          <div class="cstep-head"><span class="cstep-num">1</span>Consent</div>
+          <p class="consent-line" id="client-consent"></p>
+          <div class="actions"><button class="btn" type="button" id="client-sign">Sign the consent form</button></div>
+        </li>
+        <li class="cstep">
+          <div class="cstep-head"><span class="cstep-num">2</span>Photos</div>
+          <div class="actions">
+            <button class="btn btn-primary" type="button" id="client-camera">Take a photo</button>
+            <button class="btn" type="button" id="client-save">Add the editor's photos</button>
+          </div>
+          <div class="shots" id="client-shots"></div>
+          <p class="note" id="client-empty">No photos yet. Take a photo here, or add the photos open in the editor.</p>
+        </li>
+        <li class="cstep">
+          <div class="cstep-head"><span class="cstep-num">3</span>Before and after</div>
+          <p class="note" id="client-pick-note">Tap the photos to use, like the first visit and the latest, then open them in the editor.</p>
+          <div class="actions"><button class="btn btn-primary" type="button" id="client-open">Open the picked photo</button></div>
+        </li>
+      </ol>
+      <details class="group" data-group="client-more">
+        <summary><span class="g-name">Export and delete</span><span class="g-hint">A PDF of the folder, or removing photos</span></summary>
+        <div class="g-body">
+          <div class="actions">
+            <button class="btn" type="button" id="client-export">Export as PDF</button>
+          </div>
+          <div class="actions">
+            <button class="btn" type="button" id="client-shot-drop">Delete the picked photo</button>
+            <button class="btn" type="button" id="client-drop">Delete this client</button>
+          </div>
+        </div>
+      </details>
     </div>
     <div id="clients-consent" class="hidden">
       <div class="sheet-head"><h2>Photo consent</h2><button class="btn" type="button" id="consent-back">Back</button></div>
@@ -3168,7 +3307,10 @@ function stageRoom() {
   var style = window.getComputedStyle(wrap);
   var wide = (wrap.clientWidth || 900) - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
   var strip = el('order').offsetHeight;
-  var high = (wrap.clientHeight || 600) - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - (strip ? strip + 8 : 0);
+  /* the hint line above the picture always keeps its room, so the picture does
+     not jump when the hint comes and goes */
+  var hint = stage.parentElement.querySelector('.stage-top').offsetHeight;
+  var high = (wrap.clientHeight || 600) - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - (strip ? strip + 8 : 0) - (hint ? hint + 6 : 0);
   return { width: Math.max(280, Math.min(wide, 900)), height: Math.max(200, high) };
 }
 
@@ -3225,10 +3367,6 @@ function paint() {
   stage.height = Math.round(cssH * dpr);
   stage.style.width = cssW + 'px';
   stage.style.height = cssH + 'px';
-  /* the hint sits on the bottom of the picture, above the strip of photos */
-  var hint = el('swipe-hint');
-  hint.style.bottom = 'auto';
-  hint.style.top = Math.max(0, stage.offsetTop + stage.offsetHeight - 40) + 'px';
   ctx.setTransform(dpr * k, 0, 0, dpr * k, -area.x * dpr * k, -area.y * dpr * k);
   ghost = tool === 'photos' && el('bg-ghost').checked;
   if (mode === 'swipe') {
@@ -3639,13 +3777,14 @@ function stripThumb(photo) {
 
 function orderStrip() {
   var strip = el('order');
-  var on = photos.length >= 2;
+  var on = photos.length >= 1;
   strip.classList.toggle('on', on);
   strip.textContent = '';
   if (!on) return;
   photos.forEach(function (photo, index) {
-    var item = document.createElement('button');
-    item.type = 'button';
+    var item = document.createElement('div');
+    item.setAttribute('role', 'button');
+    item.tabIndex = 0;
     item.className = 'thumb';
     item.dataset.id = photo.id;
     item.setAttribute('aria-label', 'Photo ' + (index + 1) + ', ' + (photoWords(photo) || photo.stem) + '. Arrow keys move it.');
@@ -3658,11 +3797,43 @@ function orderStrip() {
     badge.textContent = String(index + 1);
     var name = document.createElement('span');
     name.textContent = photoWords(photo) || photo.stem;
+    /* the cross takes the photo out on a second press, so a slip doesn't */
+    var drop = document.createElement('button');
+    drop.type = 'button';
+    drop.className = 'drop';
+    drop.textContent = '\u00d7';
+    drop.setAttribute('aria-label', 'Take out photo ' + (index + 1));
+    drop.addEventListener('click', function (event) {
+      event.stopPropagation();
+      if (!drop.classList.contains('armed')) {
+        drop.classList.add('armed');
+        drop.textContent = 'Take out';
+        setTimeout(function () {
+          if (!drop.isConnected) return;
+          drop.classList.remove('armed');
+          drop.textContent = '\u00d7';
+        }, 3000);
+        return;
+      }
+      removePhoto(photo);
+    });
     item.appendChild(view);
     item.appendChild(badge);
     item.appendChild(name);
+    item.appendChild(drop);
     strip.appendChild(item);
   });
+}
+
+/* Takes one photo out of the set, with everything done to it. */
+function removePhoto(photo) {
+  cancelPins();
+  cancelArea();
+  forgetUndo();
+  var words = photoWords(photo) || photo.stem;
+  photos = photos.filter(function (one) { return one !== photo; });
+  refresh();
+  message('Took out ' + words + '.', true);
 }
 
 function stripIds() {
@@ -3724,6 +3895,7 @@ function commitOrder(ids) {
 
 var stripDrag = null;
 el('order').addEventListener('pointerdown', function (event) {
+  if (event.target.closest('.drop')) return;
   var item = event.target.closest('.thumb');
   if (!item || event.button !== 0) return;
   stripDrag = { id: event.pointerId, item: item, x: event.clientX, moved: false };
@@ -4289,9 +4461,7 @@ el('drop-photo').addEventListener('click', function () {
   forgetUndo();
   var one = namedCell();
   if (!one || !one.image) return;
-  var gone = one.image;
-  photos = photos.filter(function (photo) { return photo !== gone; });
-  refresh();
+  removePhoto(one.image);
 });
 
 
@@ -6861,7 +7031,7 @@ function clientsHide() {
 function showClients() {
   clientView.id = null;
   clientsPart('clients-list');
-  el('pin-state').textContent = lockInfo() ? 'The folders are locked with a PIN.' : 'No PIN is set, so anyone with this device can open the folders.';
+  el('pin-state').textContent = lockInfo() ? 'On: the folders open with the PIN' : 'Off: anyone with this device can open the folders';
   el('pin-set').textContent = lockInfo() ? 'Change the PIN' : 'Set a PIN';
   el('pin-drop').classList.toggle('hidden', !lockInfo());
   listClients().then(function (list) {
@@ -6906,6 +7076,7 @@ function showClient(id) {
     var latest = client.consents[client.consents.length - 1];
     el('client-consent').textContent = consentText(latest);
     el('client-consent').classList.toggle('warn', !latest || !latest.post);
+    el('client-sign').textContent = latest ? 'Sign a new form' : 'Sign the consent form';
     var grid = el('client-shots');
     grid.innerHTML = '';
     list.forEach(function (shot) {
@@ -6937,6 +7108,9 @@ function clientButtons(total) {
   var n = clientView.picked.length;
   el('client-open').disabled = n === 0;
   el('client-open').textContent = n > 1 ? 'Open the ' + n + ' picked photos' : 'Open the picked photo';
+  el('client-pick-note').textContent = !total ? 'Take or add photos first.'
+    : n ? n + (n === 1 ? ' photo picked.' : ' photos picked.') + ' Open them in the editor, or tap a photo again to unpick it.'
+    : 'Tap the photos to use, like the first visit and the latest, then open them in the editor.';
   el('client-shot-drop').disabled = n === 0;
   if (!dropArmed.shots) el('client-shot-drop').textContent = n > 1 ? 'Delete the ' + n + ' picked photos' : 'Delete the picked photo';
   el('client-export').disabled = total === 0;
@@ -8531,6 +8705,7 @@ function labelRows() {
     words.placeholder = every ? (index === 0 ? 'Baseline' : 'Day ' + index) : index === 0 ? 'Before' : 'After';
     day.value = dateValue(photo.date);
     note.textContent = dateNote(photo);
+    note.classList.toggle('hidden', el('date-place').value === 'off');
     words.addEventListener('input', function () {
       cell.label = words.value;
       paint();
@@ -8541,6 +8716,7 @@ function labelRows() {
       photo.date = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12) : null;
       photo.dateFrom = 'set';
       note.textContent = dateNote(photo);
+      note.classList.remove('hidden');
       /* a date set by hand is meant to show */
       if (el('date-place').value === 'off' && photo.date) {
         el('date-place').value = 'after';
@@ -8558,7 +8734,7 @@ function labelRows() {
   pairControls();
 }
 
-['date-place', 'date-style'].forEach(function (id) { el(id).addEventListener('change', paint); });
+['date-place', 'date-style'].forEach(function (id) { el(id).addEventListener('change', function () { labelRows(); paint(); }); });
 
 /* The credit line sits in a box like the labels, anywhere along the top or the
    bottom of the picture. */
@@ -9336,6 +9512,24 @@ document.addEventListener('paste', function (event) {
   addFiles(files);
 });
 
+/* ---------- groups of settings ---------- */
+
+/* Each group stays closed until it is opened, and the app remembers which
+   ones were left open on this device. */
+var GROUPS_NAME = 'proofline-groups';
+(function () {
+  var open = {};
+  try { open = JSON.parse(localStorage.getItem(GROUPS_NAME) || '{}') || {}; } catch (error) { open = {}; }
+  [].forEach.call(document.querySelectorAll('details.group[data-group]'), function (box) {
+    if (open[box.dataset.group]) box.open = true;
+    box.addEventListener('toggle', function () {
+      open[box.dataset.group] = box.open;
+      try { localStorage.setItem(GROUPS_NAME, JSON.stringify(open)); } catch (error) { /* private windows keep nothing */ }
+      if (box.open && box.closest('#controls')) setTimeout(function () { box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 30);
+    });
+  });
+})();
+
 /* ---------- the plan for this test ---------- */
 
 /* Testers pick a plan under Steps, and the app works as that plan would once
@@ -9375,6 +9569,13 @@ function planApply() {
     var ok = allows(node.dataset.plan);
     node.classList.toggle('locked', !ok);
     if (node.hasAttribute('data-plan-box')) node.inert = !ok;
+  });
+  [].forEach.call(document.querySelectorAll('[data-plan-group]'), function (box) {
+    var need = box.getAttribute('data-plan-group');
+    var name = box.querySelector('.g-name');
+    if (!name) return;
+    if (allows(need)) name.removeAttribute('data-needs');
+    else name.setAttribute('data-needs', need === 'plus' ? 'Plus and up' : need === 'pro' ? 'Professional' : 'Basic and up');
   });
   [].forEach.call(document.querySelectorAll('[data-plan-tag]'), function (node) {
     node.classList.toggle('on', !allows(node.getAttribute('data-plan-tag')));
