@@ -32,9 +32,17 @@ installed the app keeps serving the old build until that string changes.
     vendor/jsfeat.min.js       finds and pairs the spots for Auto line up
     vendor/mediapipe/          MediaPipe face detection 0.4, Apache 2.0, finds the eyes for Cover the eyes
     vendor/mediapipe-selfie/   MediaPipe selfie segmentation 0.1, Apache 2.0, finds the person for Remove the background
+    vendor/mediapipe-mesh/     MediaPipe Face Mesh 0.4, Apache 2.0, face points for the camera guide, line up and eye covers
+    vendor/mediapipe-pose/     MediaPipe Pose 0.5 lite model, Apache 2.0, body points for the camera guide and line up
+    vendor/onnxruntime/        ONNX Runtime Web 1.22, MIT, runs the closer match
+    vendor/aliked/             ALIKED (BSD 3-Clause) with LightGlue and RaCo (Apache 2.0), the closer match, notice in LICENSE-NOTICE.md
 
-Settings are kept in the browser under `collage-maker-settings`. Photos,
-labels and dates are never kept.
+The face mesh, pose, ONNX Runtime and ALIKED files download only when first
+used and are kept in their own cache, `proofline-models-1`.
+
+Settings are kept in the browser under `collage-maker-settings`. The open set
+of photos is kept in IndexedDB under `proofline-session` until End session,
+and client folders under `proofline`.
 
 ## Checking a deploy
 
