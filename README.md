@@ -13,13 +13,14 @@ folders, which drops `icons/` into the repo root and breaks the install.
     git commit -m "Update collage maker"
     git push
 
-## Every deploy: bump the cache version
+## Every deploy: bump the cache version and the app version
 
 `sw.js` opens with:
 
     const CACHE_VERSION = 'v1';
 
-Raise it to `v2`, `v3` and so on with every push. A browser that has already
+Raise it to `v2`, `v3` and so on with every push, and raise `APP_VERSION` in
+`index.html` to the same number, since About shows it. A browser that has already
 installed the app keeps serving the old build until that string changes.
 
 ## Files

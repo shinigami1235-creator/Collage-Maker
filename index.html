@@ -113,6 +113,10 @@ body {
 .cstep-head { display: flex; align-items: center; gap: 10px; font: 600 16px/22px var(--font); margin-bottom: 8px; }
 .cstep-num { width: 26px; height: 26px; border-radius: 50%; background: var(--primary); color: #fff; display: inline-flex; align-items: center; justify-content: center; font: 600 14px/1 var(--font); flex: none; }
 .cstep .actions:last-child, .cstep .note:last-child { margin-bottom: 0; }
+.about .licences { width: 100%; border-collapse: collapse; font: 13px/18px var(--font); margin: 4px 0 10px; }
+.about .licences th, .about .licences td { text-align: left; vertical-align: top; padding: 6px 6px 6px 0; border-bottom: 1px solid var(--line); }
+.about .licences th { color: var(--muted); font-weight: 600; }
+.licence-text { white-space: pre-wrap; font: 11px/16px ui-monospace, Menlo, Consolas, monospace; color: var(--muted); margin: 0; }
 .locked { opacity: .45; }
 [data-plan-box].locked { pointer-events: none; user-select: none; }
 .pc-tag { font: 600 11px/16px var(--font); color: var(--primary); border: 1px solid var(--primary); border-radius: 999px; padding: 0 6px; margin-left: 4px; }
@@ -986,10 +990,59 @@ body.full .hint, body.full .stage-top { display: none !important; }
           <li>Light: Matched to the first photo evens out the brightness, contrast and colour of the other photos to the first, measured on the part each one shows, so a darker room or a warmer lamp does not change how the result looks. As taken puts them back.</li>
           <li>Brand kit, at the bottom of Labels: open it, set the credit, the watermark and its logo once, type a name and press Save as a kit. Picking the kit later puts them all back.</li>
           <li>The shape picker, beside Size, fits the picture into an Instagram post, a story or reel, a square or a wide video. In Swipe the frame takes that shape from edge to edge, and the swipe video uses it too. In Grid the background colour fills around the photos.</li>
-          <li>Clients keeps a folder for each client on this device, worked through in three steps: Consent, Photos, and Before and after. Each folder holds dated photos, and the photo consent form signed on screen with two separate answers, one for the record and one for posting online. Take a photo over the latest opens the client's last photo as Before and the camera over it, and the new photo goes into the folder by itself. A PIN locks every folder, and Export as PDF makes one file with the forms and every photo. Batch makes a before and after for each ticked client at once, from their first and latest photo.</li>
+          <li>Clients keeps a folder for each client on this device, worked through in three steps: Consent, Photos, and Before and after. Each folder holds dated photos, and the photo consent form signed on screen with two separate answers, one for the record and one for posting online. Take a photo over the latest opens the client's last photo as Before and the camera over it, and the new photo goes into the folder by itself. A PIN locks every folder, and Export as PDF makes one file with the forms and every photo. Backup saves one file of every folder to keep in Google Drive or iCloud Drive, and Restore a backup brings it back on this device or a new one. Batch makes a before and after for each ticked client at once, from their first and latest photo.</li>
           <li>Take a photo opens the camera with the first photo laid faintly over it, for shooting the next photo from the same spot. Photo shows the first photo faint, strong or off. Outline draws its edges, or only the subject's outline, as solid gold lines. Black out turns everything outside the subject black, using the first photo's removed background, or a loop drawn around the subject in the camera. The light reading says when the room is brighter or darker than in the first photo. When the first photo shows a face or a body, the camera finds the same points live: the first photo's in light blue and the live ones in white, with one line at the top saying what to change, like Move closer, Move the camera left or Chin up a little. Guide set to Auto shot takes the photo by itself once everything matches and holds still for a moment. Hints only gives the lines without taking the photo, and Off hides them. The photo goes into the next empty cell, or the picked one, and lines up by itself.</li>
         </ol>
-        <p class="note">Proofline is powered by Cygnus Solutions.</p>
+        <details class="group" data-group="about">
+          <summary><span class="g-name">About and licences</span><span class="g-hint" id="about-version"></span></summary>
+          <div class="g-body about">
+            <p class="note">Proofline is powered by Cygnus Solutions.</p>
+            <p class="note">Proofline uses these open source parts, each under its own licence.</p>
+            <table class="licences">
+              <tr><th>Part</th><th>Used for</th><th>Licence</th></tr>
+              <tr><td>MediaPipe Face Detection, Selfie Segmentation, Face Mesh and Pose, by Google</td><td>Eyes, the person, face points and body points</td><td>Apache 2.0</td></tr>
+              <tr><td>ONNX Runtime Web, by Microsoft</td><td>Running the closer match</td><td>MIT</td></tr>
+              <tr><td>LightGlue, by ETH Zurich (cvg)</td><td>Pairing spots in the closer match</td><td>Apache 2.0</td></tr>
+              <tr><td>RaCo, by ETH Zurich (cvg)</td><td>Finding spots in the closer match</td><td>Apache 2.0</td></tr>
+              <tr><td>ALIKED, by Zhao Xiaoming</td><td>Describing spots in the closer match</td><td>BSD 3-Clause</td></tr>
+              <tr><td>jsfeat, by Eugene Zatepyakin</td><td>Spots for Auto line up</td><td>MIT</td></tr>
+              <tr><td>pdf-lib, by Andrew Dillon</td><td>PDF files</td><td>MIT</td></tr>
+            </table>
+            <p class="note">The Apache License 2.0 is at apache.org/licenses/LICENSE-2.0 and the MIT License at opensource.org/license/mit.</p>
+            <details class="more">
+              <summary>ALIKED licence</summary>
+              <pre class="licence-text">BSD 3-Clause License
+
+Copyright (c) 2022, Zhao Xiaoming
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.</pre>
+            </details>
+          </div>
+        </details>
       </section>
     </div>
   </div>
@@ -1147,6 +1200,23 @@ body.full .hint, body.full .stage-top { display: none !important; }
         </div>
       </details>
 
+      <details class="group" data-group="client-backup">
+        <summary><span class="g-name">Backup</span><span class="g-hint" id="backup-state"></span></summary>
+        <div class="g-body">
+          <p class="note">Save a backup file of every folder and keep it in Google Drive or iCloud Drive. Restore it on this device or a new one. With a PIN set, the backup opens only with that PIN.</p>
+          <div class="actions">
+            <button class="btn btn-primary" type="button" id="backup-save">Save a backup</button>
+            <button class="btn" type="button" id="backup-open">Restore a backup</button>
+          </div>
+          <div class="new-row hidden" id="backup-pin-field">
+            <input type="password" id="backup-pin" inputmode="numeric" maxlength="8" autocomplete="off" aria-label="PIN of the backup" placeholder="PIN of the backup">
+            <button class="btn btn-primary" type="button" id="backup-pin-go">Restore</button>
+          </div>
+          <p class="note" id="backup-note"></p>
+          <input type="file" id="backup-picker" accept=".proofline" hidden>
+        </div>
+      </details>
+
       <details class="group" data-group="client-lock">
         <summary><span class="g-name">PIN lock</span><span class="g-hint" id="pin-state"></span></summary>
         <div class="g-body">
@@ -1161,7 +1231,7 @@ body.full .hint, body.full .stage-top { display: none !important; }
           <p class="note" id="pin-note"></p>
         </div>
       </details>
-      <p class="note">Folders are kept on this device only. Export a client as PDF to keep a copy elsewhere.</p>
+      <p class="note">Folders are kept on this device only. Save a backup under Backup to keep a copy elsewhere.</p>
     </div>
     <div id="clients-one" class="hidden">
       <div class="sheet-head"><button class="btn" type="button" id="client-back">All clients</button><button class="btn" type="button" id="clients-close3">Close</button></div>
@@ -7068,6 +7138,7 @@ function showClients() {
   clientView.id = null;
   clientsPart('clients-list');
   el('pin-state').textContent = lockInfo() ? 'On' : 'Off';
+  backupState();
   el('pin-set').textContent = lockInfo() ? 'Change the PIN' : 'Set a PIN';
   el('pin-drop').classList.toggle('hidden', !lockInfo());
   listClients().then(function (list) {
@@ -8134,6 +8205,193 @@ el('line-closer').addEventListener('click', function () {
     if (missed.length) message('The closer match could not place ' + missed.map(photoName).join(' and ') + ' either. Tap the same two spots on each photo with Two-point line up, like both ends of a scar.');
   });
 });
+
+/* ---------- backing up the folders ---------- */
+
+/* One file holds every client, form and photo. With a PIN set, the file is
+   locked with the same key as the folders and opens only with that PIN. The
+   file starts with a line naming it and a line describing the lock, then the
+   list of clients and photos, then the photos themselves one after another. */
+var BACKUP_MAGIC = 'PROOFLINE BACKUP 1\n';
+var BACKUP_LAST = 'proofline-backup-last';
+var backupBusy = false;
+var backupWaiting = null;
+
+function backupState() {
+  var last = 0;
+  try { last = Number(localStorage.getItem(BACKUP_LAST)) || 0; } catch (error) { last = 0; }
+  el('backup-state').textContent = last ? 'Last saved ' + isoDay(last) : 'Never saved';
+}
+
+function partBytes(part) {
+  if (part.sealed) return Promise.resolve(part.data);
+  return part.blob.arrayBuffer();
+}
+
+function saveBackup() {
+  if (backupBusy) return;
+  if (locked()) { el('backup-note').textContent = 'Open the folders with the PIN first.'; return; }
+  backupBusy = true;
+  el('backup-save').disabled = true;
+  el('backup-note').textContent = 'Reading the folders.';
+  var info = lockInfo();
+  Promise.all([dbAll('clients'), dbAll('shots')]).then(function (all) {
+    var clients = all[0], shots = all[1];
+    return Promise.all(clients.map(function (c) { return openData(c); })).then(function (datas) {
+      var parts = [], at = 0;
+      var place = function (part, type) {
+        return partBytes(part).then(function (bytes) {
+          var entry = { at: at, len: bytes.byteLength, type: type };
+          if (part.sealed) entry.iv = toBase64(part.iv);
+          parts.push(bytes);
+          at += bytes.byteLength;
+          return entry;
+        });
+      };
+      var list = [];
+      var step = function (n) {
+        if (n >= shots.length) return Promise.resolve();
+        if (n % 10 === 0) el('backup-note').textContent = 'Packing photo ' + (n + 1) + ' of ' + shots.length + '.';
+        var shot = shots[n];
+        return Promise.all([place(shot.photo, 'image/jpeg'), place(shot.thumb, 'image/jpeg'), openData(shot)]).then(function (got) {
+          list.push({ id: shot.id, client: shot.client, date: shot.date, data: got[2], photo: got[0], thumb: got[1] });
+          return step(n + 1);
+        });
+      };
+      return step(0).then(function () {
+        var inner = {
+          v: 1, made: Date.now(),
+          clients: clients.map(function (c, i) { return { id: c.id, created: c.created, data: datas[i] }; }),
+          shots: list
+        };
+        var text = new TextEncoder().encode(JSON.stringify(inner));
+        var sealHead = lockKey ? seal(lockKey, text) : Promise.resolve(null);
+        return sealHead.then(function (box) {
+          var head = box ? new Uint8Array(box.data) : text;
+          var outer = { v: 1, locked: Boolean(box), size: head.byteLength, clients: clients.length, photos: shots.length };
+          if (box) { outer.salt = info.salt; outer.check = info.check; outer.checkIv = info.iv; outer.iv = toBase64(box.iv); }
+          var blob = new Blob([BACKUP_MAGIC, JSON.stringify(outer) + '\n', head].concat(parts), { type: 'application/octet-stream' });
+          save(blob, 'Proofline backup ' + isoDay(Date.now()) + '.proofline');
+          try { localStorage.setItem(BACKUP_LAST, String(Date.now())); } catch (error) { /* private windows keep nothing */ }
+          backupState();
+          el('backup-note').textContent = 'Saved ' + clients.length + (clients.length === 1 ? ' client and ' : ' clients and ') + shots.length + (shots.length === 1 ? ' photo' : ' photos')
+            + (box ? ', locked with the PIN.' : '. Set a PIN under PIN lock to lock the next backup.') + ' Keep the file in Google Drive or iCloud Drive.';
+        });
+      });
+    });
+  }).catch(function (error) {
+    el('backup-note').textContent = 'The backup could not be made. ' + error.message;
+  }).then(function () {
+    backupBusy = false;
+    el('backup-save').disabled = false;
+  });
+}
+
+/* Reads the two opening lines of a backup file. */
+function readBackupTop(file) {
+  return file.slice(0, 8192).arrayBuffer().then(function (buffer) {
+    var bytes = new Uint8Array(buffer);
+    var magic = new TextEncoder().encode(BACKUP_MAGIC);
+    for (var i = 0; i < magic.length; i++) if (bytes[i] !== magic[i]) throw new Error('This file is not a Proofline backup.');
+    var end = bytes.indexOf(10, magic.length);
+    if (end < 0) throw new Error('This backup is damaged.');
+    var outer = JSON.parse(new TextDecoder().decode(bytes.subarray(magic.length, end)));
+    outer.start = end + 1;
+    return outer;
+  });
+}
+
+function openBackup(file) {
+  if (backupBusy) return;
+  if (locked()) { el('backup-note').textContent = 'Open the folders with the PIN first.'; return; }
+  readBackupTop(file).then(function (outer) {
+    if (!outer.locked) { restoreBackup(file, outer, null); return; }
+    backupWaiting = { file: file, outer: outer };
+    el('backup-pin-field').classList.remove('hidden');
+    el('backup-pin').value = '';
+    el('backup-pin').focus();
+    el('backup-note').textContent = 'This backup is locked. Type the PIN it was saved with.';
+  }).catch(function (error) { el('backup-note').textContent = error.message; });
+}
+
+function backupPinGo() {
+  if (!backupWaiting) return;
+  var wait = backupWaiting, pin = el('backup-pin').value;
+  keyFrom(pin, fromBase64(wait.outer.salt)).then(function (key) {
+    return unseal(key, { iv: fromBase64(wait.outer.checkIv), data: fromBase64(wait.outer.check).buffer }).then(function () {
+      backupWaiting = null;
+      el('backup-pin-field').classList.add('hidden');
+      restoreBackup(wait.file, wait.outer, key);
+    }, function () { el('backup-note').textContent = 'That PIN is not right for this backup.'; });
+  });
+}
+
+/* Adds what the backup has and this device does not: new clients whole, and
+   for a client already here, only the photos it is missing. Everything is
+   locked again with this device's own PIN. */
+function restoreBackup(file, outer, key) {
+  backupBusy = true;
+  el('backup-open').disabled = true;
+  el('backup-note').textContent = 'Reading the backup.';
+  var payload = outer.start + outer.size;
+  var piece = function (entry) {
+    return file.slice(payload + entry.at, payload + entry.at + entry.len).arrayBuffer().then(function (bytes) {
+      if (!entry.iv) return new Blob([bytes], { type: entry.type });
+      return unseal(key, { iv: fromBase64(entry.iv), data: bytes }).then(function (plain) { return new Blob([plain], { type: entry.type }); });
+    });
+  };
+  file.slice(outer.start, payload).arrayBuffer().then(function (head) {
+    return key ? unseal(key, { iv: fromBase64(outer.iv), data: head }) : head;
+  }).then(function (head) {
+    var inner = JSON.parse(new TextDecoder().decode(head));
+    return Promise.all([dbAll('clients'), dbAll('shots')]).then(function (all) {
+      var haveClients = {}, haveShots = {};
+      all[0].forEach(function (c) { haveClients[c.id] = true; });
+      all[1].forEach(function (s) { haveShots[s.id] = true; });
+      var newClients = 0, oldClients = 0, newShots = 0;
+      return inner.clients.reduce(function (chain, c) {
+        return chain.then(function () {
+          if (haveClients[c.id]) { oldClients++; return null; }
+          newClients++;
+          return putClient({ id: c.id, created: c.created, name: c.data.name, consents: c.data.consents || [] });
+        });
+      }, Promise.resolve()).then(function () {
+        var todo = inner.shots.filter(function (s) { return !haveShots[s.id]; });
+        var step = function (n) {
+          if (n >= todo.length) return Promise.resolve();
+          if (n % 10 === 0) el('backup-note').textContent = 'Restoring photo ' + (n + 1) + ' of ' + todo.length + '.';
+          var s = todo[n];
+          return Promise.all([piece(s.photo), piece(s.thumb)]).then(function (blobs) {
+            return Promise.all([packBlob(blobs[0]), packBlob(blobs[1]), packData(s.data || {})]);
+          }).then(function (got) {
+            newShots++;
+            return dbPut('shots', Object.assign({ id: s.id, client: s.client, date: s.date, photo: got[0], thumb: got[1] }, got[2]));
+          }).then(function () { return step(n + 1); });
+        };
+        return step(0);
+      }).then(function () {
+        el('backup-note').textContent = 'Restored ' + newClients + (newClients === 1 ? ' client and ' : ' clients and ') + newShots + (newShots === 1 ? ' photo.' : ' photos.')
+          + (oldClients ? ' ' + oldClients + (oldClients === 1 ? ' client was' : ' clients were') + ' already on this device and got only the photos missing from it.' : '');
+        showClients();
+      });
+    });
+  }).catch(function (error) {
+    el('backup-note').textContent = 'The backup could not be restored. ' + (error && error.message ? error.message : '');
+  }).then(function () {
+    backupBusy = false;
+    el('backup-open').disabled = false;
+  });
+}
+
+el('backup-save').addEventListener('click', saveBackup);
+el('backup-open').addEventListener('click', function () { el('backup-picker').click(); });
+el('backup-picker').addEventListener('change', function () {
+  var file = el('backup-picker').files[0];
+  el('backup-picker').value = '';
+  if (file) openBackup(file);
+});
+el('backup-pin-go').addEventListener('click', backupPinGo);
+el('backup-pin').addEventListener('keydown', function (event) { if (event.key === 'Enter') backupPinGo(); });
 
 /* ---------- full screen ---------- */
 
@@ -9549,6 +9807,10 @@ document.addEventListener('paste', function (event) {
   event.preventDefault();
   addFiles(files);
 });
+
+/* The version shown under About, raised with every release. */
+var APP_VERSION = '43';
+el('about-version').textContent = 'Version ' + APP_VERSION;
 
 /* ---------- groups of settings ---------- */
 
