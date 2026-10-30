@@ -7903,9 +7903,11 @@ var aim = { kind: '', ref: null, live: null, recent: [], busy: false, timer: 0, 
 /* How far off each check may be and still count as matched. The size and the
    place are a part of the picture's height, the turns are in degrees or a part
    of the face. A body's points shake more than a face's, so it gets more room. */
-var AIM_EASE = { size: 0.025, place: 0.03, turn: 0.035, nod: 0.035, tilt: 2 };
+var AIM_EASE = { size: 0.025, place: 0.03, turn: 0.035, nod: 0.025, tilt: 2 };
 var AIM_BODY = 1.6;
-var AIM_HOLD = 5;
+/* looks in a row that must match before Auto shot fires, about 1.4 seconds,
+   counted down on screen so the last adjustment has time to settle */
+var AIM_HOLD = 9;
 (function () {
   try {
     var kept = JSON.parse(localStorage.getItem('proofline-camera') || 'null');
@@ -8116,7 +8118,7 @@ function guideJudge() {
   }
   aim.held += 1;
   box.className = 'cam-say ok';
-  if (aim.held < AIM_HOLD) { box.textContent = 'Matched. Hold still.'; return; }
+  if (aim.held < AIM_HOLD) { box.textContent = 'Matched. Hold still ' + Math.ceil((AIM_HOLD - aim.held) / 3); return; }
   box.textContent = 'Taking the photo.';
   aim.held = 0;
   camShoot();
@@ -9918,7 +9920,7 @@ document.addEventListener('paste', function (event) {
 });
 
 /* The version shown under About, raised with every release. */
-var APP_VERSION = '45';
+var APP_VERSION = '46';
 el('about-version').textContent = 'Version ' + APP_VERSION;
 
 /* ---------- groups of settings ---------- */
