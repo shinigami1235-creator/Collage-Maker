@@ -3322,7 +3322,7 @@ function emptiesField() {
 /* Each photo keeps where it was put, its size, turn and label when it leaves a
    cell, so a photo picked again for a pair, or put back after a switch to
    Swipe, comes back lined up as it was. */
-var POSE = ['zoom', 'fx', 'fy', 'turn', 'flip', 'label'];
+var POSE = ['zoom', 'fx', 'fy', 'turn', 'flip', 'label', 'wordOff'];
 function keepPose(cell) {
   if (!cell || !cell.image) return;
   var pose = {};
@@ -3339,6 +3339,7 @@ function putPhoto(cell, photo) {
   cell.turn = pose ? pose.turn || 0 : 0;
   cell.flip = pose ? Boolean(pose.flip) : false;
   cell.label = pose ? pose.label || '' : '';
+  cell.wordOff = pose ? Boolean(pose.wordOff) : false;
   return Boolean(pose);
 }
 
@@ -3418,7 +3419,19 @@ var frameTall = 0;
    another size and would overwrite them. */
 var lastBoxes = { labels: [], credit: null, wm: [] };
 
+/* In Swipe the left side says Before and the right side says After, whichever
+   photo is on it, unless the label was typed or emptied by hand. */
+function sideWords() {
+  if (mode !== 'swipe') return;
+  ['Before', 'After'].forEach(function (word, side) {
+    var cell = cells[side];
+    if (!cell || !cell.image || cell.wordOff) return;
+    if (!cell.label || cell.label === (side ? 'Before' : 'After')) cell.label = word;
+  });
+}
+
 function paint() {
+  sideWords();
   sessionSoon();
   fitCells();
   if (toneDirty) applyTones();
@@ -4536,7 +4549,7 @@ function swapCells(a, b) {
   if (!cells[a] || !cells[b]) return;
   var keys = ['image', 'zoom', 'fx', 'fy', 'turn', 'flip'];
   /* with more photos than the pair, each label names its photo */
-  if (mode === 'swipe' && photos.length > 2) keys.push('label');
+  if (mode === 'swipe' && photos.length > 2) keys.push('label', 'wordOff');
   keys.forEach(function (key) {
     var keep = cells[a][key];
     cells[a][key] = cells[b][key];
@@ -9115,6 +9128,8 @@ function labelRows() {
     note.classList.toggle('hidden', el('date-place').value === 'off');
     words.addEventListener('input', function () {
       cell.label = words.value;
+      /* a label emptied by hand stays empty */
+      cell.wordOff = !words.value;
       paint();
     });
     words.addEventListener('change', pairControls);
@@ -9920,7 +9935,7 @@ document.addEventListener('paste', function (event) {
 });
 
 /* The version shown under About, raised with every release. */
-var APP_VERSION = '46';
+var APP_VERSION = '47';
 el('about-version').textContent = 'Version ' + APP_VERSION;
 
 /* ---------- groups of settings ---------- */
@@ -10289,7 +10304,7 @@ function sessionState(list) {
     cells: cells.map(function (cell) {
       return {
         image: cell.image && kept[cell.image.id] ? cell.image.id : null,
-        zoom: cell.zoom, fx: cell.fx, fy: cell.fy, turn: cell.turn || 0, flip: Boolean(cell.flip), label: cell.label || '',
+        zoom: cell.zoom, fx: cell.fx, fy: cell.fy, turn: cell.turn || 0, flip: Boolean(cell.flip), label: cell.label || '', wordOff: Boolean(cell.wordOff),
         labelAt: cell.labelAt || null, labelScale: cell.labelScale || 1, labelTurn: cell.labelTurn || 0
       };
     }),
@@ -10421,6 +10436,7 @@ function sessionLoad(rec) {
           cell.turn = saved.turn || 0;
           cell.flip = Boolean(saved.flip);
           cell.label = saved.label || '';
+          cell.wordOff = Boolean(saved.wordOff);
           if (saved.labelAt) cell.labelAt = saved.labelAt;
           if (saved.labelScale && saved.labelScale !== 1) cell.labelScale = saved.labelScale;
           if (saved.labelTurn) cell.labelTurn = saved.labelTurn;
@@ -10535,6 +10551,7 @@ function startOver() {
     cell.turn = 0;
     cell.flip = false;
     cell.label = '';
+    cell.wordOff = false;
     delete cell.labelAt;
     delete cell.labelScale;
     delete cell.labelTurn;
