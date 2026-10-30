@@ -6768,9 +6768,12 @@ function camShoot() {
     var index = Math.min(cam.target, cells.length - 1);
     var cell = cells[index];
     var old = cell.image;
-    if (old) {
+    /* the photo the new one takes the place of stays in the strip, unless the
+       plan holds no more photos */
+    if (old && photos.length >= photoLimit()) {
       photos = photos.filter(function (one) { return one !== old; });
       if (old.bitmap.close) old.bitmap.close();
+      message('The new photo took the place of the last one, since this plan holds ' + photoLimit() + ' photos.');
     }
     photos.push(photo);
     cell.image = photo;
@@ -9915,7 +9918,7 @@ document.addEventListener('paste', function (event) {
 });
 
 /* The version shown under About, raised with every release. */
-var APP_VERSION = '44';
+var APP_VERSION = '45';
 el('about-version').textContent = 'Version ' + APP_VERSION;
 
 /* ---------- groups of settings ---------- */
