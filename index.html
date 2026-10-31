@@ -206,10 +206,11 @@ details[open] summary { margin-bottom: 8px; }
 .steps { font: 400 13px/19px var(--font); color: var(--muted); padding-left: 16px; margin: 0; }
 .steps li { margin-bottom: 4px; }
 .msg { font: 400 14px/20px var(--font); padding: 8px 12px; border-radius: 6px; background: var(--danger-tint); color: var(--danger); margin: 6px 14px 0; }
-/* messages float over the top of the app, so the picture does not jump when one comes or goes */
-#messages { position: fixed; left: 0; right: 0; top: calc(64px + env(safe-area-inset-top)); z-index: 60; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+/* messages float over the bottom of the app, clear of the picture, so nothing jumps when one comes or goes */
+#messages { position: fixed; left: 0; right: 0; bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 60; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
 #messages .msg { pointer-events: auto; max-width: 560px; box-shadow: 0 4px 14px rgba(16,28,43,.18); cursor: pointer; }
 .msg.ok { background: #E7F2EA; color: #1D5A33; }
+.rescue-show { font: 600 18px/28px ui-monospace, Menlo, Consolas, monospace; white-space: nowrap; overflow-x: auto; margin: 10px 0 4px; padding: 10px 12px; border: 1px dashed var(--line-strong); border-radius: 8px; text-align: center; user-select: all; }
 
 .drop { border: 2px dashed var(--line-strong); border-radius: 10px; background: var(--surface); padding: 40px 20px; text-align: center; }
 .drop.over { border-color: var(--focus); background: #F2F7FB; }
@@ -231,7 +232,7 @@ input[type=date] { min-height: 40px; padding: 0 8px; width: 100%; font: 500 14px
 
 /* Full screen editing: the picture takes the whole screen and a strip of fine
    controls sits under it. In a grid it shows one photo at a time, close up. */
-.sheet { position: fixed; inset: 0; z-index: 40; background: rgba(16,28,43,.5); display: flex; justify-content: center; overflow: auto; }
+.sheet { position: fixed; inset: 0; z-index: 40; background: rgba(16,28,43,.5); display: flex; justify-content: center; align-items: flex-start; overflow: auto; }
 .sheet.hidden { display: none; }
 .sheet-in { background: var(--surface); width: 100%; max-width: 640px; min-height: 100%; padding: calc(16px + env(safe-area-inset-top)) 16px 40px; box-sizing: border-box; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
@@ -1176,8 +1177,22 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.</pre>
     <div id="clients-lock" class="hidden">
       <div class="sheet-head"><h2>Clients</h2><button class="btn" type="button" id="clients-close">Close</button></div>
       <div class="field"><label for="lock-pin">PIN</label><input type="password" id="lock-pin" inputmode="numeric" autocomplete="off" maxlength="8"></div>
-      <div class="actions"><button class="btn btn-primary" type="button" id="lock-open">Open the folders</button></div>
+      <div class="actions">
+        <button class="btn btn-primary" type="button" id="lock-open">Open the folders</button>
+        <button class="btn" type="button" id="lock-forgot">Forgot the PIN</button>
+      </div>
       <p class="note" id="lock-note"></p>
+      <div class="hidden" id="lock-rescue">
+        <div class="field"><label for="rescue-code">Recovery code</label><input type="text" id="rescue-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Like K7QM-2XRP-9DTA-HV4E-WC8N"></div>
+        <div class="row">
+          <div class="field"><label for="rescue-pin">New PIN</label><input type="password" id="rescue-pin" inputmode="numeric" maxlength="8" autocomplete="new-password"></div>
+          <div class="field"><label for="rescue-again">The PIN again</label><input type="password" id="rescue-again" inputmode="numeric" maxlength="8" autocomplete="new-password"></div>
+        </div>
+        <div class="actions"><button class="btn btn-primary" type="button" id="rescue-go">Open with the code</button></div>
+        <p class="note">Without the code, the folders can only be erased. A backup can be restored afterwards with its passcode.</p>
+        <div class="actions"><button class="btn" type="button" id="lock-erase">Erase the folders</button></div>
+        <p class="note" id="rescue-note"></p>
+      </div>
     </div>
     <div id="clients-list" class="hidden">
       <div class="sheet-head"><h2>Clients</h2><button class="btn" type="button" id="clients-close2">Close</button></div>
@@ -1240,8 +1255,17 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.</pre>
           <div class="actions">
             <button class="btn" type="button" id="pin-set">Set a PIN</button>
             <button class="btn hidden" type="button" id="pin-drop">Remove the PIN</button>
+            <button class="btn hidden" type="button" id="rescue-new">Make a new recovery code</button>
           </div>
           <p class="note" id="pin-note"></p>
+          <div class="hidden" id="rescue-box">
+            <p class="rescue-show" id="rescue-show"></p>
+            <p class="note">Recovery code, shown only now. It opens the folders if the PIN is forgotten, so write it down or save it as a file and keep it away from this device.</p>
+            <div class="actions">
+              <button class="btn" type="button" id="rescue-file">Save as a file</button>
+              <button class="btn btn-primary" type="button" id="rescue-done">Done</button>
+            </div>
+          </div>
         </div>
       </details>
       <p class="note">Folders are kept on this device only. Save a backup under Backup to keep a copy elsewhere.</p>
@@ -3257,7 +3281,7 @@ function message(text, ok) {
   box.textContent = text;
   box.addEventListener('click', function () { box.remove(); });
   el('messages').appendChild(box);
-  setTimeout(function () { box.remove(); }, 8000);
+  setTimeout(function () { box.remove(); }, ok ? 4000 : 8000);
 }
 
 function readable(bytes) {
@@ -7171,18 +7195,76 @@ function resealAll(key) {
 
 /* A first PIN makes a random folder key and saves it locked before any record
    is touched. A new PIN locks the same key again. */
+/* A recovery code is 20 letters and numbers, with none that look alike, so it
+   can be read off paper. It locks one more copy of the folder key. */
+var RESCUE_LETTERS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+function rescueCode() {
+  var bytes = crypto.getRandomValues(new Uint8Array(20)), out = '';
+  for (var i = 0; i < 20; i++) out += RESCUE_LETTERS[bytes[i] & 31] + (i % 4 === 3 && i < 19 ? '-' : '');
+  return out;
+}
+function rescueClean(text) { return String(text).toUpperCase().replace(/[^0-9A-Z]/g, ''); }
+
+/* A first PIN makes a random folder key and a recovery code, and saves both
+   locked copies before any record is touched. A new PIN locks the same key
+   again and keeps the recovery code. Resolves to the new recovery code, or
+   null when there is none to show. */
 function setPin(pin) {
-  if (lockInfo()) {
+  var info = lockInfo();
+  if (info) {
     if (!lockRaw) return lockedOut();
-    return wrapKey(pin, lockRaw).then(saveLock);
+    return wrapKey(pin, lockRaw).then(function (next) {
+      if (info.rescue) next.rescue = info.rescue;
+      saveLock(next);
+      return null;
+    });
   }
-  var raw = crypto.getRandomValues(new Uint8Array(32)).buffer;
-  return Promise.all([wrapKey(pin, raw), aesKey(raw)]).then(function (got) {
+  var raw = crypto.getRandomValues(new Uint8Array(32)).buffer, code = rescueCode();
+  return Promise.all([wrapKey(pin, raw), wrapKey(rescueClean(code), raw), aesKey(raw)]).then(function (got) {
+    got[0].rescue = got[1];
     saveLock(got[0]);
     lockRaw = raw;
-    lockKey = got[1];
-    sessionKey = got[1];
-    return resealAll(got[1]);
+    lockKey = got[2];
+    sessionKey = got[2];
+    return resealAll(got[2]).then(function () { return code; });
+  });
+}
+
+/* A new recovery code; the old one stops working. */
+function newRescue() {
+  var info = lockInfo();
+  if (!info || !lockRaw) return lockedOut();
+  var code = rescueCode();
+  return wrapKey(rescueClean(code), lockRaw).then(function (wrap) {
+    info.rescue = wrap;
+    saveLock(info);
+    return code;
+  });
+}
+
+/* Opens the folders with the recovery code and sets a new PIN. */
+function rescueOpen(code, pin) {
+  var info = lockInfo();
+  if (!info || !info.rescue) return Promise.resolve(false);
+  return unwrapKey(rescueClean(code), info.rescue).then(function (raw) {
+    return useKey(raw).then(function () { return setPin(pin); }).then(function () { return true; });
+  }, function () { return false; });
+}
+
+/* With no PIN and no recovery code, the folders can only be emptied. */
+function eraseFolders() {
+  return dbDo('shots', 'readwrite', function (s) { s.clear(); return null; }).then(function () {
+    return dbDo('clients', 'readwrite', function (s) { s.clear(); return null; });
+  }).then(function () {
+    saveLock(null);
+    lockKey = null;
+    lockRaw = null;
+    sessionKey = null;
+    clientNow = null;
+    clientChip();
+    /* a set kept under the same lock can't be opened either */
+    if (sessionWaiting) el('resume-end').click();
+    else { sessionWritten = {}; sessionSoon(); }
   });
 }
 
@@ -7328,7 +7410,10 @@ function clientsHide() {
 function showClients() {
   clientView.id = null;
   clientsPart('clients-list');
-  el('pin-state').textContent = lockInfo() ? 'On' : 'Off';
+  var lock = lockInfo();
+  el('pin-state').textContent = lock ? (lock.rescue ? 'On' : 'On, no recovery code') : 'Off';
+  el('rescue-new').classList.toggle('hidden', !lock);
+  el('rescue-new').textContent = lock && lock.rescue ? 'Make a new recovery code' : 'Make a recovery code';
   backupState();
   el('pin-set').textContent = lockInfo() ? 'Change the PIN' : 'Set a PIN';
   el('pin-drop').classList.toggle('hidden', !lockInfo());
@@ -7884,13 +7969,65 @@ el('pin-set').addEventListener('click', function () {
   if (pin !== again) { el('pin-note').textContent = 'The two PINs are not the same.'; return; }
   var change = Boolean(lockInfo());
   el('pin-note').textContent = change ? 'Changing the PIN.' : 'Locking the folders.';
-  setPin(pin).then(function () {
+  setPin(pin).then(function (code) {
     el('pin-new').value = '';
     el('pin-again').value = '';
+    if (code) showRescue(code);
     el('pin-note').textContent = (change ? 'The PIN is changed.' : 'The folders are locked.') + ' Write the PIN down somewhere safe, since the folders can\'t be opened without it.';
     showClients();
   }, function (error) { el('pin-note').textContent = 'The PIN could not be set. ' + error.message; showClients(); });
 });
+/* ---- the recovery code ---- */
+
+var rescueShown = '';
+function showRescue(code) {
+  rescueShown = code;
+  el('rescue-show').textContent = code;
+  el('rescue-box').classList.remove('hidden');
+}
+el('rescue-file').addEventListener('click', function () {
+  save(new Blob(['Proofline recovery code\r\n' + rescueShown + '\r\nMade ' + isoDay(Date.now()) + '\r\n'], { type: 'text/plain' }), 'Proofline recovery code.txt');
+});
+el('rescue-done').addEventListener('click', function () {
+  rescueShown = '';
+  el('rescue-show').textContent = '';
+  el('rescue-box').classList.add('hidden');
+});
+el('rescue-new').addEventListener('click', function () {
+  /* replacing a code that exists asks twice, since the old one stops working */
+  if ((lockInfo() || {}).rescue && !armed('rescue', el('rescue-new'), 'Press again, the old code stops working', 'Make a new recovery code')) return;
+  newRescue().then(function (code) { showRescue(code); showClients(); }, function (error) { el('pin-note').textContent = error.message; });
+});
+
+el('lock-forgot').addEventListener('click', function () {
+  var info = lockInfo();
+  el('lock-rescue').classList.toggle('hidden');
+  el('rescue-note').textContent = info && info.rescue ? '' : 'These folders have no recovery code, so they can only be erased.';
+  el('rescue-code').focus();
+});
+el('rescue-go').addEventListener('click', function () {
+  var code = el('rescue-code').value, pin = el('rescue-pin').value;
+  if (rescueClean(code).length !== 20) { el('rescue-note').textContent = 'The recovery code is 20 letters and numbers.'; return; }
+  if (!/^\d{4,8}$/.test(pin)) { el('rescue-note').textContent = 'The new PIN is 4 to 8 numbers.'; return; }
+  if (pin !== el('rescue-again').value) { el('rescue-note').textContent = 'The two PINs are not the same.'; return; }
+  el('rescue-note').textContent = 'Opening.';
+  rescueOpen(code, pin).then(function (ok) {
+    if (!ok) { el('rescue-note').textContent = 'That recovery code is not right.'; return; }
+    ['rescue-code', 'rescue-pin', 'rescue-again'].forEach(function (id) { el(id).value = ''; });
+    el('lock-rescue').classList.add('hidden');
+    message('The folders are open, and the new PIN is set.', true);
+    clientsShow();
+  }, function (error) { el('rescue-note').textContent = error.message; });
+});
+el('lock-erase').addEventListener('click', function () {
+  if (!armed('erase', el('lock-erase'), 'Press again to erase every folder', 'Erase the folders')) return;
+  eraseFolders().then(function () {
+    el('lock-rescue').classList.add('hidden');
+    message('Every folder on this device is erased. Restore a backup under Backup to bring them back.', true);
+    clientsShow();
+  }, function (error) { el('rescue-note').textContent = error.message; });
+});
+
 el('pin-drop').addEventListener('click', function () {
   if (!armed('pin', el('pin-drop'), 'Press again to remove the PIN', 'Remove the PIN')) return;
   el('pin-note').textContent = 'Opening every folder.';
@@ -10154,7 +10291,7 @@ document.addEventListener('paste', function (event) {
 });
 
 /* The version shown under About, raised with every release. */
-var APP_VERSION = '48';
+var APP_VERSION = '49';
 el('about-version').textContent = 'Version ' + APP_VERSION;
 
 /* ---------- groups of settings ---------- */

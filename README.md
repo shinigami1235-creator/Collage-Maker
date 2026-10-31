@@ -52,7 +52,10 @@ With a PIN set, every folder and photo is locked with one random folder key.
 The PIN only locks a copy of that key, kept in localStorage under
 `proofline-lock`, so changing the PIN rewrites that one entry and no photo.
 A backup carries its own copy of the folder key, locked with a backup
-passcode of at least 8 characters instead of the PIN.
+passcode of at least 8 characters instead of the PIN. Setting the first PIN
+also makes a 20-character recovery code, which locks one more copy and opens
+the folders when the PIN is forgotten. Without it, Forgot the PIN can only
+erase the folders, and a backup restores them with its passcode.
 
 ## Checking a deploy
 
