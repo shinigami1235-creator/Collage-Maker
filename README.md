@@ -39,11 +39,20 @@ installed the app keeps serving the old build until that string changes.
     vendor/aliked/             ALIKED (BSD 3-Clause) with LightGlue and RaCo (Apache 2.0), the closer match, notice in LICENSE-NOTICE.md
 
 The face mesh, pose, ONNX Runtime and ALIKED files download only when first
-used and are kept in their own cache, `proofline-models-1`.
+used and are kept in their own cache, `proofline-models-1`. The other files
+under `vendor/` are kept in `proofline-vendor-1`, so a new version of the app
+does not download them again. Raise that number in `sw.js` only when a file
+under `vendor/` changes.
 
 Settings are kept in the browser under `collage-maker-settings`. The open set
 of photos is kept in IndexedDB under `proofline-session` until End session,
 and client folders under `proofline`.
+
+With a PIN set, every folder and photo is locked with one random folder key.
+The PIN only locks a copy of that key, kept in localStorage under
+`proofline-lock`, so changing the PIN rewrites that one entry and no photo.
+A backup carries its own copy of the folder key, locked with a backup
+passcode of at least 8 characters instead of the PIN.
 
 ## Checking a deploy
 

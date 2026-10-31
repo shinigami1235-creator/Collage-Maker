@@ -1,12 +1,16 @@
 /* Bump CACHE_VERSION on every deploy, since that is what tells browsers a new
    version exists. */
-const CACHE_VERSION = 'v47';
+const CACHE_VERSION = 'v48';
 const CACHE = `collage-maker-${CACHE_VERSION}`;
 /* The face and body finders and the closer match are downloaded only when
    first used. They are kept in their own cache, so a new version of the app
    does not download them again. */
 const MODELS = 'proofline-models-1';
 const ON_DEMAND = ['/vendor/mediapipe-mesh/', '/vendor/mediapipe-pose/', '/vendor/onnxruntime/', '/vendor/aliked/'];
+/* The libraries are about 14 MB and change far less often than the app, so
+   they have their own cache. Raise this number only when a file under vendor/
+   changes. */
+const VENDOR = 'proofline-vendor-1';
 
 const FILES = [
   './',
@@ -16,6 +20,9 @@ const FILES = [
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',
   './icons/apple-touch-icon.png',
+];
+
+const VENDOR_FILES = [
   './vendor/pdf-lib.min.js',
   './vendor/jsfeat.min.js',
   './vendor/mediapipe/face_detection.js',
@@ -40,16 +47,21 @@ const FILES = [
    fill its cache with the old page and then serve that old page for good. */
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE)
-      .then((cache) => cache.addAll(FILES.map((file) => new Request(file, { cache: 'reload' }))))
-      .then(() => self.skipWaiting())
+    Promise.all([
+      caches.open(CACHE).then((cache) => cache.addAll(FILES.map((file) => new Request(file, { cache: 'reload' })))),
+      /* a library already kept by an earlier version is copied over, not downloaded again */
+      caches.open(VENDOR).then((vendor) => Promise.all(VENDOR_FILES.map((file) =>
+        vendor.match(file).then((kept) => kept || caches.match(file).then((old) =>
+          old ? vendor.put(file, old) : vendor.add(new Request(file, { cache: 'reload' }))))
+      ))),
+    ]).then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE && key !== MODELS).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE && key !== MODELS && key !== VENDOR).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
@@ -65,7 +77,8 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request.url, { cache: 'no-cache', credentials: 'same-origin' })
         .then((response) => {
-          if (response && response.ok) {
+          /* only a page is kept as the app, never a picture or a file opened in a tab */
+          if (response && response.ok && (response.headers.get('content-type') || '').indexOf('text/html') >= 0) {
             const copy = response.clone();
             caches.open(CACHE).then((cache) => cache.put('./index.html', copy));
           }
@@ -84,7 +97,7 @@ self.addEventListener('fetch', (event) => {
       return fetch(request).then((response) => {
         if (response && response.status === 200 && response.type === 'basic') {
           const copy = response.clone();
-          const store = ON_DEMAND.some((part) => request.url.indexOf(part) >= 0) ? MODELS : CACHE;
+          const store = ON_DEMAND.some((part) => request.url.indexOf(part) >= 0) ? MODELS : request.url.indexOf('/vendor/') >= 0 ? VENDOR : CACHE;
           caches.open(store).then((cache) => cache.put(request, copy));
         }
         return response;

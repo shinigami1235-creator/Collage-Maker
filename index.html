@@ -206,6 +206,9 @@ details[open] summary { margin-bottom: 8px; }
 .steps { font: 400 13px/19px var(--font); color: var(--muted); padding-left: 16px; margin: 0; }
 .steps li { margin-bottom: 4px; }
 .msg { font: 400 14px/20px var(--font); padding: 8px 12px; border-radius: 6px; background: var(--danger-tint); color: var(--danger); margin: 6px 14px 0; }
+/* messages float over the top of the app, so the picture does not jump when one comes or goes */
+#messages { position: fixed; left: 0; right: 0; top: calc(64px + env(safe-area-inset-top)); z-index: 60; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+#messages .msg { pointer-events: auto; max-width: 560px; box-shadow: 0 4px 14px rgba(16,28,43,.18); cursor: pointer; }
 .msg.ok { background: #E7F2EA; color: #1D5A33; }
 
 .drop { border: 2px dashed var(--line-strong); border-radius: 10px; background: var(--surface); padding: 40px 20px; text-align: center; }
@@ -399,7 +402,7 @@ body.full .hint { display: none !important; }
     <button class="btn btn-install hidden" type="button" id="install">Install</button>
   </div>
 
-  <div class="msg hidden" id="messages"></div>
+  <div id="messages" role="status" aria-live="polite"></div>
   <p class="note hidden" id="ios-note" style="margin:6px 14px">On an iPhone or iPad, open Share and pick Add to Home Screen.</p>
 
   <div class="update hidden" id="update-note">
@@ -1213,8 +1216,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.</pre>
             <button class="btn btn-primary" type="button" id="backup-save">Save a backup</button>
             <button class="btn" type="button" id="backup-open">Restore a backup</button>
           </div>
+          <div class="hidden" id="backup-pass-field">
+            <div class="field"><label for="backup-pass">Backup passcode</label><input type="password" id="backup-pass" autocomplete="new-password"></div>
+            <div class="field"><label for="backup-pass-again">The passcode again</label><input type="password" id="backup-pass-again" autocomplete="new-password"></div>
+            <button class="btn btn-primary" type="button" id="backup-pass-go">Save the backup</button>
+          </div>
           <div class="new-row hidden" id="backup-pin-field">
-            <input type="password" id="backup-pin" inputmode="numeric" maxlength="8" autocomplete="off" aria-label="PIN of the backup" placeholder="PIN of the backup">
+            <input type="password" id="backup-pin" autocomplete="off" aria-label="Passcode or PIN of the backup" placeholder="Passcode or PIN of the backup">
             <button class="btn btn-primary" type="button" id="backup-pin-go">Restore</button>
           </div>
           <p class="note" id="backup-note"></p>
@@ -2097,7 +2105,11 @@ function loadFinders() {
   var none = function () { return null; };
   finderTools = loadCutter().then(function (got) { tools.found = got; }, none).then(function () {
     return loadFinder().then(function (got) { tools.faces = got; }, none);
-  }).then(function () { return tools; });
+  }).then(function () {
+    /* one that failed to load is tried again next time */
+    if (!tools.found || !tools.faces) finderTools = null;
+    return tools;
+  });
   return finderTools;
 }
 
@@ -2861,8 +2873,7 @@ function meshEyeCovers(kind, index, rect, cell, face) {
 /* The face's points, when they sit on the same eyes the face finder found. */
 function meshFor(cell, faces) {
   if (faces.length !== 1) return Promise.resolve(null);
-  return photoPoints(cell.image, false).then(function (got) {
-    var face = got && got.face;
+  return photoFace(cell.image, false).then(function (face) {
     if (!face) return null;
     var f = faces[0];
     var gap = Math.hypot((f.b.u - f.a.u) * cell.image.width, (f.b.v - f.a.v) * cell.image.height);
@@ -2888,7 +2899,8 @@ el('cover-eyes').addEventListener('click', function () {
     var next = function (n) {
       if (n >= spots.length) return Promise.resolve();
       var spot = spots[n], cell = cells[spot.index];
-      return eyesOf(found, cell.image).then(function (faces) {
+      /* in the queue with every other finder job, since the face finder answers one job at a time */
+      return inTurn(function () { return eyesOf(found, cell.image); }).then(function (faces) {
         return meshFor(cell, faces).then(function (mesh) {
           if (!faces.length) missed.push(spot.index);
           if (mesh) meshEyeCovers(kind, spot.index, spot.rect, cell, mesh).forEach(function (cover) { covers.push(cover); });
@@ -2924,11 +2936,6 @@ el('cover-eyes').addEventListener('click', function () {
 });
 
 /* ---------- moving labels, the credit, the watermark and covers ---------- */
-
-function inBox(point, box, pad) {
-  pad = pad || 0;
-  return point.x >= box.x - pad && point.x <= box.x + box.w + pad && point.y >= box.y - pad && point.y <= box.y + box.h + pad;
-}
 
 /* A picked item shows a dashed outline with two handles: the round one above
    it tilts it and the square one on its corner sizes it. Boxes carry their
@@ -3248,6 +3255,7 @@ function message(text, ok) {
   var box = document.createElement('div');
   box.className = ok ? 'msg ok' : 'msg';
   box.textContent = text;
+  box.addEventListener('click', function () { box.remove(); });
   el('messages').appendChild(box);
   setTimeout(function () { box.remove(); }, 8000);
 }
@@ -3404,16 +3412,11 @@ function frameHeight(config, width) {
   return mode === 'swipe' ? width / (config.ratio || 1) : layoutOf(config, width).height;
 }
 
-function stageHeight() {
-  return frameTall || parseFloat(stage.style.height) || stageWidth();
-}
-
 /* What part of the frame the preview shows, and how much bigger than the frame
    it draws it. The whole frame at its own size, except in a full screen grid,
    where it is one photo's cell blown up to fill the screen. Points on the
    preview go through this, so every tool works the same close up. */
 var view = { x: 0, y: 0, k: 1, cssWidth: 1 };
-var frameTall = 0;
 
 /* The boxes from the last preview, since a save or a video frame draws at
    another size and would overwrite them. */
@@ -3430,8 +3433,37 @@ function sideWords() {
   });
 }
 
+/* A mark, or a cover for one photo, belongs to the photo it was put on: it
+   goes wherever that photo is shown, waits while it is not, and goes when the
+   photo is taken out. */
+function spotsFollow() {
+  var where = {}, kept = {};
+  cells.forEach(function (cell, i) { if (cell.image && where[cell.image.id] === undefined) where[cell.image.id] = i; });
+  photos.forEach(function (photo) { kept[photo.id] = true; });
+  var follow = function (item) {
+    if (!item.photo && cells[item.cell] && cells[item.cell].image) item.photo = cells[item.cell].image.id;
+    if (!item.photo) return true;
+    if (!kept[item.photo]) return false;
+    item.away = where[item.photo] === undefined;
+    if (!item.away) item.cell = where[item.photo];
+    return true;
+  };
+  var many = marks.length + covers.length;
+  marks = marks.filter(follow);
+  covers = covers.filter(function (cover) { return cover.every !== false || follow(cover); });
+  if (marks.length + covers.length !== many) { markPick = -1; coverPick = -1; }
+}
+
+/* A drag redraws once per screen frame, however many moves the finger sends. */
+var paintFrame = 0;
+function paintSoon() {
+  if (!paintFrame) paintFrame = requestAnimationFrame(paint);
+}
+
 function paint() {
+  if (paintFrame) { cancelAnimationFrame(paintFrame); paintFrame = 0; }
   sideWords();
+  spotsFollow();
   sessionSoon();
   fitCells();
   if (toneDirty) applyTones();
@@ -3444,7 +3476,6 @@ function paint() {
   stagePx = width;
   var box = mode === 'swipe' ? null : layoutOf(config, width);
   var height = mode === 'swipe' ? Math.round(width / (config.ratio || 1)) : Math.round(box.height);
-  frameTall = height;
   /* the part of the frame on show: one cell in a full screen grid */
   var area = { x: 0, y: 0, width: width, height: height };
   var close = full && mode !== 'swipe' ? fullCell() : -1;
@@ -3452,8 +3483,15 @@ function paint() {
   var k = close >= 0 ? Math.min(room.width / area.width, room.height / area.height) : 1;
   var cssW = Math.round(area.width * k), cssH = Math.round(area.height * k);
   view = { x: area.x, y: area.y, k: k, cssWidth: cssW };
-  stage.width = Math.round(cssW * dpr);
-  stage.height = Math.round(cssH * dpr);
+  /* setting the size wipes and reallocates the canvas, so it is only set when it changes */
+  var pw = Math.round(cssW * dpr), ph = Math.round(cssH * dpr);
+  if (stage.width !== pw || stage.height !== ph) {
+    stage.width = pw;
+    stage.height = ph;
+  } else {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, pw, ph);
+  }
   stage.style.width = cssW + 'px';
   stage.style.height = cssH + 'px';
   ctx.setTransform(dpr * k, 0, 0, dpr * k, -area.x * dpr * k, -area.y * dpr * k);
@@ -3762,8 +3800,8 @@ function showMode(next) {
   paint();
   autoLine();
 }
-el('tab-grid').addEventListener('click', function () { showMode('grid'); keepSettings(); });
-el('tab-swipe').addEventListener('click', function () { showMode('swipe'); keepSettings(); });
+el('tab-grid').addEventListener('click', function () { if (mode !== 'grid' && busyWithPhotos()) return; showMode('grid'); keepSettings(); });
+el('tab-swipe').addEventListener('click', function () { if (mode !== 'swipe' && busyWithPhotos()) return; showMode('swipe'); keepSettings(); });
 
 /* ---------- the pair in Swipe and the order of the photos ---------- */
 
@@ -3790,6 +3828,7 @@ function photoTitle(photo, index) {
 /* Puts two photos up as the pair, each where it was last put. */
 function showPair(a, b) {
   fitCells();
+  toneDirty = true;
   keepPose(cells[0]);
   keepPose(cells[1]);
   putPhoto(cells[0], a);
@@ -3950,12 +3989,31 @@ function orderStrip() {
 }
 
 /* Takes one photo out of the set, with everything done to it. */
+/* Line up and background removal read the photos as they were when they
+   started, so the set waits for them. */
+function busyWithPhotos() {
+  var job = lining || liningAll ? 'Line up' : cutting ? 'Background removal' : taping ? 'The video' : '';
+  if (!job) return false;
+  message(job + ' is still running, so the photos stay as they are until it finishes.');
+  return true;
+}
+
 function removePhoto(photo) {
+  if (busyWithPhotos()) return;
   cancelPins();
   cancelArea();
   forgetUndo();
   var words = photoWords(photo) || photo.stem;
   photos = photos.filter(function (one) { return one !== photo; });
+  /* in Grid its own cell goes too, so the photos after it move up in order */
+  var at = cells.findIndex(function (cell) { return cell.image === photo; });
+  if (mode !== 'swipe' && at >= 0 && dropEmpty()) cells.splice(at, 1);
+  /* its background undo steps go too, since they hold its full-size cut */
+  var others = function (list) {
+    return list.map(function (step) { return step.filter(function (entry) { return entry.photo !== photo; }); }).filter(function (step) { return step.length; });
+  };
+  bgPast = others(bgPast);
+  bgAhead = others(bgAhead);
   refresh();
   message('Took out ' + words + '.', true);
 }
@@ -3970,6 +4028,7 @@ function commitOrder(ids) {
   var next = ids.map(photoById).filter(Boolean);
   if (next.length !== photos.length) return;
   if (next.every(function (photo, i) { return photo === photos[i]; })) return;
+  if (busyWithPhotos()) { orderStrip(); return; }
   cancelPins();
   cancelArea();
   forgetUndo();
@@ -3998,15 +4057,6 @@ function commitOrder(ids) {
         cell.labelTurn = sides[i].labelTurn;
       });
     }
-    var moved = function (index) { var to = fresh.indexOf(old[index]); return to; };
-    marks = marks.filter(function (mark) { var to = moved(mark.cell); if (to < 0) return false; mark.cell = to; return true; });
-    covers = covers.filter(function (cover) {
-      if (cover.every !== false) return true;
-      var to = moved(cover.cell);
-      if (to < 0) return false;
-      cover.cell = to;
-      return true;
-    });
     markPick = -1;
     coverPick = -1;
     cells = fresh;
@@ -4257,7 +4307,7 @@ stage.addEventListener('pointermove', function (event) {
   if (pins && ((pins.down && event.pointerId === pins.down.id && !pins.down.multi) || (!pins.down && event.pointerType === 'mouse'))) {
     event.preventDefault();
     pins.at = stagePoint(event);
-    paint();
+    paintSoon();
     if (pins.down) return;
   }
   if (brush) {
@@ -4268,13 +4318,13 @@ stage.addEventListener('pointermove', function (event) {
       brush.last = spot;
     }
     brush.at = spot;
-    if (brush.id === null) paint();
+    if (brush.id === null) paintSoon();
     return;
   }
   if (lasso && event.pointerId === lasso.id) {
     event.preventDefault();
     lasso.points.push(stagePoint(event));
-    paint();
+    paintSoon();
     return;
   }
   if (areaPick && areaPick.down && event.pointerId === areaPick.down.id) {
@@ -4284,7 +4334,7 @@ stage.addEventListener('pointermove', function (event) {
     areaPick.path.push(at);
     var xs = areaPick.path.map(function (q) { return q.x; }), ys = areaPick.path.map(function (q) { return q.y; });
     areaPick.box = areaBox({ x: Math.min.apply(null, xs), y: Math.min.apply(null, ys) }, { x: Math.max.apply(null, xs), y: Math.max.apply(null, ys) });
-    paint();
+    paintSoon();
     return;
   }
   if (moving && event.pointerId === moving.id) {
@@ -4302,7 +4352,7 @@ stage.addEventListener('pointermove', function (event) {
     marking.made = true;
     markPick = marks.length - 1;
     markControls();
-    paint();
+    paintSoon();
     return;
   }
   if (covering && event.pointerId === covering.id) {
@@ -4315,14 +4365,14 @@ stage.addEventListener('pointermove', function (event) {
     covers.push(box);
     coverPick = covers.length - 1;
     coverControls();
-    paint();
+    paintSoon();
     return;
   }
   if (!drag || event.pointerId !== drag.id) return;
   event.preventDefault();
   var point = stagePoint(event);
-  if (drag.kind === 'brand') { moveBrand(drag, point); paint(); return; }
-  if (drag.kind === 'cover') { moveCover(drag, point); paint(); return; }
+  if (drag.kind === 'brand') { moveBrand(drag, point); paintSoon(); return; }
+  if (drag.kind === 'cover') { moveCover(drag, point); paintSoon(); return; }
   if (drag.kind === 'align') {
     var adx = point.x - drag.x;
     var ady = point.y - drag.y;
@@ -4334,12 +4384,12 @@ stage.addEventListener('pointermove', function (event) {
       cell.fx = held.fx;
       cell.fy = held.fy;
     });
-    paint();
+    paintSoon();
     return;
   }
   if (drag.kind === 'swipe') {
     swipePosition = Math.min(1, Math.max(0, point.x / stageWidth() - (drag.offset || 0)));
-    paint();
+    paintSoon();
     return;
   }
   var dx = point.x - drag.x;
@@ -4352,7 +4402,7 @@ stage.addEventListener('pointermove', function (event) {
     cell.fx = held.fx;
     cell.fy = held.fy;
   });
-  paint();
+  paintSoon();
 });
 
 function endDrag(event) {
@@ -4471,7 +4521,7 @@ stage.addEventListener('pointermove', function (event) {
       remember('pinch');
       var pinched = mode === 'swipe' ? zoomList() : targets(hit.index);
       pinched.forEach(function (cell) { zoomAt(cell, hit.rect, mid.x, mid.y, factor); });
-      paint();
+      paintSoon();
     }
   }
   pinch = { span: span };
@@ -4555,15 +4605,12 @@ function swapCells(a, b) {
     cells[a][key] = cells[b][key];
     cells[b][key] = keep;
   });
-  marks.forEach(function (mark) {
-    if (mark.cell === a) mark.cell = b;
-    else if (mark.cell === b) mark.cell = a;
-  });
 }
 el('swap').addEventListener('click', function () {
   cancelPins();
   cancelArea();
-  remember();
+  /* undo keeps only where photos sit, not their order or labels, so Swap clears it */
+  forgetUndo();
   if (mode === 'swipe') {
     swapCells(0, 1);
     labelRows();
@@ -4627,6 +4674,7 @@ function pixelate(c, cell, cellRect, box, blocks) {
    spot of every photo, and in Swipe it covers both photos wherever the divider
    is. A blur shows each photo's own pixels. */
 function coverPlaces(cover, width) {
+  if (cover.every === false && cover.away) return [];
   return photoSpots(width, cover.every === false ? cover.cell : -1);
 }
 
@@ -4692,17 +4740,6 @@ function newCover(from, to) {
   };
 }
 
-function coverAt(point) {
-  for (var i = covers.length - 1; i >= 0; i--) {
-    var places = coverPlaces(covers[i], stageWidth());
-    for (var n = 0; n < places.length; n++) {
-      var box = coverBox(covers[i], places[n].rect);
-      if (point.x >= box.x && point.x <= box.x + box.w && point.y >= box.y && point.y <= box.y + box.h) return i;
-    }
-  }
-  return -1;
-}
-
 function coverControls() {
   var cover = covers[coverPick];
   if (cover) el('cover-on').value = cover.every === false ? 'one' : 'every';
@@ -4735,7 +4772,11 @@ el('cover-angle').addEventListener('input', function () {
 });
 el('cover-on').addEventListener('change', function () {
   var cover = covers[coverPick];
-  if (cover) cover.every = el('cover-on').value !== 'one';
+  if (cover) {
+    cover.every = el('cover-on').value !== 'one';
+    /* a cover made for one photo takes the photo it sits on now */
+    cover.photo = undefined;
+  }
   paint();
 });
 el('cover-strength').addEventListener('input', function () {
@@ -5549,16 +5590,17 @@ function findPart(ref, cell, loop, other) {
 
 var lining = false;
 var SUBJECT_OVERLAP = 0.3;
-var lineChecks = [];
 
+/* Returns true when it started, so a pair is only counted as lined up once
+   a line up has really run on it. */
 function lineUp(list, area) {
-  if (lining) return;
+  if (lining) return false;
   var ref = cells[0];
   list = list.filter(function (index) { return index > 0 && cells[index] && cells[index].image; });
-  if (!ref || !ref.image || !list.length) return;
+  if (!ref || !ref.image || !list.length) return false;
   if (!window.jsfeat) {
     message('The line up part has not finished loading. Try again in a moment.');
-    return;
+    return false;
   }
   lining = true;
   lineButtons();
@@ -5620,8 +5662,7 @@ function lineUp(list, area) {
               parts++;
               sure = part.score >= PART_PLACE + 0.08;
             } else if (overlap < SUBJECT_OVERLAP) fit = null;
-            lineChecks.push({ index: index, overlap: overlap, part: part ? part.score : null, partOverlap: partOverlap });
-          } else lineChecks.push({ index: index, overlap: overlap });
+          }
         } else {
           found = findFit(from, to);
           if (found) {
@@ -5637,13 +5678,13 @@ function lineUp(list, area) {
         return backup.then(function (more) {
           if (more && !fit) { fit = more; sure = true; ways[more.how] = true; }
           else if (more && more.big && (faceDrift(fit, more) > FACE_DRIFT || Math.abs(Math.log(Math.hypot(fit.a, fit.b) / Math.hypot(more.a, more.b))) > FACE_DRIFT)) {
-            lineChecks.push({ index: index, faceDrift: faceDrift(fit, more) });
             fit = more; sure = true; ways.face = true;
           }
+          /* edges open before the photo is placed, or the old limits hold it in the middle */
+          if (fit && !opened) opened = allowEdges();
           if (fit && placeBy(ref, lineRect(0), cell, lineRect(index), fit)) {
             placed.push(index);
             if (!sure) unsure.push(index);
-            if (!opened) opened = allowEdges();
             carryCut(index);
             paint();
           } else missed.push(index);
@@ -5673,7 +5714,10 @@ function lineUp(list, area) {
       message((area ? 'Could not find the part for sure on ' : 'Could not line up ') + missed.map(photoName).join(' and ')
         + (area ? '' : ' for sure') + '.' + (area ? ' Tap' : ' Try the closer match under Line up, or tap') + ' the same two spots on each photo with Two-point line up, like both ends of a scar. Four-point line up also matches a photo taken from another angle.');
     }
+    /* a pair that came in while this ran gets its turn now */
+    autoLine();
   });
+  return true;
 }
 
 /* Lines up a pair by itself the first time both photos are in. */
@@ -5684,8 +5728,7 @@ function autoLine() {
   if (!a || !b) return;
   var key = [a.id, b.id].sort().join('|');
   if (key === linedPair) return;
-  linedPair = key;
-  lineUp([1]);
+  if (lineUp([1])) linedPair = key;
 }
 
 function lineTargets() {
@@ -5802,8 +5845,8 @@ function finishPins() {
   showTools();
   lineButtons();
   remember();
+  var opened = fit ? allowEdges() : false;
   if (fit && placeBy(ref, lineRect(0), cell, lineRect(target), fit)) {
-    var opened = allowEdges();
     toneDirty = true;
     say('Lined up on the two spots.' + (opened ? ' Move past the edges is now on.' : ''));
   } else {
@@ -6662,6 +6705,8 @@ function camMeter() {
 }
 
 function camStop() {
+  /* a camera still starting sees this changed and stops itself */
+  cam.run = (cam.run || 0) + 1;
   if (cam.stream) cam.stream.getTracks().forEach(function (track) { track.stop(); });
   cam.stream = null;
   cam.track = null;
@@ -6673,17 +6718,20 @@ function camStop() {
 
 function camStart() {
   camStop();
+  var run = cam.run;
   el('cam-note').textContent = 'Starting the camera.';
   el('cam-shoot').disabled = true;
   navigator.mediaDevices.getUserMedia({
     video: { facingMode: { ideal: cam.facing }, width: { ideal: 4000 }, height: { ideal: 3000 } },
     audio: false
   }).then(function (stream) {
+    if (run !== cam.run) { stream.getTracks().forEach(function (track) { track.stop(); }); return; }
     cam.stream = stream;
     cam.track = stream.getVideoTracks()[0];
     var video = el('cam-video');
     video.srcObject = stream;
     return video.play().then(function () {
+      if (run !== cam.run) return;
       var got = (cam.track.getSettings && cam.track.getSettings()) || {};
       cam.front = got.facingMode === 'user';
       var can = (cam.track.getCapabilities && cam.track.getCapabilities()) || {};
@@ -6710,6 +6758,7 @@ function camOpen() {
     message("This browser cannot open the camera. Take the photo with the phone's camera and add it with Add photos.");
     return;
   }
+  if (busyWithPhotos()) return;
   cancelPins();
   cancelArea();
   cancelLasso();
@@ -6738,6 +6787,7 @@ function camOpen() {
 function camClose() {
   guideStop();
   aim.kind = '';
+  cam.ref = null;
   el('cam-say').textContent = '';
   camStop();
   el('cam').classList.add('hidden');
@@ -6767,7 +6817,10 @@ function camShoot() {
     var stem = 'Camera ' + camStamp(now);
     var photo = { id: 'p' + (nextId++), name: stem + '.jpg', stem: stem, bitmap: bitmap, width: bitmap.width, height: bitmap.height, date: now, dateFrom: 'photo' };
     fitCells();
+    /* shot to match the first photo, so it shows mirrored when that one does */
+    var mirror = Boolean(cam.ref && cells[0] && cells[0].flip);
     if (cam.target >= cells.length) {
+      if (mirror) photo.pose = { zoom: 1, fx: 0.5, fy: 0.5, turn: 0, flip: true, label: '' };
       photos.push(photo);
       camClose();
       forgetUndo();
@@ -6794,7 +6847,7 @@ function camShoot() {
     cell.fx = 0.5;
     cell.fy = 0.5;
     cell.turn = 0;
-    cell.flip = false;
+    cell.flip = index > 0 && mirror;
     if (!cell.label && pairLabels()) cell.label = index === 0 ? 'Before' : 'After';
     camClose();
     forgetUndo();
@@ -6905,20 +6958,30 @@ var DB_NAME = 'proofline';
 var LOCK_NAME = 'proofline-lock';
 var dbOpen = null;
 var lockKey = null;
-var lockTimer = 0;
+/* the folder key's own bytes, kept while the folders are open, so a new PIN or
+   a backup passcode can lock it again */
+var lockRaw = null;
 var clientNow = null;
 var clientView = { id: null, picked: [] };
 
 function db() {
   if (dbOpen) return dbOpen;
   dbOpen = new Promise(function (done, fail) {
-    var ask = indexedDB.open(DB_NAME, 1);
+    var ask = indexedDB.open(DB_NAME, 2);
     ask.onupgradeneeded = function () {
       var base = ask.result;
       if (!base.objectStoreNames.contains('clients')) base.createObjectStore('clients', { keyPath: 'id' });
-      if (!base.objectStoreNames.contains('shots')) base.createObjectStore('shots', { keyPath: 'id' }).createIndex('client', 'client');
+      var shots = base.objectStoreNames.contains('shots') ? ask.transaction.objectStore('shots') : base.createObjectStore('shots', { keyPath: 'id' });
+      if (!shots.indexNames.contains('client')) shots.createIndex('client', 'client');
+      /* counts and latest dates come from this index alone, without reading a photo */
+      if (!shots.indexNames.contains('clientDate')) shots.createIndex('clientDate', ['client', 'date']);
     };
-    ask.onsuccess = function () { done(ask.result); };
+    ask.onsuccess = function () {
+      var base = ask.result;
+      /* a newer copy of the app opening the database waits on this one, so it lets go */
+      base.onversionchange = function () { base.close(); dbOpen = null; };
+      done(base);
+    };
     ask.onerror = function () { fail(ask.error); };
   });
   dbOpen.catch(function () { dbOpen = null; });
@@ -6934,10 +6997,12 @@ function dbDo(store, how, job) {
       if (ask) ask.onsuccess = function () { result = ask.result; };
       t.oncomplete = function () { done(result); };
       t.onerror = function () { fail(t.error); };
+      t.onabort = function () { fail(t.error || new Error('The folders could not be saved. The device may be out of space.')); };
     });
   });
 }
 
+function dbKeys(store) { return dbDo(store, 'readonly', function (s) { return s.getAllKeys(); }); }
 function dbAll(store) { return dbDo(store, 'readonly', function (s) { return s.getAll(); }); }
 function dbGet(store, id) { return dbDo(store, 'readonly', function (s) { return s.get(id); }); }
 function dbPut(store, value) { return dbDo(store, 'readwrite', function (s) { return s.put(value); }); }
@@ -6966,11 +7031,37 @@ function fromBase64(text) {
   return bytes;
 }
 
-function keyFrom(pin, salt) {
-  return crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveKey']).then(function (base) {
-    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: salt, iterations: 200000, hash: 'SHA-256' }, base,
-      { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+var PIN_ROUNDS = 600000;
+
+function pinBits(pin, salt, rounds) {
+  return crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveBits']).then(function (base) {
+    return crypto.subtle.deriveBits({ name: 'PBKDF2', salt: salt, iterations: rounds, hash: 'SHA-256' }, base, 256);
   });
+}
+
+function aesKey(raw) { return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']); }
+
+/* Before v48 the PIN made the folder key itself, with 200,000 rounds. */
+function keyFrom(pin, salt, rounds) { return pinBits(pin, salt, rounds || 200000).then(aesKey); }
+
+/* The folder key is random and never changes. A PIN or a backup passcode only
+   locks a copy of it, so a new PIN rewrites one line and no photo. */
+function wrapKey(secret, raw) {
+  var salt = crypto.getRandomValues(new Uint8Array(16));
+  return keyFrom(secret, salt, PIN_ROUNDS).then(function (key) { return seal(key, raw); }).then(function (box) {
+    return { v: 2, salt: toBase64(salt), rounds: PIN_ROUNDS, iv: toBase64(box.iv), wrap: toBase64(box.data) };
+  });
+}
+
+function unwrapKey(secret, info) {
+  return keyFrom(secret, fromBase64(info.salt), info.rounds).then(function (key) {
+    return unseal(key, { iv: fromBase64(info.iv), data: fromBase64(info.wrap).buffer });
+  });
+}
+
+function saveLock(info) {
+  if (info) localStorage.setItem(LOCK_NAME, JSON.stringify(info));
+  else localStorage.removeItem(LOCK_NAME);
 }
 
 function seal(key, bytes) {
@@ -6984,16 +7075,30 @@ function unseal(key, box) {
 
 function locked() { return Boolean(lockInfo()) && !lockKey; }
 
+function useKey(raw) {
+  return aesKey(raw).then(function (key) {
+    lockRaw = raw;
+    lockKey = key;
+    sessionKey = key;
+    sessionSoon();
+    return true;
+  });
+}
+
 function tryPin(pin) {
   var info = lockInfo();
   if (!info) return Promise.resolve(true);
-  return keyFrom(pin, fromBase64(info.salt)).then(function (key) {
-    return unseal(key, { iv: fromBase64(info.iv), data: fromBase64(info.check).buffer }).then(function () {
-      lockKey = key;
-      sessionKey = key;
-      sessionSoon();
-      return true;
-    }, function () { return false; });
+  if (info.wrap) return unwrapKey(pin, info).then(useKey, function () { return false; });
+  /* a PIN from before v48: its key stays the folder key and is locked the new way */
+  return pinBits(pin, fromBase64(info.salt), 200000).then(function (raw) {
+    return aesKey(raw).then(function (key) {
+      return unseal(key, { iv: fromBase64(info.iv), data: fromBase64(info.check).buffer }).then(function () {
+        return wrapKey(pin, raw).then(function (next) {
+          try { saveLock(next); } catch (error) { /* stays the old way until there is room */ }
+          return useKey(raw);
+        });
+      }, function () { return false; });
+    });
   });
 }
 
@@ -7002,10 +7107,19 @@ function lockedOut() {
   return Promise.reject(new Error('The folders are locked. Open Clients and type the PIN first.'));
 }
 
-function packData(object) {
-  if (lockInfo() && !lockKey) return lockedOut();
-  if (!lockKey) return Promise.resolve({ data: object });
-  return seal(lockKey, new TextEncoder().encode(JSON.stringify(object))).then(function (box) { return { iv: box.iv, data: box.data, sealed: true }; });
+/* Records are locked only while a PIN is set, with the key given, or else the
+   folder key. */
+function packKey(key) {
+  if (key !== undefined) return Promise.resolve(key);
+  if (!lockInfo()) return Promise.resolve(null);
+  return lockKey ? Promise.resolve(lockKey) : lockedOut();
+}
+
+function packData(object, key) {
+  return packKey(key).then(function (use) {
+    if (!use) return { data: object };
+    return seal(use, new TextEncoder().encode(JSON.stringify(object))).then(function (box) { return { iv: box.iv, data: box.data, sealed: true }; });
+  });
 }
 
 function openData(record) {
@@ -7013,10 +7127,11 @@ function openData(record) {
   return unseal(lockKey, record).then(function (bytes) { return JSON.parse(new TextDecoder().decode(bytes)); });
 }
 
-function packBlob(blob) {
-  if (lockInfo() && !lockKey) return lockedOut();
-  if (!lockKey) return Promise.resolve({ blob: blob });
-  return blob.arrayBuffer().then(function (buffer) { return seal(lockKey, buffer); }).then(function (box) { return { iv: box.iv, data: box.data, sealed: true }; });
+function packBlob(blob, key) {
+  return packKey(key).then(function (use) {
+    if (!use) return { blob: blob };
+    return blob.arrayBuffer().then(function (buffer) { return seal(use, buffer); }).then(function (box) { return { iv: box.iv, data: box.data, sealed: true }; });
+  });
 }
 
 function openBlob(part) {
@@ -7024,67 +7139,111 @@ function openBlob(part) {
   return unseal(lockKey, part).then(function (bytes) { return new Blob([bytes], { type: 'image/jpeg' }); });
 }
 
-/* Setting, changing or removing the PIN rewrites every record with the new
-   key, or with none. The folders must be open first. */
-function rekey(newKey, info) {
-  return Promise.all([dbAll('clients'), dbAll('shots')]).then(function (all) {
-    var clients = all[0], shots = all[1];
-    return Promise.all(clients.map(function (c) { return openData(c); })).then(function (datas) {
-      return Promise.all(shots.map(function (shot) {
-        return Promise.all([openBlob(shot.photo), openBlob(shot.thumb), openData(shot)]);
-      })).then(function (opened) {
-        lockKey = newKey;
-        sessionKey = newKey;
-        sessionWritten = {};
-        if (info) localStorage.setItem(LOCK_NAME, JSON.stringify(info));
-        else localStorage.removeItem(LOCK_NAME);
-        var jobs = clients.map(function (c, i) {
-          return packData(datas[i]).then(function (packed) { return dbPut('clients', Object.assign({ id: c.id, created: c.created }, packed)); });
+/* Locks or opens every record, one at a time. Each record says whether it is
+   locked, so stopping halfway leaves every record readable with the same PIN.
+   key is the folder key to lock with, or null to open them all. */
+function resealAll(key) {
+  return Promise.all([dbKeys('clients'), dbKeys('shots')]).then(function (keys) {
+    var jobs = keys[0].map(function (id) { return ['clients', id]; }).concat(keys[1].map(function (id) { return ['shots', id]; }));
+    var step = function (n) {
+      if (n >= jobs.length) return Promise.resolve();
+      var store = jobs[n][0];
+      return dbGet(store, jobs[n][1]).then(function (rec) {
+        if (!rec) return null;
+        if (store === 'clients') {
+          return openData(rec).then(function (data) { return packData(data, key); }).then(function (packed) {
+            return dbPut('clients', Object.assign({ id: rec.id, created: rec.created }, packed));
+          });
+        }
+        return Promise.all([openBlob(rec.photo), openBlob(rec.thumb), openData(rec)]).then(function (o) {
+          return Promise.all([packBlob(o[0], key), packBlob(o[1], key), packData(o[2], key)]);
+        }).then(function (got) {
+          return dbPut('shots', Object.assign({ id: rec.id, client: rec.client, date: rec.date, photo: got[0], thumb: got[1] }, got[2]));
         });
-        shots.forEach(function (shot, i) {
-          jobs.push(Promise.all([packBlob(opened[i][0]), packBlob(opened[i][1]), packData(opened[i][2])]).then(function (got) {
-            return dbPut('shots', Object.assign({ id: shot.id, client: shot.client, date: shot.date, photo: got[0], thumb: got[1] }, got[2]));
-          }));
-        });
-        return Promise.all(jobs).then(function (out) { sessionSoon(); return out; });
-      });
-    });
+      }).then(function () { return step(n + 1); });
+    };
+    return step(0);
+  }).then(function () {
+    sessionWritten = {};
+    sessionSoon();
   });
 }
 
+/* A first PIN makes a random folder key and saves it locked before any record
+   is touched. A new PIN locks the same key again. */
 function setPin(pin) {
-  var salt = crypto.getRandomValues(new Uint8Array(16));
-  return keyFrom(pin, salt).then(function (key) {
-    return seal(key, new TextEncoder().encode('proofline')).then(function (box) {
-      return rekey(key, { salt: toBase64(salt), iv: toBase64(box.iv), check: toBase64(box.data) });
-    });
+  if (lockInfo()) {
+    if (!lockRaw) return lockedOut();
+    return wrapKey(pin, lockRaw).then(saveLock);
+  }
+  var raw = crypto.getRandomValues(new Uint8Array(32)).buffer;
+  return Promise.all([wrapKey(pin, raw), aesKey(raw)]).then(function (got) {
+    saveLock(got[0]);
+    lockRaw = raw;
+    lockKey = got[1];
+    sessionKey = got[1];
+    return resealAll(got[1]);
   });
 }
 
-function dropPin() { return rekey(null, null); }
+/* The PIN goes only after every record is open again. */
+function dropPin() {
+  if (locked()) return lockedOut();
+  return resealAll(null).then(function () {
+    saveLock(null);
+    lockKey = null;
+    lockRaw = null;
+    sessionKey = null;
+    sessionWritten = {};
+    sessionSoon();
+  });
+}
 
+/* Phones pause a hidden app, so the time away is measured on the way back. */
+var hiddenAt = 0;
 document.addEventListener('visibilitychange', function () {
-  clearTimeout(lockTimer);
-  if (document.hidden && lockInfo()) {
-    lockTimer = setTimeout(function () {
-      lockKey = null;
-      if (!el('clients').classList.contains('hidden')) clientsShow();
-    }, 5 * 60 * 1000);
+  if (document.hidden) { hiddenAt = Date.now(); return; }
+  if (hiddenAt && lockInfo() && Date.now() - hiddenAt > 5 * 60 * 1000) {
+    lockKey = null;
+    lockRaw = null;
+    if (!el('clients').classList.contains('hidden')) clientsShow();
   }
+  hiddenAt = 0;
 });
 
 /* ---- reading and writing folders ---- */
 
+/* Each client's photo count and latest date, read from the index alone. */
+function shotTally() {
+  return db().then(function (base) {
+    return new Promise(function (done, fail) {
+      var tally = {};
+      var t = base.transaction('shots', 'readonly');
+      t.objectStore('shots').index('clientDate').openKeyCursor().onsuccess = function (event) {
+        var at = event.target.result;
+        if (!at) return;
+        var one = tally[at.key[0]] || (tally[at.key[0]] = { count: 0, last: 0 });
+        one.count++;
+        one.last = Math.max(one.last, at.key[1]);
+        at.continue();
+      };
+      t.oncomplete = function () { done(tally); };
+      t.onerror = t.onabort = function () { fail(t.error); };
+    });
+  });
+}
+
 function listClients() {
-  return Promise.all([dbAll('clients'), dbAll('shots')]).then(function (all) {
+  return Promise.all([dbAll('clients'), shotTally()]).then(function (all) {
+    /* one damaged record does not hide the other clients */
     return Promise.all(all[0].map(function (c) {
       return openData(c).then(function (data) {
-        var mine = all[1].filter(function (shot) { return shot.client === c.id; });
-        var last = mine.reduce(function (most, shot) { return Math.max(most, shot.date); }, 0);
-        return { id: c.id, created: c.created, name: data.name, consents: data.consents || [], count: mine.length, last: last };
-      });
+        var one = all[1][c.id] || { count: 0, last: 0 };
+        return { id: c.id, created: c.created, name: data.name, consents: data.consents || [], count: one.count, last: one.last };
+      }, function () { return null; });
     }));
   }).then(function (list) {
+    list = list.filter(Boolean);
     return list.sort(function (a, b) { return (b.last || b.created) - (a.last || a.created); });
   });
 }
@@ -7096,8 +7255,8 @@ function getClient(id) {
   });
 }
 
-function putClient(client) {
-  return packData({ name: client.name, consents: client.consents || [] }).then(function (packed) {
+function putClient(client, key) {
+  return packData({ name: client.name, consents: client.consents || [] }, key).then(function (packed) {
     return dbPut('clients', Object.assign({ id: client.id, created: client.created }, packed));
   });
 }
@@ -7124,8 +7283,9 @@ function saveShot(clientId, photo) {
     return Promise.all([packBlob(blobs[0]), packBlob(blobs[1]), packData({ name: photo.name })]);
   }).then(function (got) {
     var id = newId('s');
-    photo.shot = { id: id, client: clientId };
-    return dbPut('shots', Object.assign({ id: id, client: clientId, date: date, photo: got[0], thumb: got[1] }, got[2]));
+    return dbPut('shots', Object.assign({ id: id, client: clientId, date: date, photo: got[0], thumb: got[1] }, got[2])).then(function () {
+      photo.shot = { id: id, client: clientId };
+    });
   });
 }
 
@@ -7406,14 +7566,17 @@ function pageCanvas() {
   return { canvas: canvas, c: c };
 }
 
-function wrapText(c, text, x, y, width, line) {
+/* Draws text in lines no wider than width and returns where the next line
+   goes. With measure set it draws nothing, to find the height first. */
+function wrapText(c, text, x, y, width, line, measure) {
   var words = text.split(' '), now = '';
+  var put = function (words) { if (!measure) c.fillText(words, x, y); y += line; };
   words.forEach(function (word) {
     var next = now ? now + ' ' + word : word;
-    if (c.measureText(next).width > width && now) { c.fillText(now, x, y); y += line; now = word; }
+    if (c.measureText(next).width > width && now) { put(now); now = word; }
     else now = next;
   });
-  if (now) { c.fillText(now, x, y); y += line; }
+  if (now) put(now);
   return y;
 }
 
@@ -7426,58 +7589,72 @@ function loadPicture(src) {
   });
 }
 
+/* A client's photos in date order, as ids only. */
+function shotIdsOf(id) {
+  return dbDo('shots', 'readonly', function (s) { return s.index('clientDate').getAllKeys(IDBKeyRange.bound([id, -Infinity], [id, Infinity])); });
+}
+
+/* The record is built one page at a time on one canvas, so a client with many
+   photos does not need a canvas per page. */
 function exportClient(id) {
   if (!window.PDFLib) { message('The PDF part has not finished loading. Try again in a moment.'); return Promise.resolve(); }
-  return Promise.all([getClient(id), shotsOf(id)]).then(function (got) {
-    var client = got[0], list = got[1];
-    var pages = [];
-    var first = pageCanvas(), c = first.c, y = 110;
+  return Promise.all([getClient(id), shotIdsOf(id), window.PDFLib.PDFDocument.create()]).then(function (got) {
+    var client = got[0], ids = got[1], doc = got[2];
+    var sheet = pageCanvas(), c = sheet.c;
+    var addPage = function () {
+      return new Promise(function (done) { sheet.canvas.toBlob(done, 'image/jpeg', 0.9); }).then(function (blob) {
+        if (!blob) throw new Error('A page of the PDF could not be drawn.');
+        return blob.arrayBuffer();
+      }).then(function (buffer) { return doc.embedJpg(new Uint8Array(buffer)); }).then(function (image) {
+        doc.addPage([595.28, 841.89]).drawImage(image, { x: 0, y: 0, width: 595.28, height: 841.89 });
+        c.fillStyle = '#fff';
+        c.fillRect(0, 0, 1240, 1754);
+        c.fillStyle = '#101C2B';
+      });
+    };
+    var y = 110;
     c.font = '600 56px system-ui, sans-serif';
     c.fillText(client.name, 100, y);
     y += 90;
     c.font = '28px system-ui, sans-serif';
-    c.fillText(list.length + (list.length === 1 ? ' photo' : ' photos') + ', exported ' + isoDay(Date.now()) + ' from Proofline.', 100, y);
+    c.fillText(ids.length + (ids.length === 1 ? ' photo' : ' photos') + ', exported ' + isoDay(Date.now()) + ' from Proofline.', 100, y);
     y += 80;
-    var signs = client.consents.map(function (consent) { return consent.signature ? loadPicture(consent.signature) : Promise.resolve(null); });
-    return Promise.all(signs).then(function (pictures) {
-      if (!client.consents.length) { c.fillText('No consent form has been signed.', 100, y); y += 50; }
-      client.consents.forEach(function (consent, i) {
-        c.font = '600 30px system-ui, sans-serif';
-        c.fillText('Consent signed ' + isoDay(consent.date) + (consent.patient ? ' by ' + consent.patient : ''), 100, y);
-        y += 50;
+    if (!client.consents.length) c.fillText('No consent form has been signed.', 100, y);
+    /* each form goes on a new page when it does not fit under the last one */
+    var forms = client.consents.reduce(function (chain, consent) {
+      return chain.then(function () {
+        return consent.signature ? loadPicture(consent.signature).then(null, function () { return null; }) : null;
+      }).then(function (picture) {
+        var words = consent.words || consentText(consent);
         c.font = '26px system-ui, sans-serif';
-        y = wrapText(c, consent.words || consentText(consent), 100, y, 1040, 38) + 10;
-        if (pictures[i]) { c.drawImage(pictures[i], 100, y, 400, 120); y += 140; }
-        y += 30;
+        var tall = 50 + (wrapText(c, words, 100, 0, 1040, 38, true) + 10) + (picture ? 140 : 0) + 30;
+        var room = y + tall > 1754 - 60 ? addPage().then(function () { y = 110; }) : Promise.resolve();
+        return room.then(function () {
+          c.font = '600 30px system-ui, sans-serif';
+          c.fillText('Consent signed ' + isoDay(consent.date) + (consent.patient ? ' by ' + consent.patient : ''), 100, y);
+          y += 50;
+          c.font = '26px system-ui, sans-serif';
+          y = wrapText(c, words, 100, y, 1040, 38) + 10;
+          if (picture) { c.drawImage(picture, 100, y, 400, 120); y += 140; }
+          y += 30;
+        });
       });
-      pages.push(first.canvas);
-      return list.reduce(function (chain, shot) {
-        return chain.then(function () {
+    }, Promise.resolve());
+    return forms.then(addPage).then(function () {
+      return ids.reduce(function (chain, sid) {
+        return chain.then(function () { return dbGet('shots', sid); }).then(function (shot) {
           return openBlob(shot.photo).then(function (blob) { return createImageBitmap(blob); }).then(function (bitmap) {
-            var page = pageCanvas();
             var k = Math.min(1040 / bitmap.width, 1460 / bitmap.height);
             var w = bitmap.width * k, h = bitmap.height * k;
-            page.c.drawImage(bitmap, (1240 - w) / 2, 100, w, h);
-            page.c.font = '600 32px system-ui, sans-serif';
-            page.c.fillText(client.name + ', ' + isoDay(shot.date), 100, 100 + h + 30);
-            pages.push(page.canvas);
+            c.drawImage(bitmap, (1240 - w) / 2, 100, w, h);
+            if (bitmap.close) bitmap.close();
+            c.font = '600 32px system-ui, sans-serif';
+            c.fillText(client.name + ', ' + isoDay(shot.date), 100, 100 + h + 30);
+            return addPage();
           });
         });
       }, Promise.resolve());
-    }).then(function () {
-      return window.PDFLib.PDFDocument.create().then(function (doc) {
-        return pages.reduce(function (chain, page) {
-          return chain.then(function () {
-            return new Promise(function (done) { page.toBlob(done, 'image/jpeg', 0.9); }).then(function (blob) { return blob.arrayBuffer(); }).then(function (buffer) {
-              return doc.embedJpg(new Uint8Array(buffer)).then(function (image) {
-                var p = doc.addPage([595.28, 841.89]);
-                p.drawImage(image, { x: 0, y: 0, width: 595.28, height: 841.89 });
-              });
-            });
-          });
-        }, Promise.resolve()).then(function () { return doc.save(); });
-      });
-    }).then(function (bytes) {
+    }).then(function () { return doc.save(); }).then(function (bytes) {
       save(new Blob([bytes], { type: 'application/pdf' }), client.name.replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 40) + ' - Proofline.pdf');
     });
   });
@@ -7612,10 +7789,12 @@ el('client-add').addEventListener('click', function () {
   var name = el('client-new').value.trim();
   if (!name) { el('client-new').focus(); return; }
   var client = { id: newId('c'), created: Date.now(), name: name, consents: [] };
+  /* asks the browser not to clear the folders when space runs low or the app goes unused */
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
   putClient(client).then(function () {
     el('client-new').value = '';
     showClient(client.id);
-  });
+  }, function (error) { message(error.message); });
 });
 el('client-new').addEventListener('keydown', function (event) { if (event.key === 'Enter') el('client-add').click(); });
 
@@ -7646,7 +7825,7 @@ el('client-save').addEventListener('click', function () {
   list.reduce(function (chain, photo) { return chain.then(function () { return saveShot(id, photo); }); }, Promise.resolve()).then(function () {
     getClient(id).then(function (client) { clientNow = { id: id, name: client.name }; clientChip(); });
     showClient(id);
-  });
+  }, function (error) { message('The photos could not be saved to this folder. ' + error.message); showClient(id); });
 });
 el('client-camera').addEventListener('click', function () {
   var id = clientView.id;
@@ -7703,20 +7882,22 @@ el('pin-set').addEventListener('click', function () {
   var pin = el('pin-new').value, again = el('pin-again').value;
   if (!/^\d{4,8}$/.test(pin)) { el('pin-note').textContent = 'The PIN is 4 to 8 numbers.'; return; }
   if (pin !== again) { el('pin-note').textContent = 'The two PINs are not the same.'; return; }
-  el('pin-note').textContent = 'Locking the folders.';
+  var change = Boolean(lockInfo());
+  el('pin-note').textContent = change ? 'Changing the PIN.' : 'Locking the folders.';
   setPin(pin).then(function () {
     el('pin-new').value = '';
     el('pin-again').value = '';
-    el('pin-note').textContent = 'The folders are locked. Write the PIN down somewhere safe, since the folders can\'t be opened without it.';
+    el('pin-note').textContent = (change ? 'The PIN is changed.' : 'The folders are locked.') + ' Write the PIN down somewhere safe, since the folders can\'t be opened without it.';
     showClients();
-  }, function (error) { el('pin-note').textContent = error.message; });
+  }, function (error) { el('pin-note').textContent = 'The PIN could not be set. ' + error.message; showClients(); });
 });
 el('pin-drop').addEventListener('click', function () {
   if (!armed('pin', el('pin-drop'), 'Press again to remove the PIN', 'Remove the PIN')) return;
+  el('pin-note').textContent = 'Opening every folder.';
   dropPin().then(function () {
     el('pin-note').textContent = 'The PIN is removed.';
     showClients();
-  });
+  }, function (error) { el('pin-note').textContent = 'The PIN could not be removed. ' + error.message; });
 });
 
 /* ---------- face and body points ---------- */
@@ -7799,7 +7980,7 @@ function pointsOf(kind, canvas, still) {
 }
 
 /* A photo drawn up to 960 pixels long, as it shows, mirror included. */
-function photoCanvas(image, flip) {
+function phoimageToCanvas(image, flip) {
   var k = Math.min(1, 960 / Math.max(image.width, image.height));
   var canvas = document.createElement('canvas');
   canvas.width = Math.round(image.width * k);
@@ -7827,7 +8008,7 @@ function forgetPoints(image) {
 function photoFace(image, flip) {
   var key = flip ? 'meshFlip' : 'mesh';
   if (image[key] !== undefined) return Promise.resolve(image[key]);
-  return pointsOf('face', photoCanvas(image, flip), true).then(function (face) {
+  return pointsOf('face', phoimageToCanvas(image, flip), true).then(function (face) {
     image[key] = face || null;
     return image[key];
   }, function () { return null; });
@@ -7839,7 +8020,7 @@ function photoPoints(image, flip) {
   var out = { face: null, body: null };
   return photoFace(image, flip).then(function (face) {
     out.face = face;
-    return pointsOf('body', photoCanvas(image, flip), true).then(null, function () { return null; });
+    return pointsOf('body', phoimageToCanvas(image, flip), true).then(null, function () { return null; });
   }).then(function (body) {
     out.body = body && body.filter(seen).length >= 4 ? body : null;
     image[key] = out;
@@ -8265,17 +8446,22 @@ function closerFit(ref, cell) {
           var qx = points[i * 2], qy = points[i * 2 + 1];
           var px = points[(K + j) * 2], py = points[(K + j) * 2 + 1];
           if (px < b.ox || py < b.oy || px > b.ox + b.w || py > b.oy + b.h) continue;
+          /* matched on the two pictures, which are the same size whatever the
+             size of the photos, then fitted again in pixels of the photos */
           pairs.push({
-            p: { x: (px - b.ox) / b.k, y: (py - b.oy) / b.k },
-            q: { x: (qx - a.ox) / a.k, y: (qy - a.oy) / a.k }
+            p: { x: px - b.ox, y: py - b.oy },
+            q: { x: qx - a.ox, y: qy - a.oy },
+            photo: { p: { x: (px - b.ox) / b.k, y: (py - b.oy) / b.k }, q: { x: (qx - a.ox) / a.k, y: (qy - a.oy) / a.k } }
           });
         }
         if (pairs.length < 12) return null;
-        var found = bestFit(pairs, 4 / a.k);
+        var found = bestFit(pairs, 4);
         if (!found || found.agree.length < 12) return null;
-        found.fit.count = found.agree.length;
-        found.fit.how = 'closer';
-        return found.fit;
+        var fit = fitMany(found.agree.map(function (m) { return m.photo; }));
+        if (!fit) return null;
+        fit.count = found.agree.length;
+        fit.how = 'closer';
+        return fit;
       });
     });
   });
@@ -8306,9 +8492,9 @@ el('line-closer').addEventListener('click', function () {
       say('Matching ' + photoName(index) + ' closely, which takes up to half a minute on a phone.');
       return closerFit(ref, cell);
     }).then(function (fit) {
+      if (fit) allowEdges();
       if (fit && placeBy(ref, lineRect(0), cell, lineRect(index), fit)) {
         placed.push(index);
-        allowEdges();
         carryCut(index);
         paint();
       } else missed.push(index);
@@ -8333,9 +8519,11 @@ el('line-closer').addEventListener('click', function () {
 /* ---------- backing up the folders ---------- */
 
 /* One file holds every client, form and photo. With a PIN set, the file is
-   locked with the same key as the folders and opens only with that PIN. The
-   file starts with a line naming it and a line describing the lock, then the
-   list of clients and photos, then the photos themselves one after another. */
+   locked with the folder key, and the file carries a copy of that key locked
+   with its own passcode of at least 8 characters, since a 4-number PIN is too
+   easy to guess for a file kept in the cloud. The file starts with a line
+   naming it and a line describing the lock, then the list of clients and
+   photos, then the photos themselves one after another. */
 var BACKUP_MAGIC = 'PROOFLINE BACKUP 1\n';
 var BACKUP_LAST = 'proofline-backup-last';
 var backupBusy = false;
@@ -8347,39 +8535,60 @@ function backupState() {
   el('backup-state').textContent = last ? 'Last saved ' + isoDay(last) : 'Never saved';
 }
 
-function partBytes(part) {
-  if (part.sealed) return Promise.resolve(part.data);
-  return part.blob.arrayBuffer();
+/* A stored photo as it goes into the file: locked bytes as they are. */
+function partBlob(part) {
+  return part.sealed ? new Blob([part.data]) : part.blob;
 }
 
-function saveBackup() {
+function backupAsk() {
   if (backupBusy) return;
   if (locked()) { el('backup-note').textContent = 'Open the folders with the PIN first.'; return; }
+  if (!lockInfo()) { saveBackup(null); return; }
+  el('backup-pass-field').classList.remove('hidden');
+  el('backup-pass').value = '';
+  el('backup-pass-again').value = '';
+  el('backup-pass').focus();
+  el('backup-note').textContent = 'Type a passcode for this backup, at least 8 characters. Restoring the backup asks for this passcode.';
+}
+
+function backupPassGo() {
+  var pass = el('backup-pass').value;
+  if (pass.length < 8) { el('backup-note').textContent = 'The passcode needs at least 8 characters.'; return; }
+  if (pass !== el('backup-pass-again').value) { el('backup-note').textContent = 'The two passcodes are not the same.'; return; }
+  el('backup-pass-field').classList.add('hidden');
+  saveBackup(pass);
+}
+
+function saveBackup(pass) {
+  if (backupBusy) return;
+  if (locked() || (lockInfo() && !lockRaw)) { el('backup-note').textContent = 'Open the folders with the PIN first.'; return; }
   backupBusy = true;
   el('backup-save').disabled = true;
   el('backup-note').textContent = 'Reading the folders.';
-  var info = lockInfo();
-  Promise.all([dbAll('clients'), dbAll('shots')]).then(function (all) {
-    var clients = all[0], shots = all[1];
+  /* the key is fixed now, so the app locking itself midway changes nothing */
+  var key = lockInfo() ? lockKey : null, raw = lockRaw;
+  Promise.all([dbAll('clients'), dbKeys('shots'), key ? wrapKey(pass, raw) : null]).then(function (all) {
+    var clients = all[0], ids = all[1], wrapped = all[2];
     return Promise.all(clients.map(function (c) { return openData(c); })).then(function (datas) {
-      var parts = [], at = 0;
+      var parts = [], at = 0, list = [];
       var place = function (part, type) {
-        return partBytes(part).then(function (bytes) {
-          var entry = { at: at, len: bytes.byteLength, type: type };
-          if (part.sealed) entry.iv = toBase64(part.iv);
-          parts.push(bytes);
-          at += bytes.byteLength;
-          return entry;
-        });
+        var blob = partBlob(part);
+        var entry = { at: at, len: blob.size, type: type };
+        if (part.sealed) entry.iv = toBase64(part.iv);
+        parts.push(blob);
+        at += blob.size;
+        return entry;
       };
-      var list = [];
+      /* one photo at a time, so only one is ever read into memory */
       var step = function (n) {
-        if (n >= shots.length) return Promise.resolve();
-        if (n % 10 === 0) el('backup-note').textContent = 'Packing photo ' + (n + 1) + ' of ' + shots.length + '.';
-        var shot = shots[n];
-        return Promise.all([place(shot.photo, 'image/jpeg'), place(shot.thumb, 'image/jpeg'), openData(shot)]).then(function (got) {
-          list.push({ id: shot.id, client: shot.client, date: shot.date, data: got[2], photo: got[0], thumb: got[1] });
-          return step(n + 1);
+        if (n >= ids.length) return Promise.resolve();
+        if (n % 10 === 0) el('backup-note').textContent = 'Packing photo ' + (n + 1) + ' of ' + ids.length + '.';
+        return dbGet('shots', ids[n]).then(function (shot) {
+          if (!shot) return step(n + 1);
+          return openData(shot).then(function (data) {
+            list.push({ id: shot.id, client: shot.client, date: shot.date, data: data, photo: place(shot.photo, 'image/jpeg'), thumb: place(shot.thumb, 'image/jpeg') });
+            return step(n + 1);
+          });
         });
       };
       return step(0).then(function () {
@@ -8389,17 +8598,16 @@ function saveBackup() {
           shots: list
         };
         var text = new TextEncoder().encode(JSON.stringify(inner));
-        var sealHead = lockKey ? seal(lockKey, text) : Promise.resolve(null);
-        return sealHead.then(function (box) {
+        return (key ? seal(key, text) : Promise.resolve(null)).then(function (box) {
           var head = box ? new Uint8Array(box.data) : text;
-          var outer = { v: 1, locked: Boolean(box), size: head.byteLength, clients: clients.length, photos: shots.length };
-          if (box) { outer.salt = info.salt; outer.check = info.check; outer.checkIv = info.iv; outer.iv = toBase64(box.iv); }
+          var outer = { v: 2, locked: Boolean(box), size: head.byteLength, clients: clients.length, photos: list.length };
+          if (box) { outer.key = wrapped; outer.iv = toBase64(box.iv); }
           var blob = new Blob([BACKUP_MAGIC, JSON.stringify(outer) + '\n', head].concat(parts), { type: 'application/octet-stream' });
           save(blob, 'Proofline backup ' + isoDay(Date.now()) + '.proofline');
           try { localStorage.setItem(BACKUP_LAST, String(Date.now())); } catch (error) { /* private windows keep nothing */ }
           backupState();
-          el('backup-note').textContent = 'Saved ' + clients.length + (clients.length === 1 ? ' client and ' : ' clients and ') + shots.length + (shots.length === 1 ? ' photo' : ' photos')
-            + (box ? ', locked with the PIN.' : '. Set a PIN under PIN lock to lock the next backup.') + ' Keep the file in Google Drive or iCloud Drive.';
+          el('backup-note').textContent = 'Saved ' + clients.length + (clients.length === 1 ? ' client and ' : ' clients and ') + list.length + (list.length === 1 ? ' photo' : ' photos')
+            + (box ? ', locked with the passcode.' : '. Set a PIN under PIN lock to lock the next backup.') + ' Keep the file in Google Drive or iCloud Drive.';
         });
       });
     });
@@ -8434,20 +8642,24 @@ function openBackup(file) {
     el('backup-pin-field').classList.remove('hidden');
     el('backup-pin').value = '';
     el('backup-pin').focus();
-    el('backup-note').textContent = 'This backup is locked. Type the PIN it was saved with.';
+    el('backup-note').textContent = outer.key ? 'This backup is locked. Type its passcode.' : 'This backup is locked. Type the PIN it was saved with.';
   }).catch(function (error) { el('backup-note').textContent = error.message; });
 }
 
 function backupPinGo() {
   if (!backupWaiting) return;
-  var wait = backupWaiting, pin = el('backup-pin').value;
-  keyFrom(pin, fromBase64(wait.outer.salt)).then(function (key) {
-    return unseal(key, { iv: fromBase64(wait.outer.checkIv), data: fromBase64(wait.outer.check).buffer }).then(function () {
-      backupWaiting = null;
-      el('backup-pin-field').classList.add('hidden');
-      restoreBackup(wait.file, wait.outer, key);
-    }, function () { el('backup-note').textContent = 'That PIN is not right for this backup.'; });
-  });
+  var wait = backupWaiting, secret = el('backup-pin').value, outer = wait.outer;
+  /* backups from before v48 were locked with the PIN itself */
+  var key = outer.key
+    ? unwrapKey(secret, outer.key).then(aesKey)
+    : keyFrom(secret, fromBase64(outer.salt)).then(function (old) {
+      return unseal(old, { iv: fromBase64(outer.checkIv), data: fromBase64(outer.check).buffer }).then(function () { return old; });
+    });
+  key.then(function (got) {
+    backupWaiting = null;
+    el('backup-pin-field').classList.add('hidden');
+    restoreBackup(wait.file, outer, got);
+  }, function () { el('backup-note').textContent = outer.key ? 'That passcode is not right for this backup.' : 'That PIN is not right for this backup.'; });
 }
 
 /* Adds what the backup has and this device does not: new clients whole, and
@@ -8457,6 +8669,7 @@ function restoreBackup(file, outer, key) {
   backupBusy = true;
   el('backup-open').disabled = true;
   el('backup-note').textContent = 'Reading the backup.';
+  var mine = lockInfo() ? lockKey : null;
   var payload = outer.start + outer.size;
   var piece = function (entry) {
     return file.slice(payload + entry.at, payload + entry.at + entry.len).arrayBuffer().then(function (bytes) {
@@ -8468,16 +8681,16 @@ function restoreBackup(file, outer, key) {
     return key ? unseal(key, { iv: fromBase64(outer.iv), data: head }) : head;
   }).then(function (head) {
     var inner = JSON.parse(new TextDecoder().decode(head));
-    return Promise.all([dbAll('clients'), dbAll('shots')]).then(function (all) {
+    return Promise.all([dbKeys('clients'), dbKeys('shots')]).then(function (all) {
       var haveClients = {}, haveShots = {};
-      all[0].forEach(function (c) { haveClients[c.id] = true; });
-      all[1].forEach(function (s) { haveShots[s.id] = true; });
+      all[0].forEach(function (id) { haveClients[id] = true; });
+      all[1].forEach(function (id) { haveShots[id] = true; });
       var newClients = 0, oldClients = 0, newShots = 0;
       return inner.clients.reduce(function (chain, c) {
         return chain.then(function () {
           if (haveClients[c.id]) { oldClients++; return null; }
           newClients++;
-          return putClient({ id: c.id, created: c.created, name: c.data.name, consents: c.data.consents || [] });
+          return putClient({ id: c.id, created: c.created, name: c.data.name, consents: c.data.consents || [] }, mine);
         });
       }, Promise.resolve()).then(function () {
         var todo = inner.shots.filter(function (s) { return !haveShots[s.id]; });
@@ -8486,7 +8699,7 @@ function restoreBackup(file, outer, key) {
           if (n % 10 === 0) el('backup-note').textContent = 'Restoring photo ' + (n + 1) + ' of ' + todo.length + '.';
           var s = todo[n];
           return Promise.all([piece(s.photo), piece(s.thumb)]).then(function (blobs) {
-            return Promise.all([packBlob(blobs[0]), packBlob(blobs[1]), packData(s.data || {})]);
+            return Promise.all([packBlob(blobs[0], mine), packBlob(blobs[1], mine), packData(s.data || {}, mine)]);
           }).then(function (got) {
             newShots++;
             return dbPut('shots', Object.assign({ id: s.id, client: s.client, date: s.date, photo: got[0], thumb: got[1] }, got[2]));
@@ -8507,7 +8720,9 @@ function restoreBackup(file, outer, key) {
   });
 }
 
-el('backup-save').addEventListener('click', saveBackup);
+el('backup-save').addEventListener('click', backupAsk);
+el('backup-pass-go').addEventListener('click', backupPassGo);
+el('backup-pass-again').addEventListener('keydown', function (event) { if (event.key === 'Enter') backupPassGo(); });
 el('backup-open').addEventListener('click', function () { el('backup-picker').click(); });
 el('backup-picker').addEventListener('change', function () {
   var file = el('backup-picker').files[0];
@@ -8661,15 +8876,8 @@ var marks = [];
 var markPick = -1;
 var marking = null;
 
-/* A spot on the picture, written down in the photo's own coordinates so it
-   travels with the photo when it is moved or zoomed. */
-function toImage(cell, rect, point) {
-  return canvasToImage(cell, rect, point);
-}
-
-function toCanvas(cell, rect, u, v) {
-  return imageToCanvas(cell, rect, u, v);
-}
+/* A mark is written down in the photo's own coordinates, so it travels with
+   the photo when it is moved or zoomed. */
 
 function markRect(index, width) {
   var config = settings();
@@ -8684,11 +8892,12 @@ function markRect(index, width) {
    second. Each place carries the mark's two ends at the same spot of that
    cell as on the photo it was drawn on. */
 function markPlaces(mark, width) {
+  if (mark.away) return [];
   var cell = cells[mark.cell];
   var rect = markRect(mark.cell, width);
   if (!cell || !cell.image || !rect) return [];
-  var a = toCanvas(cell, rect, mark.au, mark.av);
-  var b = toCanvas(cell, rect, mark.bu, mark.bv);
+  var a = imageToCanvas(cell, rect, mark.au, mark.av);
+  var b = imageToCanvas(cell, rect, mark.bu, mark.bv);
   var only = mark.show === 'first' ? 0 : mark.show === 'second' ? 1 : -1;
   var spots = photoSpots(width, only);
   if (mode === 'swipe') {
@@ -8777,8 +8986,8 @@ function newMark(from, to) {
   if (index < 0) return null;
   var rect = mode === 'swipe' ? grid.rects[0] : grid.rects[index];
   var cell = cells[index];
-  var a = toImage(cell, rect, from);
-  var b = toImage(cell, rect, to);
+  var a = canvasToImage(cell, rect, from);
+  var b = canvasToImage(cell, rect, to);
   return {
     kind: el('mark-kind').value, cell: index,
     au: a.u, av: a.v, bu: b.u, bv: b.v,
@@ -8807,6 +9016,7 @@ function homePoint(mark, point) {
 
 /* The rect and cell a mark lives on, whichever mode is showing. */
 function markHome(mark) {
+  if (mark.away) return null;
   var cell = cells[mark.cell];
   var rect = mode === 'swipe' ? grid.rects[0] : grid.rects[mark.cell];
   return cell && cell.image && rect ? { cell: cell, rect: rect } : null;
@@ -8818,10 +9028,10 @@ function markGrab(mark, point) {
   var home = markHome(mark);
   if (!home) return null;
   point = homePoint(mark, point);
-  var a = toCanvas(home.cell, home.rect, mark.au, mark.av);
-  var b = toCanvas(home.cell, home.rect, mark.bu, mark.bv);
+  var a = imageToCanvas(home.cell, home.rect, mark.au, mark.av);
+  var b = imageToCanvas(home.cell, home.rect, mark.bu, mark.bv);
   var reach = Math.max(18 / view.k, mark.width * stageWidth() / 400);
-  var at = toImage(home.cell, home.rect, point);
+  var at = canvasToImage(home.cell, home.rect, point);
   if (Math.hypot(point.x - a.x, point.y - a.y) <= reach) return { end: 'a', at: at };
   if (Math.hypot(point.x - b.x, point.y - b.y) <= reach) return { end: 'b', at: at };
   return { end: 'all', at: at };
@@ -8832,7 +9042,7 @@ function dragMark(point) {
   if (!mark) return;
   var home = markHome(mark);
   if (!home) return;
-  var now = toImage(home.cell, home.rect, homePoint(mark, point));
+  var now = canvasToImage(home.cell, home.rect, homePoint(mark, point));
   var du = now.u - moving.at.u;
   var dv = now.v - moving.at.v;
   if (moving.end === 'a' || moving.end === 'all') { mark.au += du; mark.av += dv; }
@@ -8892,6 +9102,7 @@ el('mark-copy').addEventListener('click', function () {
   var copy = {};
   Object.keys(mark).forEach(function (key) { copy[key] = mark[key]; });
   copy.cell = next;
+  copy.photo = undefined;
   /* A mark tied to one side of the divider takes the side its new photo is on. */
   if (copy.show === 'first' || copy.show === 'second') copy.show = next === 0 ? 'first' : 'second';
   marks.push(copy);
@@ -9497,6 +9708,7 @@ function renderInto(canvas, width) {
 }
 
 function drawPicture(canvas, width) {
+  spotsFollow();
   var config = settings();
   var out = canvas.getContext('2d');
   if (mode === 'swipe') {
@@ -9844,6 +10056,11 @@ function makeFile(button, busy, then) {
     button.textContent = idle;
     button.disabled = photos.length === 0;
   };
+  /* a phone browser makes no file past its own size limit, about 16 million pixels on an iPhone */
+  var tooBig = function () {
+    message('The picture is too big for this browser at ' + canvas.width + ' by ' + canvas.height + '. Pick a smaller size next to Save.');
+    done();
+  };
 
   if (format === 'pdf') {
     if (!window.PDFLib) {
@@ -9852,6 +10069,7 @@ function makeFile(button, busy, then) {
       return;
     }
     canvas.toBlob(function (blob) {
+      if (!blob) { tooBig(); return; }
       blob.arrayBuffer().then(function (buffer) {
         return window.PDFLib.PDFDocument.create().then(function (doc) {
           return doc.embedJpg(new Uint8Array(buffer)).then(function (image) {
@@ -9873,6 +10091,7 @@ function makeFile(button, busy, then) {
   }
 
   canvas.toBlob(function (blob) {
+    if (!blob) { tooBig(); return; }
     var ext = format === 'image/png' ? 'png' : 'jpg';
     then(blob, stem + '-proofline.' + ext);
     el('out-size').textContent = canvas.width + ' by ' + canvas.height + ', ' + readable(blob.size);
@@ -9935,7 +10154,7 @@ document.addEventListener('paste', function (event) {
 });
 
 /* The version shown under About, raised with every release. */
-var APP_VERSION = '47';
+var APP_VERSION = '48';
 el('about-version').textContent = 'Version ' + APP_VERSION;
 
 /* ---------- groups of settings ---------- */
@@ -10321,7 +10540,22 @@ function keepNote(state) {
   el('keep-note').textContent = words;
 }
 
+/* Only one window keeps the set, since each save takes out the photos its own
+   set does not have, and two windows would take out each other's. */
+var sessionOwner = true;
+if (navigator.locks) {
+  navigator.locks.request('proofline-session', { ifAvailable: true }, function (got) {
+    if (!got) {
+      sessionOwner = false;
+      message('Proofline is open in another window, so the photos in this one are not kept for next time.');
+      return null;
+    }
+    return new Promise(function () { /* held while this window is open */ });
+  });
+}
+
 function sessionSoon() {
+  if (!sessionOwner) return;
   if (sessionWaiting && photos.length) {
     /* new photos went in instead of the locked set, so they take its place */
     sessionWaiting = null;
