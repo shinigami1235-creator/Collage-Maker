@@ -369,10 +369,13 @@ body.full .hint { display: none !important; }
   .top .client-chip { max-width: 96px; }
   .tab-mode { padding: 0 9px; }
   .save-bar { flex-wrap: wrap; gap: 6px; }
-  .save-bar select { flex: 1 1 24%; min-width: 0; padding-left: 6px; padding-right: 18px; font-size: 14px; }
-  .save-bar select#post { flex: 2 1 34%; }
+  /* what and shape on the first row, size, format, Share and Save on the second */
+  .save-bar select { flex: 1 1 18%; min-width: 0; padding-left: 6px; padding-right: 18px; font-size: 14px; }
+  .save-bar select#post, .save-bar select#what { flex: 1 1 40%; }
+  .save-bar select#size { flex: 1 1 23%; }
+  .save-bar select#format { flex: 1 1 19%; }
+  .save-bar .btn { flex: 1 1 19%; padding-left: 4px; padding-right: 4px; }
   .save-bar .grow { display: none; }
-  .save-bar .btn { flex: 1 1 40%; }
   .tools { gap: 2px; padding: 0 6px; }
   .tool { padding: 0 4px; font-size: 13.5px; }
 }
@@ -995,7 +998,7 @@ body.full .hint { display: none !important; }
           <li>Full screen: one photo close up, with arrows that move a pixel per tap and buttons that turn it a tenth of a degree.</li>
           <li>Each tool shows its main buttons at the top. Tap a group under them, like Layout or Remove the background, to open its settings. The line under a group's name shows what it is set to, and a group left open stays open next time.</li>
           <li>To take a photo out of the set, tap × on it in the strip under the picture, then tap Take out.</li>
-          <li>Press Save, or Share on a phone to send the picture straight to another app.</li>
+          <li>Press Save, or Share on a phone to send the picture straight to another app. The menu next to Save picks the whole picture or each photo as its own file: plain is the photo only, and marked adds its label, covers, marks and watermark. With PDF, each photo goes on its own page.</li>
           <li>Light: Matched to the first photo evens out the brightness, contrast and colour of the other photos to the first, measured on the part each one shows, so a darker room or a warmer lamp does not change how the result looks. As taken puts them back.</li>
           <li>Brand kit, at the bottom of Labels: open it, set the credit, the watermark and its logo once, type a name and press Save as a kit. Picking the kit later puts them all back.</li>
           <li>The shape picker, beside Size, fits the picture into an Instagram post, a story or reel, a square or a wide video. In Swipe the frame takes that shape from edge to edge, and the swipe video uses it too. In Grid the background colour fills around the photos.</li>
@@ -1097,7 +1100,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.</pre>
   </div>
 
   <div class="save-bar">
-    <label class="count" for="size">Size</label>
+    <select id="what" style="width:auto" aria-label="What to save">
+      <option value="picture" selected>Whole picture</option>
+      <option value="plain">Each photo, plain</option>
+      <option value="marked">Each photo, marked</option>
+    </select>
     <select id="post" style="width:auto" aria-label="Made for">
       <option value="as" selected>Shape as shown</option>
       <option value="post">Instagram post 4:5</option>
@@ -1105,6 +1112,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.</pre>
       <option value="story">Story or reel 9:16</option>
       <option value="wide">Wide video 16:9</option>
     </select>
+    <label class="count" for="size">Size</label>
     <select id="size" style="width:auto">
       <option value="1080">1080px</option>
       <option value="1200">1200px</option>
@@ -4708,7 +4716,11 @@ function coverBox(cover, rect) {
 
 function drawCovers(c, width) {
   covers.forEach(function (cover) {
-    coverPlaces(cover, width).forEach(function (spot) {
+    coverPlaces(cover, width).forEach(function (spot) { drawCoverAt(c, cover, spot); });
+  });
+}
+
+function drawCoverAt(c, cover, spot) {
       var box = coverBox(cover, spot.rect);
       var middle = { x: box.x + box.w / 2, y: box.y + box.h / 2 };
       c.save();
@@ -4731,8 +4743,6 @@ function drawCovers(c, width) {
         pixelate(c, cells[spot.index], spot.rect, box, cover.strength || 14);
       }
       c.restore();
-    });
-  });
 }
 
 function newCover(from, to) {
@@ -9844,6 +9854,84 @@ function renderInto(canvas, width) {
   return canvas;
 }
 
+/* Each shown photo as its own picture, at the size picked and in the shape of
+   its frame. Plain is the photo only, as lined up and with its light and
+   background. With markings adds its label, covers, marks, watermark and
+   credit line, sized as they are in the whole picture. */
+function photoPictures(width, marked) {
+  spotsFollow();
+  var config = settings();
+  var whole = mode === 'swipe' ? width : layoutOf(config, width).width;
+  var frames = [];
+  cells.forEach(function (cell, index) {
+    if (!cell.image) return;
+    var home = markRect(index, 1000);
+    if (!home) return;
+    var k = width / home.width;
+    var canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = Math.round(home.height * k);
+    var rect = { x: 0, y: 0, width: canvas.width, height: canvas.height };
+    var all = { x: 0, y: 0, w: rect.width, h: rect.height };
+    var c = canvas.getContext('2d');
+    c.fillStyle = config.background;
+    c.fillRect(0, 0, rect.width, rect.height);
+    c.save();
+    c.beginPath();
+    c.rect(0, 0, rect.width, rect.height);
+    c.clip();
+    drawPhoto(c, cell, rect);
+    c.restore();
+    /* the label, marks and strokes keep the size they have in the whole picture */
+    var full = mode === 'swipe' ? width : whole * width / layoutOf(config, width).rects[index].width;
+    if (marked) {
+      covers.forEach(function (cover) {
+        if (cover.every === false && (cover.away || cover.cell !== index)) return;
+        drawCoverAt(c, cover, { index: index, rect: rect, clip: all });
+      });
+      marks.forEach(function (mark) {
+        var only = mark.show === 'first' ? 0 : mark.show === 'second' ? 1 : -1;
+        if (mark.away || (only >= 0 && only !== index)) return;
+        var from = markRect(mark.cell, 1000);
+        if (!from || !cells[mark.cell] || !cells[mark.cell].image) return;
+        var to = function (p) { return { x: (p.x - from.x) / from.width * rect.width, y: (p.y - from.y) / from.height * rect.height }; };
+        drawOneMark(c, mark, {
+          a: to(imageToCanvas(cells[mark.cell], from, mark.au, mark.av)),
+          b: to(imageToCanvas(cells[mark.cell], from, mark.bu, mark.bv)),
+          clip: all, rect: rect
+        }, full);
+      });
+      var words = config.labels ? labelText(index) : '';
+      if (words) {
+        var box = labelBox(c, rect, words, full, mode === 'swipe' && index === 1 ? 'right' : 'left', cell);
+        paintLabel(c, box, words, 1);
+      }
+      drawBrand(c, rect.width, rect.height);
+    } else if (plan && plan.tier === 'free') drawFreeMark(c, rect.width, rect.height);
+    frames.push({ canvas: fitPostShape(canvas, config.background), stem: cell.image.stem });
+  });
+  return frames;
+}
+
+/* Fits a picture inside the shape picked under Made for, with the background
+   colour around it. */
+function fitPostShape(inner, background) {
+  var shape = postShape();
+  if (!shape) return inner;
+  var tw = inner.width, th = Math.round(tw / shape);
+  var canvas = document.createElement('canvas');
+  canvas.width = tw;
+  canvas.height = th;
+  var k = Math.min(tw / inner.width, th / inner.height);
+  var w = Math.round(inner.width * k), h = Math.round(inner.height * k);
+  var c = canvas.getContext('2d');
+  c.fillStyle = background;
+  c.fillRect(0, 0, tw, th);
+  c.imageSmoothingQuality = 'high';
+  c.drawImage(inner, Math.round((tw - w) / 2), Math.round((th - h) / 2), w, h);
+  return canvas;
+}
+
 function drawPicture(canvas, width) {
   spotsFollow();
   var config = settings();
@@ -10178,65 +10266,82 @@ function save(blob, name) {
   setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
 }
 
-/* Builds the picture as a file in the format picked, then hands it on. */
+/* Builds the picture, or each photo, as files in the format picked, then hands
+   them on. A PDF holds each photo on its own page. */
 function makeFile(button, busy, then) {
   var idle = button.textContent;
   button.disabled = true;
   button.textContent = busy;
   var width = Number(el('size').value);
   var format = el('format').value;
-  var canvas = render(width);
+  var what = el('what').value;
   var first = cells.filter(function (cell) { return cell.image; })[0];
   var stem = (first ? first.image.stem : 'collage').slice(0, 40);
+  var frames = what === 'picture'
+    ? [{ canvas: render(width), stem: stem }]
+    : photoPictures(width, what === 'marked');
+  var tail = what === 'plain' ? '-plain' : what === 'marked' ? '-marked' : '-proofline';
+  /* two photos with the same name still get two files */
+  var used = {};
+  frames.forEach(function (frame) {
+    var name = frame.stem.slice(0, 40) + tail;
+    used[name] = (used[name] || 0) + 1;
+    frame.name = used[name] > 1 ? name + '-' + used[name] : name;
+  });
 
   var done = function () {
     button.textContent = idle;
     button.disabled = photos.length === 0;
   };
-  /* a phone browser makes no file past its own size limit, about 16 million pixels on an iPhone */
-  var tooBig = function () {
-    message('The picture is too big for this browser at ' + canvas.width + ' by ' + canvas.height + '. Pick a smaller size next to Save.');
-    done();
+  var blobOf = function (canvas, type) {
+    return new Promise(function (ok) { canvas.toBlob(ok, type, 0.92); }).then(function (blob) {
+      /* a phone browser makes no file past its own size limit, about 16 million pixels on an iPhone */
+      if (!blob) throw new Error('The picture is too big for this browser at ' + canvas.width + ' by ' + canvas.height + '. Pick a smaller size next to Save.');
+      return blob;
+    });
   };
-
+  var made;
   if (format === 'pdf') {
     if (!window.PDFLib) {
       message('The PDF part has not finished loading. Try again in a moment.');
       done();
       return;
     }
-    canvas.toBlob(function (blob) {
-      if (!blob) { tooBig(); return; }
-      blob.arrayBuffer().then(function (buffer) {
-        return window.PDFLib.PDFDocument.create().then(function (doc) {
-          return doc.embedJpg(new Uint8Array(buffer)).then(function (image) {
-            var page = doc.addPage([image.width, image.height]);
-            page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
-            return doc.save();
-          });
+    made = window.PDFLib.PDFDocument.create().then(function (doc) {
+      return frames.reduce(function (chain, frame) {
+        return chain.then(function () { return blobOf(frame.canvas, 'image/jpeg'); }).then(function (blob) { return blob.arrayBuffer(); }).then(function (buffer) {
+          return doc.embedJpg(new Uint8Array(buffer));
+        }).then(function (image) {
+          doc.addPage([image.width, image.height]).drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
         });
-      }).then(function (bytes) {
-        then(new Blob([bytes], { type: 'application/pdf' }), stem + '-proofline.pdf');
-        el('out-size').textContent = canvas.width + ' by ' + canvas.height + ', ' + readable(bytes.length);
-        done();
-      }).catch(function (error) {
-        message(error.message);
-        done();
-      });
-    }, 'image/jpeg', 0.92);
-    return;
-  }
-
-  canvas.toBlob(function (blob) {
-    if (!blob) { tooBig(); return; }
+      }, Promise.resolve()).then(function () { return doc.save(); });
+    }).then(function (bytes) {
+      var name = frames.length === 1 ? frames[0].name : stem + tail;
+      return [{ blob: new Blob([bytes], { type: 'application/pdf' }), name: name + '.pdf' }];
+    });
+  } else {
     var ext = format === 'image/png' ? 'png' : 'jpg';
-    then(blob, stem + '-proofline.' + ext);
-    el('out-size').textContent = canvas.width + ' by ' + canvas.height + ', ' + readable(blob.size);
-    done();
-  }, format, 0.92);
+    made = frames.reduce(function (chain, frame) {
+      return chain.then(function (list) {
+        return blobOf(frame.canvas, format).then(function (blob) { return list.concat([{ blob: blob, name: frame.name + '.' + ext }]); });
+      });
+    }, Promise.resolve([]));
+  }
+  made.then(function (files) {
+    if (!files.length) { message('There is no photo to save.'); return; }
+    then(files);
+    var size = files.reduce(function (sum, file) { return sum + file.blob.size; }, 0);
+    el('out-size').textContent = (files.length > 1 ? files.length + ' files, ' : frames[0].canvas.width + ' by ' + frames[0].canvas.height + ', ') + readable(size);
+  }).catch(function (error) { message(error.message); }).then(done);
 }
 
-el('save').addEventListener('click', function () { makeFile(el('save'), 'Saving', save); });
+/* Several files download one after another, since a browser drops downloads
+   started all at once. */
+function saveAll(files) {
+  files.forEach(function (file, n) { setTimeout(function () { save(file.blob, file.name); }, n * 400); });
+}
+
+el('save').addEventListener('click', function () { makeFile(el('save'), 'Saving', saveAll); });
 
 /* ---------- sharing straight to another app ---------- */
 
@@ -10264,7 +10369,19 @@ function shareFile(blob, name) {
 
 var canSharePictures = canShareType('image/jpeg', 'collage.jpg');
 el('share').classList.toggle('hidden', !canSharePictures);
-el('share').addEventListener('click', function () { makeFile(el('share'), 'Sharing', shareFile); });
+/* Every file goes into one share, so a phone can put them all in Photos at once. */
+function shareAll(files) {
+  var list = files.map(function (file) { return new File([file.blob], file.name, { type: file.blob.type }); });
+  if (!navigator.canShare || !navigator.canShare({ files: list })) {
+    saveAll(files);
+    message('This browser cannot share these files and saved them instead.');
+    return;
+  }
+  navigator.share({ files: list }).catch(function (error) {
+    if (error && error.name !== 'AbortError') message('Sharing stopped. ' + error.message);
+  });
+}
+el('share').addEventListener('click', function () { makeFile(el('share'), 'Sharing', shareAll); });
 
 var lastTape = null;
 el('tape-share').addEventListener('click', function () {
@@ -10291,7 +10408,7 @@ document.addEventListener('paste', function (event) {
 });
 
 /* The version shown under About, raised with every release. */
-var APP_VERSION = '49';
+var APP_VERSION = '50';
 el('about-version').textContent = 'Version ' + APP_VERSION;
 
 /* ---------- groups of settings ---------- */
@@ -10635,14 +10752,20 @@ function maskSum(mask) {
   return sum;
 }
 
-/* The photo as it was opened, or as Four-point line up redrew it. */
+/* The photo as it was opened, or as Four-point line up redrew it. A phone can
+   refuse to read a picked file again later, so the photo on screen is kept
+   instead when that happens. */
 function photoBytes(photo) {
+  var drawn = function () {
+    return jpegOf(photo.bitmap, photo.width, photo.height, 4000, 0.92).then(function (blob) {
+      if (!blob) throw new Error('The photo could not be copied.');
+      return blob.arrayBuffer().then(function (bytes) { return { bytes: bytes, type: 'image/jpeg' }; });
+    });
+  };
   if (photo.file && photo.bitmap === photo.fileBitmap) {
-    return photo.file.arrayBuffer().then(function (bytes) { return { bytes: bytes, type: photo.file.type || 'image/jpeg' }; });
+    return photo.file.arrayBuffer().then(function (bytes) { return { bytes: bytes, type: photo.file.type || 'image/jpeg' }; }, drawn);
   }
-  return jpegOf(photo.bitmap, photo.width, photo.height, 4000, 0.92).then(function (blob) {
-    return blob.arrayBuffer().then(function (bytes) { return { bytes: bytes, type: 'image/jpeg' }; });
-  });
+  return drawn();
 }
 
 function sessionState(list) {
@@ -10677,22 +10800,13 @@ function keepNote(state) {
   el('keep-note').textContent = words;
 }
 
-/* Only one window keeps the set, since each save takes out the photos its own
-   set does not have, and two windows would take out each other's. */
-var sessionOwner = true;
-if (navigator.locks) {
-  navigator.locks.request('proofline-session', { ifAvailable: true }, function (got) {
-    if (!got) {
-      sessionOwner = false;
-      message('Proofline is open in another window, so the photos in this one are not kept for next time.');
-      return null;
-    }
-    return new Promise(function () { /* held while this window is open */ });
-  });
-}
+/* Two windows of the app keep whichever set changed last. A save that finds
+   a photo of its set gone, taken out by the other window, writes it again. */
+var sessionDirty = false;
+var sessionTold = false;
 
 function sessionSoon() {
-  if (!sessionOwner) return;
+  sessionDirty = true;
   if (sessionWaiting && photos.length) {
     /* new photos went in instead of the locked set, so they take its place */
     sessionWaiting = null;
@@ -10701,7 +10815,8 @@ function sessionSoon() {
   }
   if (!sessionReady) return;
   clearTimeout(sessionTimer);
-  sessionTimer = setTimeout(sessionSave, 1500);
+  /* a set with nothing kept yet is kept right away */
+  sessionTimer = setTimeout(sessionSave, Object.keys(sessionWritten).length ? 1500 : 300);
 }
 
 function sessionSave() {
@@ -10709,7 +10824,13 @@ function sessionSave() {
   sessionTimer = 0;
   if (!sessionReady) return;
   if (sessionBusy) { sessionAgain = true; return; }
-  if (!photos.length) { sessionClear(); return; }
+  /* an empty set clears what is kept only when this window kept photos and they
+     were all taken out, so a second, empty window leaves the kept set alone */
+  if (!photos.length) {
+    sessionDirty = false;
+    if (Object.keys(sessionWritten).length) sessionClear();
+    return;
+  }
   if (lockInfo() && !sessionLock()) { keepNote('locked'); return; }
   if (!sessionAsked && navigator.storage && navigator.storage.persist) {
     sessionAsked = true;
@@ -10717,7 +10838,10 @@ function sessionSave() {
   }
   var key = sessionLock();
   var list = photos.slice();
+  var missed = [];
   sessionBusy = true;
+  sessionDirty = false;
+  /* one photo that can't be read does not stop the rest of the set being kept */
   Promise.all(list.map(function (photo) {
     var sum = maskSum(photo.mask);
     var was = sessionWritten[photo.id];
@@ -10731,24 +10855,42 @@ function sessionSave() {
           record: { id: 'photo:' + photo.id, type: got.type, photo: parts[0], mask: parts[1] ? { w: mask.w, h: mask.h, part: parts[1] } : null }
         };
       });
-    });
+    }).catch(function () { missed.push(photo); return null; });
   })).then(function (done) {
     return closePart(key, new TextEncoder().encode(JSON.stringify(sessionState(list))).buffer).then(function (state) {
       var keep = {};
       list.forEach(function (photo) { keep['photo:' + photo.id] = true; });
+      var gone = [];
       return sessionDo('readwrite', function (store) {
-        done.forEach(function (one) { if (one) store.put(one.record); });
-        store.put({ id: 'state', state: state, saved: Date.now() });
         var keys = store.getAllKeys();
         keys.onsuccess = function () {
-          keys.result.forEach(function (id) { if (id !== 'state' && !keep[id]) store.delete(id); });
+          var have = {};
+          keys.result.forEach(function (id) { have[id] = true; if (id !== 'state' && !keep[id]) store.delete(id); });
+          list.forEach(function (photo) { if (!have['photo:' + photo.id]) gone.push(photo.id); });
         };
+        done.forEach(function (one) { if (one) store.put(one.record); });
+        store.put({ id: 'state', state: state, saved: Date.now() });
         return null;
       }).then(function () {
         done.forEach(function (one) { if (one) sessionWritten[one.id] = one.mark; });
+        /* a photo this window thought was kept, and isn't, goes in with the next save */
+        var again = gone.filter(function (id) { return !done.some(function (one) { return one && one.id === id; }); });
+        if (again.length) { again.forEach(function (id) { delete sessionWritten[id]; }); sessionAgain = true; }
       });
     });
-  }).then(function () { keepNote('saved'); }, function () { keepNote('failed'); }).then(function () {
+  }).then(function () {
+    keepNote('saved');
+    if (missed.length) {
+      sessionDirty = true;
+      if (!sessionTold) message(missed.map(function (photo) { return photoName(photos.indexOf(photo)); }).join(', ') + ' could not be kept for next time. The rest of the set is kept.');
+      sessionTold = true;
+    }
+  }, function (error) {
+    sessionDirty = true;
+    keepNote('failed');
+    if (!sessionTold) message('This set could not be kept on this device. ' + (error && error.message ? error.message + ' ' : '') + 'Save the picture before closing the app.');
+    sessionTold = true;
+  }).then(function () {
     sessionBusy = false;
     if (sessionAgain) { sessionAgain = false; sessionSoon(); }
   });
@@ -10762,11 +10904,12 @@ function sessionClear() {
   return sessionDo('readwrite', function (store) { store.clear(); return null; }).catch(function () { /* nothing kept */ });
 }
 
-/* Closing the app or switching away keeps the last change straight away. */
+/* Closing the app or switching away keeps the last change straight away,
+   including one an earlier save could not keep. */
 document.addEventListener('visibilitychange', function () {
-  if (document.hidden && sessionTimer) sessionSave();
+  if (document.hidden && (sessionTimer || sessionDirty)) sessionSave();
 });
-window.addEventListener('pagehide', function () { if (sessionTimer) sessionSave(); });
+window.addEventListener('pagehide', function () { if (sessionTimer || sessionDirty) sessionSave(); });
 
 function sessionLoad(rec) {
   return openPart(rec.state).then(function (bytes) {
@@ -10774,9 +10917,11 @@ function sessionLoad(rec) {
     return sessionDo('readonly', function (store) { return store.getAll(); }).then(function (all) {
       var parts = {};
       all.forEach(function (one) { parts[one.id] = one; });
-      return Promise.all(state.photos.map(function (meta) {
+      /* one photo at a time, since a tablet runs short of memory decoding a
+         whole set of camera photos at once */
+      var one = function (meta) {
         var part = parts['photo:' + meta.id];
-        if (!part) return null;
+        if (!part) return Promise.resolve(null);
         return Promise.all([openPart(part.photo), part.mask ? openPart(part.mask.part) : null]).then(function (got) {
           var blob = new Blob([got[0]], { type: part.type || 'image/jpeg' });
           return createImageBitmap(blob, { imageOrientation: 'from-image' }).then(function (bitmap) {
@@ -10791,9 +10936,20 @@ function sessionLoad(rec) {
             return photo;
           });
         }).catch(function () { return null; });
-      })).then(function (list) {
-        list = list.filter(Boolean);
-        if (!list.length) { sessionReady = true; sessionClear(); return; }
+      };
+      var opened = [];
+      return state.photos.reduce(function (chain, meta) {
+        return chain.then(function () { return one(meta); }).then(function (photo) { opened.push(photo); });
+      }, Promise.resolve()).then(function () {
+        var list = opened.filter(Boolean);
+        if (!list.length) {
+          sessionReady = true;
+          /* kept as it is, so opening the app again can try once more */
+          if (state.photos.length) message('The last set could not be opened this time. Close the app and open it again to try once more, or add photos to start a new set.');
+          else sessionClear();
+          return;
+        }
+        if (list.length < state.photos.length) message((state.photos.length - list.length) + ' of the photos in the last set could not be opened.');
         var byId = {};
         list.forEach(function (photo) { byId[photo.id] = photo; });
         photos = list;
