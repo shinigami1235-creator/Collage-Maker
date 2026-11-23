@@ -1,6 +1,6 @@
 /* Bump CACHE_VERSION on every deploy, since that is what tells browsers a new
    version exists. */
-const CACHE_VERSION = 'v50';
+const CACHE_VERSION = 'v51';
 const CACHE = `collage-maker-${CACHE_VERSION}`;
 /* The face and body finders and the closer match are downloaded only when
    first used. They are kept in their own cache, so a new version of the app
@@ -25,6 +25,7 @@ const FILES = [
 const VENDOR_FILES = [
   './vendor/pdf-lib.min.js',
   './vendor/jsfeat.min.js',
+  './vendor/anime.umd.min.js',
   './vendor/mediapipe/face_detection.js',
   './vendor/mediapipe/face_detection_solution_simd_wasm_bin.js',
   './vendor/mediapipe/face_detection_solution_simd_wasm_bin.wasm',

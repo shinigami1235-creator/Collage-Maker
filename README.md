@@ -31,6 +31,7 @@ installed the app keeps serving the old build until that string changes.
     icons/                     192, 512, maskable 512, apple touch
     vendor/pdf-lib.min.js      used by the PDF export
     vendor/jsfeat.min.js       finds and pairs the spots for Auto line up
+    vendor/anime.umd.min.js    Anime.js 4.5.0, MIT (vendor/anime-LICENSE.md), the divider's handle and the photos sliding into place
     vendor/mediapipe/          MediaPipe face detection 0.4, Apache 2.0, finds the eyes for Cover the eyes
     vendor/mediapipe-selfie/   MediaPipe selfie segmentation 0.1, Apache 2.0, finds the person for Remove the background
     vendor/mediapipe-mesh/     MediaPipe Face Mesh 0.4, Apache 2.0, face points for the camera guide, line up and eye covers

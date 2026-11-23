@@ -129,6 +129,11 @@ body {
   touch-action: none; cursor: grab; user-select: none; box-shadow: 0 2px 10px rgba(16,28,43,.08);
 }
 #stage:active { cursor: grabbing; }
+/* the divider's handle lies over the line drawn on the picture */
+#divider-track { position: absolute; pointer-events: none; display: none; }
+#divider-track.on { display: block; }
+#divider-grip { position: absolute; top: 0; left: 0; width: 48px; height: 100%; pointer-events: auto; touch-action: none; cursor: ew-resize; outline: none; }
+#divider-grip:focus-visible { box-shadow: inset 0 0 0 2px var(--primary); border-radius: 6px; }
 /* the line under the picture: the strip of photos, what dragging does, and Full screen */
 .stage-row { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; width: 100%; max-width: 900px; margin-top: 6px; }
 .stage-row .order.on { margin-top: 0; flex: 0 1 auto; min-width: 0; }
@@ -427,6 +432,7 @@ body.full .hint { display: none !important; }
 
     <div class="stage-wrap">
       <canvas id="stage"></canvas>
+      <div id="divider-track"><div id="divider-grip" role="slider" tabindex="0" aria-label="Divider between Before and After" aria-valuemin="0" aria-valuemax="100"></div></div>
       <div class="stage-row">
         <div class="order" id="order" aria-label="Order of the photos"></div>
         <div class="hint hidden" id="swipe-hint">Drag left and right</div>
@@ -1340,6 +1346,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.</pre>
 
 <script src="./vendor/pdf-lib.min.js"></script>
 <script src="./vendor/jsfeat.min.js"></script>
+<script src="./vendor/anime.umd.min.js"></script>
 <script>
 /* Proofline, powered by Cygnus Solutions. Everything runs here, so the app works with no connection
    once it is installed. */
@@ -1762,9 +1769,10 @@ function emptyShade(background) {
   return background.toLowerCase() === '#ffffff' ? '#eef0f4' : 'rgba(255,255,255,.08)';
 }
 
-function drawGrid(ctx, settings, cells, width) {
+function drawGrid(ctx, settings, cells, width, preview) {
   labelBoxes = [];
   var grid = layoutOf(settings, width);
+  if (preview) grid.rects = slidingRects(grid.rects, cells);
   ctx.fillStyle = settings.background;
   ctx.fillRect(0, 0, grid.width, grid.height);
   grid.rects.forEach(function (rect, index) {
@@ -1773,6 +1781,7 @@ function drawGrid(ctx, settings, cells, width) {
     ctx.beginPath();
     ctx.rect(rect.x, rect.y, rect.width, rect.height);
     ctx.clip();
+    if (rect.alpha !== undefined) ctx.globalAlpha = rect.alpha;
     if (cell && cell.image) {
       drawPhoto(ctx, cell, rect);
       var words = settings.labels ? labelText(index) : '';
@@ -3541,7 +3550,7 @@ function paint() {
     drawBrush(ctx);
     drawLoupe(ctx);
   } else {
-    grid = drawGrid(ctx, config, cells, width);
+    grid = drawGrid(ctx, config, cells, width, true);
     drawCovers(ctx, width);
     drawMarks(ctx, width, grid.height, false);
     drawBrand(ctx, width, grid.height);
@@ -3563,6 +3572,7 @@ function paint() {
   }
   ghost = false;
   lastBoxes = { labels: labelBoxes.slice(), credit: creditBox, wm: wmBoxes.slice() };
+  syncGrip();
   report();
 }
 
@@ -3970,7 +3980,15 @@ function stripThumb(photo) {
   return canvas;
 }
 
+var stripWas = '';
 function orderStrip() {
+  var now = photos.map(function (photo) { return photo.id; }).join('|');
+  var changed = stripWas !== '' && now !== stripWas;
+  stripWas = now;
+  if (changed) { slideNext = true; stripChange(buildStrip); }
+  else buildStrip();
+}
+function buildStrip() {
   var strip = el('order');
   var on = photos.length >= 1;
   strip.classList.toggle('on', on);
@@ -3982,6 +4000,7 @@ function orderStrip() {
     item.tabIndex = 0;
     item.className = 'thumb';
     item.dataset.id = photo.id;
+    item.dataset.layoutId = 'photo-' + photo.id;
     item.setAttribute('aria-label', 'Photo ' + (index + 1) + ', ' + (photoWords(photo) || photo.stem) + '. Arrow keys move it.');
     if (mode === 'swipe' && cellOf(photo)) item.classList.add('shown');
     var view = document.createElement('canvas');
@@ -4119,8 +4138,8 @@ el('order').addEventListener('pointermove', function (event) {
     var box = others[i].getBoundingClientRect();
     if (event.clientX < box.left + box.width / 2) { before = others[i]; break; }
   }
-  if (before) { if (item.nextSibling !== before) strip.insertBefore(item, before); }
-  else if (strip.lastChild !== item) strip.appendChild(item);
+  if (before) { if (item.nextSibling !== before) stripChange(function () { strip.insertBefore(item, before); }); }
+  else if (strip.lastChild !== item) stripChange(function () { strip.appendChild(item); });
   /* the strip scrolls when a photo is held near its end */
   var edge = strip.getBoundingClientRect();
   if (event.clientX > edge.right - 30) strip.scrollLeft += 12;
@@ -4142,8 +4161,10 @@ function stripUp(event) {
   var cell = cellOf(photo);
   if (cell) { picked = cells.indexOf(cell); paint(); }
 }
-el('order').addEventListener('pointerup', stripUp);
-el('order').addEventListener('pointercancel', stripUp);
+/* Moving the held photo along the strip makes the browser let go of the finger,
+   so the lift is heard anywhere on the page, not only over the strip. */
+window.addEventListener('pointerup', stripUp);
+window.addEventListener('pointercancel', stripUp);
 el('order').addEventListener('keydown', function (event) {
   var item = event.target.closest('.thumb');
   if (!item || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
@@ -4308,6 +4329,127 @@ stage.addEventListener('pointermove', function (event) {
   var lining = mode === 'swipe' && !pins && !areaPick && !lasso && !brush && viewMode === 'split';
   stage.style.cursor = lining && nearDivider(stagePoint(event)) ? 'ew-resize' : '';
 });
+
+/* Motion stays small and slow, since the picture is shown to patients. With
+   Reduce motion turned on in the phone's settings nothing slides or springs. */
+var calmQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+function calm() { return !window.anime || !!(calmQuery && calmQuery.matches); }
+
+/* The divider's handle. It sits over the line drawn on the picture, follows
+   the finger, and settles with a soft spring when let go. */
+var GRIP = 48;
+var grip = null;
+var gripBusy = false;
+var gripRest = 0;
+var gripTrack = { w: 0, h: 0 };
+function gripShown() {
+  return mode === 'swipe' && viewMode === 'split' && !pins && !areaPick && !lasso && !brush && !taping &&
+    !!(cells[0] && cells[0].image && cells[1] && cells[1].image);
+}
+function makeGrip() {
+  if (!window.anime) return;
+  if (grip) grip.revert();
+  var still = calm();
+  grip = anime.createDraggable('#divider-grip', {
+    y: false,
+    container: '#divider-track',
+    containerPadding: [0, -GRIP / 2, 0, -GRIP / 2],
+    cursor: { onHover: 'ew-resize', onGrab: 'ew-resize' },
+    dragThreshold: { mouse: 1, touch: 3 },
+    velocityMultiplier: still ? 0 : 0.35,
+    releaseEase: still ? 'linear' : anime.spring({ bounce: 0.12, duration: 450 }),
+    onGrab: function () { gripBusy = true; clearTimeout(gripRest); remember(); },
+    /* a release that has nowhere to go never reports settling, so the handle
+       gives control back on its own once the spring would have finished */
+    onRelease: function () { clearTimeout(gripRest); gripRest = setTimeout(function () { gripBusy = false; paintSoon(); }, 650); },
+    onUpdate: function (self) {
+      if (!gripBusy || !gripTrack.w) return;
+      swipePosition = Math.min(1, Math.max(0, (self.x + GRIP / 2) / gripTrack.w));
+      paintSoon();
+    },
+    onSettle: function () { clearTimeout(gripRest); gripBusy = false; paintSoon(); },
+  });
+}
+/* Called after each paint, so the handle keeps up with the picture's size and
+   with the divider moved by anything else (Reset, the video, a saved set). */
+function syncGrip() {
+  if (!gripTrack) return;
+  var track = el('divider-track');
+  var on = gripShown();
+  track.classList.toggle('on', on);
+  if (!on) return;
+  var w = stage.clientWidth, h = stage.clientHeight;
+  track.style.left = (stage.offsetLeft + stage.clientLeft) + 'px';
+  track.style.top = (stage.offsetTop + stage.clientTop) + 'px';
+  track.style.width = w + 'px';
+  track.style.height = h + 'px';
+  var gripEl = el('divider-grip');
+  gripEl.setAttribute('aria-valuenow', String(Math.round(swipePosition * 100)));
+  if (!grip) { gripEl.style.transform = 'translateX(' + (swipePosition * w - GRIP / 2) + 'px)'; return; }
+  if (w !== gripTrack.w || h !== gripTrack.h) { gripTrack = { w: w, h: h }; grip.refresh(); }
+  if (!gripBusy) grip.setX(swipePosition * w - GRIP / 2, true);
+}
+el('divider-grip').addEventListener('keydown', function (event) {
+  var step = event.shiftKey ? 0.1 : 0.02;
+  var to = event.key === 'ArrowLeft' ? swipePosition - step : event.key === 'ArrowRight' ? swipePosition + step
+    : event.key === 'Home' ? 0 : event.key === 'End' ? 1 : null;
+  if (to === null) return;
+  event.preventDefault();
+  remember();
+  swipePosition = Math.min(1, Math.max(0, to));
+  paint();
+});
+makeGrip();
+if (calmQuery && calmQuery.addEventListener) calmQuery.addEventListener('change', makeGrip);
+
+/* The strip of photos slides into its new order instead of jumping, and the
+   grid's cells slide to their new places when a photo goes in, comes out or
+   moves. */
+var stripLayout = window.anime ? anime.createLayout('#order', { children: '.thumb', duration: 320, ease: 'out(3)' }) : null;
+function stripChange(change) {
+  if (!stripLayout || calm()) { change(); return; }
+  stripLayout.update(change);
+}
+var slideNext = false;
+var cellSlides = new Map();
+var cellsWere = new Map();
+function sameRect(a, b) {
+  return Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5 && Math.abs(a.width - b.width) < 0.5 && Math.abs(a.height - b.height) < 0.5;
+}
+/* The rectangles each cell is drawn in on the preview right now. A saved file
+   always uses the finished layout. */
+function slidingRects(rects, list) {
+  if (!cellSlides) return rects;
+  var go = slideNext && !calm();
+  slideNext = false;
+  var drawn = rects.map(function (rect, i) {
+    var cell = list[i];
+    if (!cell) return rect;
+    var slide = cellSlides.get(cell);
+    if (slide && !sameRect(slide.to, rect) && !go) { slide.anim.pause(); cellSlides.delete(cell); slide = null; }
+    if (go) {
+      var was = cellsWere.get(cell);
+      var from = slide ? { x: slide.x, y: slide.y, width: slide.width, height: slide.height, alpha: slide.alpha } : was ? { x: was.x, y: was.y, width: was.width, height: was.height, alpha: 1 } : null;
+      if (slide) slide.anim.pause();
+      if (from && !sameRect(from, rect)) {
+        slide = from;
+        slide.to = rect;
+        slide.anim = anime.animate(slide, { x: rect.x, y: rect.y, width: rect.width, height: rect.height, alpha: 1, duration: 420, ease: 'out(3)', onUpdate: paintSoon,
+          onComplete: (function (c, s) { return function () { if (cellSlides.get(c) === s) cellSlides.delete(c); paintSoon(); }; })(cell, slide) });
+        cellSlides.set(cell, slide);
+      } else if (!from && cell.image) {
+        slide = { x: rect.x, y: rect.y, width: rect.width, height: rect.height, alpha: 0, to: rect };
+        slide.anim = anime.animate(slide, { alpha: 1, duration: 300, ease: 'out(2)', onUpdate: paintSoon,
+          onComplete: (function (c, s) { return function () { if (cellSlides.get(c) === s) cellSlides.delete(c); paintSoon(); }; })(cell, slide) });
+        cellSlides.set(cell, slide);
+      } else { cellSlides.delete(cell); slide = null; }
+    }
+    return slide ? { x: slide.x, y: slide.y, width: slide.width, height: slide.height, alpha: slide.alpha } : rect;
+  });
+  cellsWere = new Map();
+  list.forEach(function (cell, i) { if (cell && rects[i]) cellsWere.set(cell, rects[i]); });
+  return drawn;
+}
 
 /* Whether the photos being dragged have any room to move. */
 function roomToMove(list, rect) {
@@ -10408,7 +10550,7 @@ document.addEventListener('paste', function (event) {
 });
 
 /* The version shown under About, raised with every release. */
-var APP_VERSION = '50';
+var APP_VERSION = '51';
 el('about-version').textContent = 'Version ' + APP_VERSION;
 
 /* ---------- groups of settings ---------- */
