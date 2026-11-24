@@ -8670,7 +8670,13 @@ function loadCloser() {
     document.head.appendChild(script);
   }).then(function () {
     var ort = window.ort;
-    ort.env.wasm.wasmPaths = new URL('./vendor/onnxruntime/', location.href).href;
+    /* a copy of the runtime's loader that asks for at most 1 GB, since Safari on
+       an iPhone sets aside the runtime's usual 4 GB limit in full and runs out */
+    window.PROOFLINE_ORT_PAGES = 16384;
+    ort.env.wasm.wasmPaths = {
+      mjs: new URL('./vendor/onnxruntime/ort-wasm-simd-threaded.capped.mjs', location.href).href,
+      wasm: new URL('./vendor/onnxruntime/ort-wasm-simd-threaded.wasm', location.href).href
+    };
     /* GitHub Pages can't turn on the shared memory that threads need */
     ort.env.wasm.numThreads = 1;
     ort.env.logLevel = 'error';
@@ -8679,9 +8685,17 @@ function loadCloser() {
       ort.InferenceSession.create('./vendor/aliked/aliked-extractor.onnx', options),
       ort.InferenceSession.create('./vendor/aliked/lightglue-matcher.onnx', options)
     ]).then(function (sessions) { return { ort: ort, extract: sessions[0], match: sessions[1] }; });
-  });
+  }).then(null, closerTrouble);
   closerTool.catch(function () { closerTool = null; });
   return closerTool;
+}
+
+/* The runtime reports running out of memory in several ways, some of them not
+   errors at all, so anything that isn't a plain download error reads the same. */
+function closerTrouble(error) {
+  var text = error && error.message ? String(error.message) : String(error);
+  if (error instanceof Error && !/memory|wasm|backend|abort/i.test(text)) throw error;
+  throw new Error('This phone ran out of memory for the closer match. Close other apps, open Proofline again and try once more, or use Two-point line up.');
 }
 
 /* A photo as it shows, fitted inside a W by H box with black around it. */
@@ -8711,16 +8725,30 @@ function closerFit(ref, cell) {
     var H = Math.max(32, Math.round(ref.image.height / long * CLOSER_SIDE / 32) * 32);
     var a = closerPicture(ref, W, H), b = closerPicture(cell, W, H);
     var plane = W * H;
-    var input = new Float32Array(2 * 3 * plane);
-    [a, b].forEach(function (pic, n) {
-      for (var i = 0; i < plane; i++) {
-        input[n * 3 * plane + i] = pic.data[i * 4] / 255;
-        input[n * 3 * plane + plane + i] = pic.data[i * 4 + 1] / 255;
-        input[n * 3 * plane + 2 * plane + i] = pic.data[i * 4 + 2] / 255;
-      }
-    });
     var ort = tool.ort;
-    return tool.extract.run({ images: new ort.Tensor('float32', input, [2, 3, H, W]) }).then(function (got) {
+    /* one photo at a time, which needs about half the memory of both at once */
+    var spots = function (pic) {
+      var input = new Float32Array(3 * plane);
+      for (var i = 0; i < plane; i++) {
+        input[i] = pic.data[i * 4] / 255;
+        input[plane + i] = pic.data[i * 4 + 1] / 255;
+        input[2 * plane + i] = pic.data[i * 4 + 2] / 255;
+      }
+      return tool.extract.run({ images: new ort.Tensor('float32', input, [1, 3, H, W]) });
+    };
+    var both = function (x, y) {
+      var out = new x.data.constructor(x.data.length + y.data.length);
+      out.set(x.data);
+      out.set(y.data, x.data.length);
+      return { data: out, dims: [2].concat(x.dims.slice(1)) };
+    };
+    return spots(a).then(function (first) {
+      return spots(b).then(function (second) {
+        if (first.keypoints.dims[1] !== second.keypoints.dims[1]) return null;
+        return { keypoints: both(first.keypoints, second.keypoints), normalized_keypoints: both(first.normalized_keypoints, second.normalized_keypoints), descriptors: both(first.descriptors, second.descriptors) };
+      });
+    }).then(function (got) {
+      if (!got) return null;
       var kp = got.keypoints, nk = got.normalized_keypoints, de = got.descriptors;
       var K = kp.dims[1];
       return tool.match.run({
@@ -8753,7 +8781,7 @@ function closerFit(ref, cell) {
         return fit;
       });
     });
-  });
+  }).then(null, closerTrouble);
 }
 
 /* The photos the last line up could not place, for Try the closer match. */
@@ -8790,9 +8818,11 @@ el('line-closer').addEventListener('click', function () {
       return step(n + 1);
     });
   };
+  var failed = false;
   step(0).catch(function (error) {
     message(error.message);
     missed = list;
+    failed = true;
   }).then(function () {
     lining = false;
     lineMissed = missed;
@@ -8801,7 +8831,7 @@ el('line-closer').addEventListener('click', function () {
     closerButton();
     paint();
     if (placed.length) message('Lined up ' + placed.map(photoName).join(' and ') + ' with the closer match.', true);
-    if (missed.length) message('The closer match could not place ' + missed.map(photoName).join(' and ') + ' either. Tap the same two spots on each photo with Two-point line up, like both ends of a scar.');
+    if (missed.length && !failed) message('The closer match could not place ' + missed.map(photoName).join(' and ') + ' either. Tap the same two spots on each photo with Two-point line up, like both ends of a scar.');
   });
 });
 
@@ -10550,7 +10580,7 @@ document.addEventListener('paste', function (event) {
 });
 
 /* The version shown under About, raised with every release. */
-var APP_VERSION = '51';
+var APP_VERSION = '52';
 el('about-version').textContent = 'Version ' + APP_VERSION;
 
 /* ---------- groups of settings ---------- */

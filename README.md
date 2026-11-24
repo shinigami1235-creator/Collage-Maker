@@ -36,7 +36,7 @@ installed the app keeps serving the old build until that string changes.
     vendor/mediapipe-selfie/   MediaPipe selfie segmentation 0.1, Apache 2.0, finds the person for Remove the background
     vendor/mediapipe-mesh/     MediaPipe Face Mesh 0.4, Apache 2.0, face points for the camera guide, line up and eye covers
     vendor/mediapipe-pose/     MediaPipe Pose 0.5 lite model, Apache 2.0, body points for the camera guide and line up
-    vendor/onnxruntime/        ONNX Runtime Web 1.22, MIT, runs the closer match
+    vendor/onnxruntime/        ONNX Runtime Web 1.22, MIT, runs the closer match; ort-wasm-simd-threaded.capped.mjs is its loader with the memory limit set to 1 GB, since Safari on iPhone fails to set aside the usual 4 GB
     vendor/aliked/             ALIKED (BSD 3-Clause) with LightGlue and RaCo (Apache 2.0), the closer match, notice in LICENSE-NOTICE.md
 
 The face mesh, pose, ONNX Runtime and ALIKED files download only when first
