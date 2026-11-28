@@ -215,6 +215,14 @@ details[open] summary { margin-bottom: 8px; }
 #messages { position: fixed; left: 0; right: 0; bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 60; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
 #messages .msg { pointer-events: auto; max-width: 560px; box-shadow: 0 4px 14px rgba(16,28,43,.18); cursor: pointer; }
 .msg.ok { background: #E7F2EA; color: #1D5A33; }
+.msg.note { background: #E8EEF5; color: #16324F; }
+.pin-say { font: 500 14px/20px var(--font); color: #16324F; background: #E8EEF5; border-radius: 6px; padding: 8px 12px; margin: 0 0 12px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.swatch { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--line, #c9d1da); background: var(--fill); cursor: pointer; padding: 0; }
+.swatch.frame { width: auto; border-radius: 20px; padding: 0 12px; background: #fff; font: 500 13px var(--font); color: inherit; }
+.swatch[aria-pressed="true"] { outline: 3px solid var(--primary); outline-offset: 2px; }
+#bg-fill-pick { width: 40px; height: 40px; padding: 0; border-radius: 50%; border: 2px solid var(--line, #c9d1da); cursor: pointer; }
+#bg-fill-pick.on { outline: 3px solid var(--primary); outline-offset: 2px; }
 .rescue-show { font: 600 18px/28px ui-monospace, Menlo, Consolas, monospace; white-space: nowrap; overflow-x: auto; margin: 10px 0 4px; padding: 10px 12px; border: 1px dashed var(--line-strong); border-radius: 8px; text-align: center; user-select: all; }
 
 .drop { border: 2px dashed var(--line-strong); border-radius: 10px; background: var(--surface); padding: 40px 20px; text-align: center; }
@@ -520,6 +528,20 @@ body.full .hint { display: none !important; }
             <div class="actions">
               <button class="btn btn-primary" type="button" id="bg-auto">Remove the background</button>
               <button class="btn" type="button" id="bg-draw">Draw around it</button>
+              <button class="btn" type="button" id="bg-view">Show it removed</button>
+            </div>
+            <div class="field">
+              <label for="bg-fill-pick">Colour behind the subject</label>
+              <div class="swatches" id="bg-fills">
+                <button type="button" class="swatch frame" data-fill="" title="The picture's background colour">Same as picture</button>
+                <button type="button" class="swatch" data-fill="#ffffff" style="--fill:#ffffff" title="White" aria-label="White"></button>
+                <button type="button" class="swatch" data-fill="#d5d9de" style="--fill:#d5d9de" title="Light grey" aria-label="Light grey"></button>
+                <button type="button" class="swatch" data-fill="#000000" style="--fill:#000000" title="Black" aria-label="Black"></button>
+                <button type="button" class="swatch" data-fill="#00b140" style="--fill:#00b140" title="Green" aria-label="Green"></button>
+                <button type="button" class="swatch" data-fill="#1f6feb" style="--fill:#1f6feb" title="Blue" aria-label="Blue"></button>
+                <input type="color" id="bg-fill-pick" value="#e0b45a" title="Any colour">
+              </div>
+              <input type="hidden" id="bg-fill" value="">
             </div>
             <div class="actions">
               <button class="btn" type="button" id="bg-undo">Undo</button>
@@ -566,7 +588,7 @@ body.full .hint { display: none !important; }
             </details>
             <details class="more">
               <summary>More</summary>
-              <label class="switch"><input type="checkbox" id="bg-ghost" checked> Show the removed part in faint red on screen</label>
+              <input type="checkbox" id="bg-ghost" checked hidden>
               <div class="actions">
                 <button class="btn" type="button" id="bg-copy">Use the first photo's cut on the others</button>
               </div>
@@ -595,6 +617,7 @@ body.full .hint { display: none !important; }
           <button class="btn btn-primary" type="button" id="line-auto">Auto line up</button>
           <button class="btn" type="button" id="line-undo">Undo</button>
         </div>
+        <p class="pin-say hidden" id="pin-note"></p>
         <div class="actions hidden" id="line-closer-row">
           <button class="btn btn-primary" type="button" id="line-closer" data-plan="basic">Try the closer match</button>
         </div>
@@ -1585,9 +1608,14 @@ function turnTo(cell, rect, degrees) {
   pinAt(cell, rect, spot.u, spot.v, middle);
 }
 
+var noFill = false;
 function drawPhoto(c, cell, rect) {
   var at = placement(cell, rect);
   c.save();
+  if (!ghost && !noFill && cell.image.cut && el('bg-fill').value) {
+    c.fillStyle = el('bg-fill').value;
+    c.fillRect(rect.x, rect.y, rect.width, rect.height);
+  }
   c.imageSmoothingQuality = 'high';
   /* a mirror selfie turned back the right way round */
   if (cell.flip) { c.translate(rect.x * 2 + rect.width, 0); c.scale(-1, 1); }
@@ -1634,7 +1662,9 @@ function cellLook(index) {
   cell.image.toned = null;
   var cut = cell.image.cut;
   if (cut && toned) buildCut(cell.image);
+  noFill = true;
   drawPhoto(c, cell, rect);
+  noFill = false;
   cell.image.toned = toned;
   if (cut && toned) buildCut(cell.image);
   var d = c.getImageData(0, 0, w, h).data;
@@ -2177,7 +2207,7 @@ function roughSubject(image) {
       }).then(function (eyes) {
         var seed = -1;
         if (eyes.length) {
-          var face = eyes[0];
+          var face = middleEyes(eyes);
           var fx = Math.round((face.a.u + face.b.u) / 2 * (size.w - 1)), fy = Math.round((face.a.v + face.b.v) / 2 * (size.h - 1));
           if (fx >= 0 && fy >= 0 && fx < size.w && fy < size.h) seed = fy * size.w + fx;
         }
@@ -2380,6 +2410,39 @@ el('bg-soft').addEventListener('change', function () {
 });
 
 el('bg-ghost').addEventListener('change', paint);
+/* shows the photos as they will be saved, or the removed part in faint red */
+el('bg-view').addEventListener('click', function () {
+  el('bg-ghost').checked = !el('bg-ghost').checked;
+  fillButtons();
+  keepSettings();
+  paint();
+});
+function fillButtons() {
+  var fill = el('bg-fill').value;
+  var known = false;
+  [].forEach.call(document.querySelectorAll('#bg-fills .swatch'), function (button) {
+    var on = button.dataset.fill === fill;
+    if (on) known = true;
+    button.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  el('bg-fill-pick').classList.toggle('on', !known);
+  if (!known) el('bg-fill-pick').value = fill;
+  el('bg-view').textContent = el('bg-ghost').checked ? 'Show it removed' : 'Show the removed part';
+  el('bg-view').classList.toggle('on', !el('bg-ghost').checked);
+}
+function pickFill(fill) {
+  el('bg-fill').value = fill;
+  /* picking a colour shows it straight away */
+  el('bg-ghost').checked = false;
+  fillButtons();
+  keepSettings();
+  paint();
+}
+el('bg-fills').addEventListener('click', function (event) {
+  var button = event.target.closest('.swatch');
+  if (button) pickFill(button.dataset.fill);
+});
+el('bg-fill-pick').addEventListener('input', function () { pickFill(el('bg-fill-pick').value); });
 
 el('bg-back').addEventListener('click', function () {
   saveBg(photos.filter(function (photo) { return photo.mask; }));
@@ -2542,6 +2605,7 @@ function bgButtons() {
   el('bg-undo').disabled = cutting || !bgPast.length;
   el('bg-redo').disabled = cutting || !bgAhead.length;
   el('bg-back').disabled = !photos.some(function (photo) { return photo.mask; });
+  el('bg-view').disabled = !photos.some(function (photo) { return photo.mask; });
   el('bg-copy').disabled = cutting || !(cells[0] && cells[0].image && cells[0].image.mask) || !cells.some(function (cell, index) { return index > 0 && cell.image; });
 }
 
@@ -2849,6 +2913,14 @@ function eyesOf(found, image) {
       return { a: backFrom(best.quarter, one.x, one.y), b: backFrom(best.quarter, two.x, two.y) };
     });
   });
+}
+
+/* The face whose eyes sit nearest the middle of the photo. */
+function middleEyes(eyes) {
+  return eyes.slice().sort(function (p, q) {
+    var off = function (e) { return Math.hypot((e.a.u + e.b.u) / 2 - 0.5, (e.a.v + e.b.v) / 2 - 0.5); };
+    return off(p) - off(q);
+  })[0];
 }
 
 /* A cover centred on a spot, turned to the line of the eyes. */
@@ -3294,7 +3366,7 @@ var nextId = 1;
 
 function message(text, ok) {
   var box = document.createElement('div');
-  box.className = ok ? 'msg ok' : 'msg';
+  box.className = ok === 'note' ? 'msg note' : ok ? 'msg ok' : 'msg';
   box.textContent = text;
   box.addEventListener('click', function () { box.remove(); });
   el('messages').appendChild(box);
@@ -5882,6 +5954,18 @@ function lineUp(list, area) {
     var how = area ? ' by the part you drew' : '';
     lineMissed = area ? [] : missed.slice();
     closerButton();
+    /* with no face to go by and no sure match, the two spots are asked for
+       straight away instead of a warning */
+    if (!area) {
+      var ask = missed.concat(unsure);
+      placed = placed.filter(function (index) { return unsure.indexOf(index) < 0; });
+      unsure = [];
+      missed = [];
+      if (ask.length) {
+        if (placed.length) message('Lined up ' + placed.map(photoName).join(' and ') + ' on ' + photoName(0) + '.' + edges, true);
+        askSpots(ask[0], ask.slice(1));
+      }
+    }
     if (placed.length === 1 && !missed.length && (ways.face || ways.body)) message('Lined up by the points of the ' + (ways.face ? 'face' : 'body') + '.' + edges, true);
     else if (placed.length === 1 && !missed.length && !parts) message('Lined up on ' + spots + ' matching spots' + (ways.closer ? ' with the closer match' : '') + (area ? ' inside the part' : '') + '.' + edges, true);
     else if (placed.length) message('Lined up ' + placed.map(photoName).join(' and ') + ' on ' + photoName(0) + how + '.' + edges, true);
@@ -5894,6 +5978,25 @@ function lineUp(list, area) {
     autoLine();
   });
   return true;
+}
+
+/* Two-point line up started for a photo that didn't line up by itself, with
+   why in a plain note. */
+function askSpots(index, rest) {
+  if (!cells[index] || !cells[index].image) return;
+  if (mode !== 'swipe') picked = index;
+  /* the Line up tab holds the step by step words for the taps */
+  if (tool !== 'line' && tool !== 'steps') pickTool('line');
+  startPins(2);
+  if (!pins) return;
+  var a = cells[0].image, b = cells[index].image;
+  var note = a.faceNote === 'several' || b.faceNote === 'several'
+    ? 'There is more than one face near the middle, so tap the same two spots on each photo, like the corners of one person\'s eyes.'
+    : a.faceNote === 'side' || b.faceNote === 'side'
+      ? 'This is a side view, so tap the same two spots on each photo, like the tip of the nose and the ear.'
+      : 'Tap the same two spots on each photo to line them up, like both ends of a scar.';
+  if (rest.length) note += ' ' + rest.map(photoName).join(' and ') + ' will need the same after.';
+  message(note, 'note');
 }
 
 /* Lines up a pair by itself the first time both photos are in. */
@@ -5937,10 +6040,16 @@ var PIN_SAY = {
 };
 var PIN_AGAIN = ['first', 'second', 'third', 'fourth'];
 
+function pinNote(text) {
+  el('pin-note').textContent = text;
+  el('pin-note').classList.toggle('hidden', !text);
+}
+
 function pinSay() {
   var first = pins.step < pins.count;
   var index = first ? 0 : pins.target, n = pins.step % pins.count;
   say(photoName(index) + (first ? PIN_SAY[pins.count][n] : ': tap the ' + PIN_AGAIN[n] + ' spot again.') + ' Hold and slide to place it exactly.');
+  pinNote(el('nudge-note').textContent);
   el('swipe-hint').textContent = 'Tap spot ' + (n + 1);
 }
 
@@ -5963,6 +6072,7 @@ function cancelPins() {
   if (mode === 'swipe') swipePosition = pins.split;
   pins = null;
   say('');
+  pinNote('');
   showTools();
   lineButtons();
   paint();
@@ -6018,6 +6128,7 @@ function finishPins() {
   var target = pins.target;
   if (mode === 'swipe') swipePosition = pins.split;
   pins = null;
+  pinNote('');
   showTools();
   lineButtons();
   remember();
@@ -6221,6 +6332,7 @@ function finishFour() {
   var ref = cells[0], cell = cells[pins.target], s = pins.spots, target = pins.target;
   if (mode === 'swipe') swipePosition = pins.split;
   pins = null;
+  pinNote('');
   showTools();
   lineButtons();
   var px = function (image, spot) { return { x: spot.u * image.width, y: spot.v * image.height }; };
@@ -8204,12 +8316,12 @@ function loadMesh() {
       script.onload = function () {
         try {
           var mesh = new window.FaceMesh({ locateFile: function (file) { return './vendor/mediapipe-mesh/' + file; } });
-          mesh.setOptions({ maxNumFaces: 1, refineLandmarks: false, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+          mesh.setOptions({ maxNumFaces: 4, refineLandmarks: false, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
           mesh.onResults(function (results) {
             if (!meshAnswer) return;
             var answer = meshAnswer;
             meshAnswer = null;
-            answer(results.multiFaceLandmarks && results.multiFaceLandmarks[0] || null);
+            answer(middleFace(results.multiFaceLandmarks || []));
           });
           mesh.initialize().then(function () { done(mesh); }, fail);
         } catch (error) { fail(error); }
@@ -8249,6 +8361,33 @@ function loadPose() {
   poseTool.catch(function () { poseTool = null; });
   return poseTool;
 }
+
+/* With more than one face, the one nearest the middle of the photo is the
+   patient, and faces off to the side are left out. Faces much smaller than the
+   biggest don't count. When two faces are about as near the middle, neither is
+   chosen and meshNote says so. */
+var meshNote = '';
+function middleFace(list) {
+  meshNote = '';
+  if (list.length < 2) return list[0] || null;
+  var big = list.reduce(function (m, face) { return Math.max(m, faceHeight(face)); }, 0);
+  var near = list.filter(function (face) { return faceHeight(face) >= big * 0.5; }).map(function (face) {
+    var x = (face[234].x + face[454].x) / 2, y = (face[10].y + face[152].y) / 2;
+    return { face: face, off: Math.hypot(x - 0.5, y - 0.5) };
+  }).sort(function (a, b) { return a.off - b.off; });
+  if (near.length > 1 && near[1].off - near[0].off < 0.08) { meshNote = 'several'; return null; }
+  return near[0].face;
+}
+
+/* A face seen from the side has its nose near one cheek. Its points don't
+   line up a photo well, so a side view counts as no face for lining up. */
+function sideView(face) {
+  var across = face[454].x - face[234].x;
+  if (Math.abs(across) < 1e-6) return true;
+  var nose = (face[1].x - face[234].x) / across;
+  return nose < 0.18 || nose > 0.82;
+}
+function usableFace(face) { return Boolean(face) && faceHeight(face) > 0.08 && !sideView(face); }
 
 /* One picture through a finder. still is true for a photo, so tracking from
    the live camera does not carry over onto it. */
@@ -8299,6 +8438,7 @@ function photoFace(image, flip) {
   if (image[key] !== undefined) return Promise.resolve(image[key]);
   return pointsOf('face', phoimageToCanvas(image, flip), true).then(function (face) {
     image[key] = face || null;
+    image.faceNote = face ? (sideView(face) ? 'side' : '') : meshNote;
     return image[key];
   }, function () { return null; });
 }
@@ -8343,7 +8483,7 @@ function faceDrift(fit, face) {
 function pointsFit(ref, cell) {
   /* the face first, since it is quicker, and the body only when a face is missing */
   return Promise.all([photoFace(ref.image, ref.flip), photoFace(cell.image, cell.flip)]).then(function (faces) {
-    if (faceHeight(faces[0]) > 0.08 && faceHeight(faces[1]) > 0.08) return [{ face: faces[0] }, { face: faces[1] }];
+    if (usableFace(faces[0]) && usableFace(faces[1])) return [{ face: faces[0] }, { face: faces[1] }];
     return Promise.all([photoPoints(ref.image, ref.flip), photoPoints(cell.image, cell.flip)]);
   }).then(function (got) {
     var a = got[0], b = got[1];
@@ -8355,7 +8495,7 @@ function pointsFit(ref, cell) {
       });
     };
     var how = '';
-    if (a.face && b.face && faceHeight(a.face) > 0.08 && faceHeight(b.face) > 0.08) {
+    if (usableFace(a.face) && usableFace(b.face)) {
       add(FACE_KEYS, b.face, a.face, function (point) { return Boolean(point); });
       how = 'face';
     } else if (a.body && b.body) {
@@ -10580,7 +10720,7 @@ document.addEventListener('paste', function (event) {
 });
 
 /* The version shown under About, raised with every release. */
-var APP_VERSION = '52';
+var APP_VERSION = '53';
 el('about-version').textContent = 'Version ' + APP_VERSION;
 
 /* ---------- groups of settings ---------- */
@@ -10714,7 +10854,7 @@ function drawFreeMark(c, width, height) {
 /* The choices are kept in this browser so the app opens the way it was left.
    The set itself is kept apart, under keeping the set between visits. */
 var KEPT = ['layout', 'empties', 'shape', 'gap', 'background', 'labels', 'size', 'format', 'zoom-scope', 'free-move',
-  'cover-kind', 'cover-on', 'cover-eyes-how', 'bg-how', 'bg-on', 'bg-size', 'bg-soft', 'bg-ghost', 'bg-carry', 'tone', 'post', 'cover-colour', 'cover-strength', 'mark-kind', 'mark-colour', 'mark-width', 'mark-show',
+  'cover-kind', 'cover-on', 'cover-eyes-how', 'bg-how', 'bg-on', 'bg-size', 'bg-soft', 'bg-ghost', 'bg-fill', 'bg-carry', 'tone', 'post', 'cover-colour', 'cover-strength', 'mark-kind', 'mark-colour', 'mark-width', 'mark-show',
   'tape-seconds', 'tape-each', 'line-closer-always', 'date-place', 'date-style', 'credit-text', 'credit-place',
   'wm-text', 'wm-place', 'wm-size', 'wm-strength', 'wm-colour'];
 var KEPT_NAME = 'collage-maker-settings';
@@ -11289,6 +11429,7 @@ el('restart').addEventListener('click', function () {
 });
 
 var keptAtStart = loadSettings();
+fillButtons();
 kitList('');
 symbolButtons();
 brandReads();
